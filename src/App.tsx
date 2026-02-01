@@ -6,6 +6,16 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Bookings from "./pages/Bookings";
+import Customers from "./pages/Customers";
+import Payments from "./pages/Payments";
+import CashMovement from "./pages/CashMovement";
+import Services from "./pages/Services";
+import Rentals from "./pages/Rentals";
+import Documents from "./pages/Documents";
+import Reports from "./pages/Reports";
+import Portal from "./pages/Portal";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
 
@@ -22,6 +32,16 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/cash-movement" element={<CashMovement />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/rentals" element={<Rentals />} />
+            <Route path="/documents" element={<Documents />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/portal" element={<Portal />} />
+            <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
