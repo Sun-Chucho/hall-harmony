@@ -16,6 +16,45 @@ const formatTZS = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const managementTiles = [
+  {
+    title: 'Bookings',
+    description: 'Check availability, approve requests, and keep venues in sync.',
+    path: '/bookings',
+    image: 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=900&q=80',
+  },
+  {
+    title: 'Customers',
+    description: 'View profiles, correspondence, and feedback loops.',
+    path: '/customers',
+    image: 'https://images.unsplash.com/photo-1459664018906-0856f44c1e08?auto=format&fit=crop&w=900&q=80',
+  },
+  {
+    title: 'Payments',
+    description: 'Record receipts, print approvals, and stay audit ready.',
+    path: '/payments',
+    image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=900&q=80',
+  },
+  {
+    title: 'Cash Movement',
+    description: 'Track deposits, vault counts, and mover approvals.',
+    path: '/cash-movement',
+    image: 'https://images.unsplash.com/photo-1432821596592-e2c18b78144f?auto=format&fit=crop&w=900&q=80',
+  },
+];
+
+const processSteps = [
+  'Choose a hall or combination that matches your guest count.',
+  'Select services, rentals, and décor packages to match the moment.',
+  'Lock payments, finalize documents, and notify your team through the portal.',
+];
+
+const hallImages: Record<string, string> = {
+  witness: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=900&q=80',
+  kilimanjaro: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
+  'hall-d': 'https://images.unsplash.com/photo-1503399535900-0cbbd3c6b1c4?auto=format&fit=crop&w=900&q=80',
+};
+
 const HighlightCard = ({
   title,
   description,
@@ -25,7 +64,7 @@ const HighlightCard = ({
   description: string;
   value: string;
 }) => (
-  <div className="rounded-3xl border border-white/20 bg-white/5 p-6 backdrop-blur">
+  <div className="rounded-3xl border border-white/20 bg-white/10 p-6 backdrop-blur-3xl transition hover:border-white/40">
     <p className="text-xs uppercase tracking-[0.3em] text-primary">{title}</p>
     <p className="mt-3 text-2xl font-semibold">{value}</p>
     <p className="mt-2 text-sm text-muted-foreground">{description}</p>
@@ -67,67 +106,101 @@ const Index = () => {
       </header>
 
       <main className="space-y-24 pb-24">
-        <section className="relative isolate">
-          <div className="absolute inset-0" aria-hidden="true">
-            <div className="h-full w-full bg-gradient-to-b from-slate-900/90 to-slate-950" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.2),_transparent_60%)]" />
-          </div>
+        <section
+          className="relative isolate overflow-hidden"
+          style={{
+            backgroundImage:
+              "linear-gradient(110deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.85)), url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1500&q=80')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-950/30 to-slate-950/90" />
           <div className="relative mx-auto max-w-6xl px-6 py-24">
-            <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="space-y-6">
-                <p className="text-sm uppercase tracking-[0.5em] text-primary">KURINGE HALLS</p>
-                <h1 className="text-4xl font-semibold leading-tight text-white md:text-6xl">
-                  World-class spaces for weddings, conferences, and celebrations across Dar es Salaam.
-                </h1>
-                <p className="text-lg text-white/70">
-                  Witness Hall, Kilimanjaro Hall &amp; Gardens, and Hall D are curated for unforgettable moments.
-                  Book online, lock your schedule, and let the operations team handle the rest.
-                </p>
-                <div className="flex flex-wrap gap-3">
+            <div className="rounded-3xl border border-white/20 bg-white/5 p-8 shadow-2xl shadow-black/70 backdrop-blur-3xl">
+              <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-6 text-white">
+                  <p className="text-sm uppercase tracking-[0.5em] text-primary">KURINGE HALLS</p>
+                  <h1 className="text-4xl font-semibold leading-tight md:text-6xl">
+                    World-class spaces for weddings, conferences, and celebrations across Dar es Salaam.
+                  </h1>
+                  <p className="text-lg text-white/80">
+                    Witness Hall, Kilimanjaro Hall &amp; Gardens, and Hall D are curated for unforgettable moments.
+                    Book online, lock your schedule, and let the operations team handle the rest with
+                    concierge-grade oversight.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      to="/bookings"
+                      className="rounded-full bg-primary/90 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/40 transition hover:-translate-y-0.5"
+                    >
+                      Start booking
+                    </Link>
+                    <Link
+                      to="/services"
+                      className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-white hover:text-white"
+                    >
+                      Explore services
+                    </Link>
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-white/20 bg-slate-950/40 p-6 shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.4em] text-primary">Check availability</p>
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <label className="text-xs uppercase tracking-[0.4em] text-white/70">
+                        Event type
+                      </label>
+                      <select className="mt-2 w-full bg-transparent text-white outline-none">
+                        <option>Wedding</option>
+                        <option>Conference</option>
+                        <option>Birthday</option>
+                        <option>Meeting</option>
+                      </select>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <label className="text-xs uppercase tracking-[0.4em] text-white/70">
+                        Location
+                      </label>
+                      <select className="mt-2 w-full bg-transparent text-white outline-none">
+                        <option>Kuringe Halls</option>
+                      </select>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <label className="text-xs uppercase tracking-[0.4em] text-white/70">
+                        Select date
+                      </label>
+                      <input
+                        type="date"
+                        className="mt-2 w-full bg-transparent text-white outline-none"
+                      />
+                    </div>
+                  </div>
                   <Link
-                    to="/login"
-                    className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/40 transition hover:-translate-y-0.5"
+                    to="/bookings"
+                    className="mt-6 block w-full rounded-2xl bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-primary/80"
                   >
-                    Start booking
+                    View booking process
                   </Link>
-                  <a
-                    href="#venues"
-                    className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-white hover:text-white"
-                  >
-                    Explore venues
-                  </a>
                 </div>
               </div>
-
-              <div className="rounded-3xl border border-white/30 bg-white/5 p-6 shadow-2xl shadow-black/40 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.4em] text-primary">Check availability</p>
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                    <label className="text-xs uppercase tracking-[0.4em] text-white/70">Event type</label>
-                    <select className="mt-2 w-full bg-transparent text-white outline-none">
-                      <option>Wedding</option>
-                      <option>Conference</option>
-                      <option>Birthday</option>
-                      <option>Meeting</option>
-                    </select>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                    <label className="text-xs uppercase tracking-[0.4em] text-white/70">Location</label>
-                    <select className="mt-2 w-full bg-transparent text-white outline-none">
-                      <option>Kuringe Halls</option>
-                    </select>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-                    <label className="text-xs uppercase tracking-[0.4em] text-white/70">Select date</label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full bg-transparent text-white outline-none"
-                    />
-                  </div>
-                </div>
-                <button className="mt-6 w-full rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary/90">
-                  Search availability
-                </button>
+            </div>
+          </div>
+        </section>
+        <section className="mx-auto max-w-6xl px-6">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/40 to-slate-900/60 p-6 text-white backdrop-blur-xl">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-primary">Refined view</p>
+                <h2 className="text-2xl font-bold">Select, confirm, activate</h2>
+              </div>
+              <div className="space-y-1 text-sm text-white/80">
+                {processSteps.map((step) => (
+                  <p key={step} className="flex gap-2">
+                    <span className="text-primary">•</span>
+                    <span>{step}</span>
+                  </p>
+                ))}
               </div>
             </div>
           </div>
@@ -143,7 +216,16 @@ const Index = () => {
           </div>
           <div className="grid gap-8 lg:grid-cols-3">
             {hallCatalog.map((hall) => (
-              <div key={hall.id} className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <Link
+                to="/bookings"
+                key={hall.id}
+                className="group space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur transition hover:border-white/40 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <div
+                  className="h-44 rounded-2xl bg-cover bg-center"
+                  style={{ backgroundImage: `url(${hallImages[hall.id]})` }}
+                  aria-hidden="true"
+                />
                 <div className="space-y-2">
                   <p className="text-xs uppercase tracking-[0.3em] text-primary">{hall.alias}</p>
                   <h3 className="text-2xl font-semibold text-white">{hall.name}</h3>
@@ -158,7 +240,7 @@ const Index = () => {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
           <div className="grid gap-5 lg:grid-cols-3">
@@ -273,6 +355,31 @@ const Index = () => {
               <p className="mt-3 text-sm text-white/80">Kufanya utoaji wa huduma hizi kunawekwa na meneja.</p>
             </div>
           </div>
+          <section aria-label="Management quick links" className="space-y-4">
+            <h3 className="text-sm uppercase tracking-[0.4em] text-primary">Management system</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {managementTiles.map((tile) => (
+                <Link
+                  key={tile.title}
+                  to={tile.path}
+                  className="group relative rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white transition hover:border-white/40 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                >
+                  <div
+                    className="absolute inset-0 rounded-3xl bg-cover bg-center opacity-30 transition duration-300 group-hover:opacity-60"
+                    style={{ backgroundImage: `url(${tile.image})` }}
+                  />
+                  <div className="relative space-y-2">
+                    <p className="text-xs uppercase tracking-[0.3em] text-primary">Refined view</p>
+                    <p className="text-lg font-semibold text-white">{tile.title}</p>
+                    <p className="text-xs text-white/80">{tile.description}</p>
+                    <span className="text-xs font-semibold tracking-[0.2em] text-primary">
+                      View refined experience →
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
         </section>
 
         <section id="packages" className="mx-auto max-w-6xl space-y-6 px-6">
