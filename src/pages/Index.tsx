@@ -45,7 +45,7 @@ const managementTiles = [
 
 const processSteps = [
   'Choose a hall or combination that matches your guest count.',
-  'Select services, rentals, and décor packages to match the moment.',
+  'Select services, rentals, and decor packages to match the moment.',
   'Lock payments, finalize documents, and notify your team through the portal.',
 ];
 
@@ -296,7 +296,7 @@ const Index = () => {
             ))}
           </div>
           <div className="rounded-3xl border border-primary/60 bg-primary/10 p-6 text-sm text-white/90">
-            <p className="font-semibold">Mimi ……………………….. Nimesoma na kukubaliana na miongozo yote hapo juu na nitafuata yote.</p>
+            <p className="font-semibold">Mimi ........................ Nimesoma na kukubaliana na miongozo yote hapo juu na nitafuata yote.</p>
             <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-[0.4em] text-white/60">
               <span>Saini</span>
               <span>Tarehe</span>
