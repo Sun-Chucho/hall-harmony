@@ -35,10 +35,10 @@ export default function CashMovement() {
       sections={movementSections}
       action={
         <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm uppercase tracking-[0.4em] text-primary">Recent Bookings</p>
-            <p className="mt-1 text-base font-semibold text-white">Latest booking activity</p>
-            <p className="text-sm text-white/70 mt-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 text-slate-700 shadow-sm">
+            <p className="text-sm uppercase tracking-[0.4em] text-slate-500">Recent Bookings</p>
+            <p className="mt-1 text-base font-semibold text-slate-900">Latest booking activity</p>
+            <p className="text-sm text-slate-600 mt-2">
               Booking data will appear here once you start creating bookings.
             </p>
           </div>
