@@ -13,6 +13,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Type definitions for role-specific stats
 interface ManagerStats {
@@ -98,16 +99,120 @@ const quickActions = [
     label: 'Approve deposit',
     description: 'Release the deposit held for today’s bookings.',
     action: 'Deposit approved',
+    path: '/payments',
   },
   {
     label: 'Assign crew',
     description: 'Lock down the hospitality crew for active events.',
     action: 'Crew assigned',
+    path: '/rentals',
   },
   {
     label: 'Send confirmation',
     description: 'Email the latest contract to the client.',
     action: 'Confirmation sent',
+    path: '/documents',
+  },
+];
+
+const functionalitySets: Record<
+  string,
+  { label: string; description: string; path: string; action: string }[]
+> = {
+  hall_manager: [
+    {
+      label: 'Review bookings',
+      description: 'Compare arrivals, capacity, and staffing in one view.',
+      path: '/bookings',
+      action: 'Opened booking review',
+    },
+    {
+      label: 'Customer care',
+      description: 'Send confirmations, follow up on inquiries, and assign assistants.',
+      path: '/customers',
+      action: 'Opened customer care',
+    },
+    {
+      label: 'Reports',
+      description: 'Generate the latest revenue and operations report.',
+      path: '/reports',
+      action: 'Opened reports',
+    },
+  ],
+  assistant_manager: [
+    {
+      label: 'Follow up leads',
+      description: 'Track new inquiries and confirm their availability.',
+      path: '/customers',
+      action: 'Opened follow-ups',
+    },
+    {
+      label: 'Lock packages',
+      description: 'Confirm décor, services, and menus per event.',
+      path: '/services',
+      action: 'Opened services & pricing',
+    },
+    {
+      label: 'Order rentals',
+      description: 'Reserve vehicles, equipment, and AV support.',
+      path: '/rentals',
+      action: 'Opened rentals',
+    },
+  ],
+  cashier_1: [
+    {
+      label: 'Record payments',
+      description: 'Capture cash, bank transfers, and mobile money receipts.',
+      path: '/payments',
+      action: 'Opened payments',
+    },
+    {
+      label: 'Print receipts',
+      description: 'Generate document-ready copies for auditors.',
+      path: '/documents',
+      action: 'Opened documents',
+    },
+    {
+      label: 'Monitor cash',
+      description: 'Track pending approvals from the till.',
+      path: '/cash-movement',
+      action: 'Opened cash movement',
+    },
+  ],
+  cashier_2: [
+    {
+      label: 'Approve movements',
+      description: 'Review till transfers before banking.',
+      path: '/cash-movement',
+      action: 'Opened cash movement approvals',
+    },
+    {
+      label: 'Update deposits',
+      description: 'Confirm bank deposit slips and reconciliation.',
+      path: '/payments',
+      action: 'Opened payment deposits',
+    },
+    {
+      label: 'Check balances',
+      description: 'Make sure safe and till balances match.',
+      path: '/reports',
+      action: 'Opened reports',
+    },
+  ],
+};
+
+const defaultFunctionalities = [
+  {
+    label: 'Visit bookings',
+    description: 'Browse every event scheduled for Kuringe Halls.',
+    path: '/bookings',
+    action: 'Viewed bookings',
+  },
+  {
+    label: 'Visit services',
+    description: 'Open the services & pricing catalog to customize menus.',
+    path: '/services',
+    action: 'Viewed services',
   },
 ];
 
@@ -310,6 +415,7 @@ function Cashier2Dashboard({ stats }: { stats: Cashier2Stats }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [lastQuickAction, setLastQuickAction] = useState('No actions yet');
 
   if (!user) return null;
@@ -329,6 +435,15 @@ export default function Dashboard() {
     }
   };
 
+  const userFunctionalities = functionalitySets[user.role] ?? defaultFunctionalities;
+
+  const handleActionClick = (item: { action: string; path?: string }) => {
+    setLastQuickAction(item.action);
+    if (item.path) {
+      navigate(item.path);
+    }
+  };
+
   return (
     <DashboardLayout title="Dashboard">
       <div className="space-y-6 text-slate-900">
@@ -344,6 +459,35 @@ export default function Dashboard() {
 
         {/* Role-specific Stats */}
         {renderDashboardContent()}
+
+        {/* Functionalities */}
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Functionalities</p>
+              <h3 className="text-xl font-semibold text-slate-900">Tools for {ROLE_LABELS[user.role]}</h3>
+            </div>
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">{ROLE_LABELS[user.role]}</span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {userFunctionalities.map((item) => (
+              <div
+                key={item.label}
+                className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-700 shadow-sm"
+              >
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{item.label}</p>
+                <p className="text-sm text-slate-600">{item.description}</p>
+                <button
+                  type="button"
+                  onClick={() => handleActionClick(item)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.3em] text-red-500 transition hover:text-red-600"
+                >
+                  Open →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Recent Activity + Quick Actions */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -377,23 +521,23 @@ export default function Dashboard() {
               <CardTitle className="text-slate-900">Quick Actions</CardTitle>
               <CardDescription className="text-slate-600">Trigger frequent tasks</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {quickActions.map((action) => (
-                <div
-                  key={action.label}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
-                >
+              <CardContent className="space-y-3">
+                {quickActions.map((action) => (
+                  <div
+                    key={action.label}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
+                  >
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{action.label}</p>
                     <p className="text-xs text-slate-600">{action.description}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setLastQuickAction(action.action)}
-                    className="rounded-full border border-slate-300 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-slate-800"
-                  >
-                    Run
-                  </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleActionClick(action)}
+                      className="rounded-full border border-slate-300 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-slate-800"
+                    >
+                      Run
+                    </button>
                 </div>
               ))}
               <p className="text-xs text-slate-500">Last action: {lastQuickAction}</p>
