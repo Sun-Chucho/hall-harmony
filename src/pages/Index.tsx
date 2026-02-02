@@ -1,7 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Users, ArrowRight, Sparkles, Star, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { hallCatalog } from '@/lib/landingData';
+import {
+  beverageList,
+  conferencePackages,
+  decorationPackages,
+  hallCatalog,
+  muhimuNotes,
+  taratibuChecklist,
+} from '@/lib/landingData';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -11,287 +16,336 @@ const formatTZS = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const hallImages: Record<string, string> = {
-  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
-  kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
-  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1200&q=80',
-};
-
-const navLinks = [
-  { href: '/venues', label: 'Venues' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/taratibu', label: 'Taratibu' },
-  { href: '/muhimu', label: 'Muhimu' },
-  { href: '/packages', label: 'Packages' },
+const heroStats = [
+  { label: 'Premium spaces', value: '3 curated halls' },
+  { label: 'Dedicated team', value: 'On-ground hospitality crew' },
+  { label: 'Global taste', value: 'Local + international menus' },
 ];
+const heroBackgroundImage =
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
+
+const managementCards = [
+  {
+    title: 'Bookings & approvals',
+    description: 'Review schedules, confirm deposits, and lock your preferred hall.',
+    path: '/bookings',
+  },
+  {
+    title: 'Customer care',
+    description: 'Stay in touch with clients, handle feedback, and share bespoke proposals.',
+    path: '/customers',
+  },
+  {
+    title: 'Payments & cash',
+    description: 'Capture receipts, prepare deposits, and keep every transaction transparent.',
+    path: '/payments',
+  },
+  {
+    title: 'Operations & rentals',
+    description: 'Coordinate rentals, equipment, and the on-site crew in one view.',
+    path: '/rentals',
+  },
+];
+
+const culinaryHighlights = [
+  {
+    name: 'Kilimanjaro Sunset Platter',
+    details: 'Grilled seafood, tandoori spices, coconut rice, and citrus tourne.',
+    price: 'TSh 85,000 pp',
+  },
+  {
+    name: 'Coastal Harvest Feast',
+    details: 'Madras curry, swahili pilau, roasted veggies, and urban salad bowls.',
+    price: 'TSh 65,000 pp',
+  },
+  {
+    name: 'Executive Gala Station',
+    details: 'Mini wagyu sliders, truffle fries, champagne sorbet, and tasting towers.',
+    price: 'TSh 120,000 pp',
+  },
+];
+
+const processSteps = [
+  'Choose the hall or combination that matches your guest count.',
+  'Select services, rentals, and décor packages to define the mood.',
+  'Lock payments, finalize documents, and notify the operations crew.',
+];
+
+const highlightCards = [
+  { title: 'Events hosted', value: '450+', description: 'Weddings, conferences, galas' },
+  { title: 'Average monthly bookings', value: '24', description: 'Ready for bespoke touches' },
+  { title: 'Guest satisfaction', value: '98%', description: 'Repeat clients & referrals' },
+];
+
+const HighlightCard = ({
+  title,
+  value,
+  description,
+}: {
+  title: string;
+  value: string;
+  description: string;
+}) => (
+  <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 shadow-sm">
+    <p className="text-xs uppercase tracking-widest text-slate-500">{title}</p>
+    <p className="mt-3 text-3xl font-semibold text-slate-900">{value}</p>
+    <p className="mt-2 text-sm text-slate-600">{description}</p>
+  </div>
+);
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex items-center justify-between h-20">
-            <Link to="/" className="text-2xl font-bold text-foreground">
-              Kuringe<span className="text-primary">Halls</span>
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link to="/" className="text-2xl font-bold text-slate-900">
+            Kuringe<span className="text-red-600">Halls</span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+            <a href="#venues" className="hover:text-slate-900">
+              Venues
+            </a>
+            <a href="#culinary" className="hover:text-slate-900">
+              Culinary
+            </a>
+            <a href="#process" className="hover:text-slate-900">
+              Process
+            </a>
+            <Link to="/foods" className="hover:text-slate-900">
+              Food menu
             </Link>
-
-            <nav className="hidden md:flex items-center gap-8">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="outline" className="border-border text-foreground hover:bg-secondary">
-                  Login
-                </Button>
-              </Link>
-              <Link to="/login" className="hidden sm:block">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25">
-                  Book Now
-                </Button>
-              </Link>
-            </div>
+          </nav>
+          <div className="hidden items-center gap-4 text-sm md:flex">
+            <Link to="/customers" className="text-slate-600 hover:text-slate-900">
+              <span className="border-b border-transparent pb-0.5 hover:border-slate-900">Customers</span>
+            </Link>
+            <Link
+              to="/bookings"
+              className="rounded-full border border-slate-200 bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-white transition hover:bg-slate-800"
+            >
+              Book now
+            </Link>
           </div>
         </div>
       </header>
 
-      <main>
-        {/* Hero Section */}
-        <section className="relative py-20 md:py-32 bg-white overflow-hidden">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="grid lg:grid-cols-2 gap-16 items-center">
-              {/* Left Content */}
-              <div className="space-y-8">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">Premium Event Venues in Dar es Salaam</span>
-                </div>
-
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground leading-[1.1]">
-                  Where Dreams
-                  <span className="block text-primary">
-                    Become Reality
-                  </span>
-                </h1>
-
-                <p className="text-xl text-muted-foreground max-w-xl leading-relaxed">
-                  Discover Kuringe Halls — Dar es Salaam's premier destination for weddings, 
-                  conferences, and celebrations. World-class venues designed for unforgettable moments.
+      <main className="space-y-20 pb-24">
+        <section className="px-6 pt-16">
+          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-6">
+              <p className="text-xs uppercase tracking-[0.6em] text-slate-500">Kuringe Halls</p>
+              <h1 className="text-4xl font-bold leading-tight text-slate-900 md:text-5xl">
+                World-class celebrations and conferences in Dar es Salaam.
+              </h1>
+              <p className="text-lg text-slate-500">
+                Experience regal venues, curated hospitality, and a culinary team that composes flavors
+                fit for executives and family gatherings alike. Every detail is engineered to feel effortless.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Link
+                  to="/bookings"
+                  className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white shadow-lg shadow-slate-300 transition hover:bg-slate-800"
+                >
+                  Book your hall
+                </Link>
+                <Link
+                  to="/foods"
+                  className="rounded-full border border-red-600 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-red-600 transition hover:border-red-500"
+                >
+                  View culinary menu
+                </Link>
+              </div>
+              <div className="grid gap-4 pt-8 md:grid-cols-3">
+                {heroStats.map((stat) => (
+                  <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{stat.label}</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-900">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-5">
+              <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 to-slate-700 p-8 text-white shadow-2xl">
+                <h2 className="text-xl font-semibold text-white">Refined arrival</h2>
+                <p className="mt-2 text-sm text-slate-200">
+                  Entry lounges, bespoke lighting, and concierge service keep every guest centered on the celebration.
                 </p>
-
-                <div className="flex flex-wrap gap-4">
-                  <Link to="/login">
-                    <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg rounded-xl shadow-lg shadow-primary/25">
-                      Book Your Event
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Button>
-                  </Link>
-                  <Link to="/venues">
-                    <Button variant="outline" size="lg" className="border-2 border-border text-foreground px-8 py-6 text-lg rounded-xl hover:bg-secondary">
-                      Explore Venues
-                    </Button>
-                  </Link>
-                </div>
-
-                {/* Stats */}
-                <div className="flex flex-wrap gap-8 pt-8 border-t border-border">
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">3</p>
-                    <p className="text-sm text-muted-foreground">Premium Halls</p>
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1 border-b border-white/20 pb-3">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-300">Capacity range</p>
+                    <p className="text-2xl font-semibold">30–700</p>
                   </div>
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">700+</p>
-                    <p className="text-sm text-muted-foreground">Guest Capacity</p>
+                  <div className="space-y-1 border-b border-white/20 pb-3">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-300">Avg. events</p>
+                    <p className="text-2xl font-semibold">24 / month</p>
                   </div>
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">500+</p>
-                    <p className="text-sm text-muted-foreground">Events Hosted</p>
+                  <div className="space-y-1 border-b border-white/20 pb-3">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-300">Menu tiers</p>
+                    <p className="text-2xl font-semibold">5+</p>
                   </div>
                 </div>
               </div>
-
-              {/* Right - Hero Image */}
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/10 rounded-3xl transform rotate-3" />
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl">
-                  <img 
-                    src="https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80"
-                    alt="Kuringe Halls Wedding Venue"
-                    className="w-full h-[500px] object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                  <div className="absolute bottom-6 left-6 right-6">
-                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Star className="w-6 h-6 text-primary fill-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">Witness Hall</p>
-                        <p className="text-sm text-muted-foreground">Our flagship venue for 500-700 guests</p>
-                      </div>
-                    </div>
-                  </div>
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/40 shadow-lg backdrop-blur-sm">
+                <div
+                  className="relative h-72 w-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${heroBackgroundImage})` }}
+                  aria-hidden="true"
+                >
+                  <div className="absolute inset-0 bg-white/30 backdrop-blur-sm" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/40 to-white/70" />
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Quick Navigation */}
-        <section className="py-16 bg-secondary">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {navLinks.map((link) => (
+        <section id="management" className="px-6">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Management system</p>
+                <h2 className="text-3xl font-bold text-slate-900">Every flow ends with a signature experience.</h2>
+              </div>
+              <Link
+                to="/dashboard"
+                className="text-sm font-semibold uppercase tracking-[0.4em] text-slate-600 transition hover:text-slate-900"
+              >
+                Explore the control room →
+              </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+              {managementCards.map((card) => (
                 <Link
-                  key={link.href}
-                  to={link.href}
-                  className="group flex items-center justify-between p-6 rounded-2xl bg-white border border-border hover:border-primary hover:shadow-lg transition-all"
+                  key={card.title}
+                  to={card.path}
+                  className="group rounded-3xl border border-slate-200 bg-slate-50/70 p-6 transition hover:-translate-y-1 hover:border-slate-300"
                 >
-                  <span className="font-semibold text-foreground">{link.label}</span>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Operations</p>
+                  <h3 className="mt-3 text-xl font-semibold text-slate-900">{card.title}</h3>
+                  <p className="mt-2 text-sm text-slate-600">{card.description}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.3em] text-red-600">
+                    Open refined view →
+                  </p>
                 </Link>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Venues Preview */}
-        <section className="py-20">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-                Our Venues
-              </p>
-              <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-                Premium Event Spaces
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                Three exceptional venues designed to bring your vision to life.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {hallCatalog.map((hall, index) => (
-                <Link
-                  key={hall.id}
-                  to="/venues"
-                  className="group rounded-3xl overflow-hidden bg-white border border-border shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
-                >
-                  {/* Image */}
-                  <div className="relative h-64 overflow-hidden">
-                    <img 
-                      src={hallImages[hall.id]}
-                      alt={hall.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    
-                    {index === 0 && (
-                      <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-                        <Star className="w-3 h-3 fill-current" />
-                        Featured
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white">
-                      <Users className="w-4 h-4" />
-                      <span className="text-sm font-medium">{hall.capacity}</span>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">
-                      {hall.alias}
-                    </p>
-                    <h3 className="text-xl font-bold text-foreground mb-2">{hall.name}</h3>
-                    <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{hall.description}</p>
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Starting from</p>
-                        <p className="text-lg font-bold text-foreground">
-                          {formatTZS(Math.min(...hall.rates.map(r => r.price)))}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" className="border-primary text-primary hover:bg-primary/5">
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-            <div className="text-center mt-12">
-              <Link to="/venues">
-                <Button size="lg" className="bg-foreground text-background hover:bg-foreground/90 px-8">
-                  View All Venues
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
+        <section id="culinary" className="px-6">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Culinary artistry</p>
+                <h2 className="text-3xl font-bold text-slate-900">The food is the stage.</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Global chefs craft menus inspired by Tanzanian coastlines and international trends.
+                </p>
+              </div>
+              <Link
+                to="/foods"
+                className="text-sm font-semibold uppercase tracking-[0.4em] text-red-600 transition hover:text-red-500"
+              >
+                View full experience →
               </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {culinaryHighlights.map((item) => (
+                <div key={item.name} className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-6">
+                  <div className="flex items-center justify-between">
+                    <p className="text-lg font-semibold">{item.name}</p>
+                    <span className="text-xs font-semibold uppercase tracking-[0.3em] text-red-600">Chef</span>
+                  </div>
+                  <p className="text-sm text-slate-600">{item.details}</p>
+                  <p className="text-sm font-semibold text-slate-900">{item.price}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-20 bg-foreground text-background">
-          <div className="mx-auto max-w-4xl px-6 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Ready to Book Your Event?
-            </h2>
-            <p className="text-lg text-background/70 mb-8">
-              Contact us today to discuss your requirements and secure your preferred date.
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <Link to="/pricing">
-                <Button size="lg" variant="outline" className="border-background/30 text-background hover:bg-background/10 px-8 py-6 text-lg">
-                  View Pricing
-                </Button>
+        <section id="process" className="bg-slate-50 py-16">
+          <div className="mx-auto max-w-6xl space-y-6 px-6">
+            <div className="space-y-2 text-center">
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Process</p>
+              <h2 className="text-3xl font-bold text-slate-900">Three steps to a flawless event</h2>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {processSteps.map((step, index) => (
+                <div key={step} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Step {index + 1}</p>
+                  <p className="mt-3 text-lg font-semibold text-slate-900">{step}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-6">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Achievements</p>
+                <h2 className="text-3xl font-bold text-slate-900">Performance that feels effortless.</h2>
+              </div>
+              <Link
+                to="/reports"
+                className="text-sm font-semibold uppercase tracking-[0.4em] text-slate-600 transition hover:text-slate-900"
+              >
+                See the reports →
               </Link>
-              <Link to="/login">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-                  Start Booking
-                </Button>
-              </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {highlightCards.map((card) => (
+                <HighlightCard key={card.title} {...card} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-6">
+          <div className="mx-auto max-w-6xl space-y-6">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Rental & extras</p>
+                <p className="mt-3 text-sm text-slate-600">
+                  Vehicles, décor, AV, and lounges are arranged through our operations desk.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Beverages</p>
+                <ul className="mt-3 space-y-3 text-sm text-slate-600">
+                  {beverageList.slice(0, 4).map((drink) => (
+                    <li key={drink.name} className="flex items-center justify-between">
+                      <span>{drink.name}</span>
+                      <span className="text-slate-900">{formatTZS(drink.price)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-xs text-slate-500">VAT 18% included.</p>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Commitments</p>
+                <p className="mt-3 text-sm text-slate-600">{muhimuNotes[0]}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-900 p-8 text-white md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.4em] text-blue-200">Need help?</p>
+              <h2 className="text-3xl font-bold">Call +255 717 000 000 or email bookings@kuringehalls.co.tz</h2>
+            </div>
+            <div className="flex flex-col gap-2 text-sm text-slate-200 md:flex-row md:items-center">
+              <span>Payments via cash, transfer, or mobile money</span>
+              <span className="hidden md:inline">•</span>
+              <span>Two-cashier model & audit ready</span>
             </div>
           </div>
         </section>
       </main>
-
-      {/* Footer */}
-      <footer className="py-12 border-t border-border">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <Link to="/" className="text-xl font-bold text-foreground">
-              Kuringe<span className="text-primary">Halls</span>
-            </Link>
-            <nav className="flex flex-wrap items-center gap-6">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-            <p className="text-sm text-muted-foreground">
-              &copy; 2024 Kuringe Halls. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
