@@ -25,6 +25,7 @@ import Taratibu from "./pages/Taratibu";
 import Muhimu from "./pages/Muhimu";
 import Packages from "./pages/Packages";
 import Hall from "./pages/Hall";
+import AdminConsole from "./pages/AdminConsole";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/foods" element={<Foods />} />
             <Route path="/halls/:hallId" element={<Hall />} />
+            <Route path="/admin" element={<AdminConsole />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

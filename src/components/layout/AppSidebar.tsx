@@ -39,6 +39,7 @@ import {
   Banknote,
   Package,
   Globe,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface NavItem {
@@ -101,6 +102,12 @@ const operationsNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+  {
+    title: 'Admin Console',
+    icon: ShieldCheck,
+    path: '/admin',
+    roles: ['hall_manager'],
+  },
   {
     title: 'Reports',
     icon: BarChart3,
