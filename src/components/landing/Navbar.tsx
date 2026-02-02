@@ -14,7 +14,7 @@ const Navbar = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-blue-100">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-lg border-b border-slate-200">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
@@ -23,28 +23,31 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-blue-900/70 hover:text-blue-950 transition-colors"
+                className="transition hover:text-slate-900"
               >
                 {link.label}
               </a>
             ))}
+            <Link to="/foods" className="text-sm font-medium transition hover:text-slate-900">
+              Food menu
+            </Link>
           </nav>
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
             <Link to="/login">
-              <Button variant="outline" className="border-blue-900/20 text-blue-900 hover:bg-blue-50">
+              <Button variant="outline" className="border-slate-300 text-slate-900 hover:bg-slate-50">
                 Login
               </Button>
             </Link>
-            <Link to="/login">
-              <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25">
-                Book Now
+            <Link to="/foods">
+              <Button className="bg-red-600 text-white hover:bg-red-500">
+                View menu
               </Button>
             </Link>
           </div>
@@ -60,27 +63,34 @@ const Navbar = () => {
 
         {/* Mobile Nav */}
         {isOpen && (
-          <div className="md:hidden py-6 border-t border-blue-100">
+          <div className="md:hidden py-6 border-t border-slate-200">
             <nav className="flex flex-col gap-4">
               {navLinks.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-lg font-medium text-blue-900/70 hover:text-blue-950 transition-colors"
+                  className="text-lg font-medium text-slate-600 transition hover:text-slate-900"
                 >
                   {link.label}
                 </a>
               ))}
-              <div className="flex flex-col gap-3 pt-4 mt-4 border-t border-blue-100">
+              <Link
+                to="/foods"
+                onClick={() => setIsOpen(false)}
+                className="text-lg font-medium text-slate-600 transition hover:text-slate-900"
+              >
+                Food menu
+              </Link>
+              <div className="flex flex-col gap-3 pt-4 mt-4 border-t border-slate-200">
                 <Link to="/login" onClick={() => setIsOpen(false)}>
-                  <Button variant="outline" className="w-full border-blue-900/20 text-blue-900">
+                  <Button variant="outline" className="w-full border-slate-300 text-slate-900">
                     Login
                   </Button>
                 </Link>
-                <Link to="/login" onClick={() => setIsOpen(false)}>
-                  <Button className="w-full bg-primary hover:bg-primary/90 text-white">
-                    Book Now
+                <Link to="/foods" onClick={() => setIsOpen(false)}>
+                  <Button className="w-full bg-red-600 text-white hover:bg-red-500">
+                    View menu
                   </Button>
                 </Link>
               </div>

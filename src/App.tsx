@@ -16,6 +16,7 @@ import Documents from "./pages/Documents";
 import Reports from "./pages/Reports";
 import Portal from "./pages/Portal";
 import Settings from "./pages/Settings";
+import Foods from "./pages/Foods";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
 import Venues from "./pages/Venues";
@@ -23,6 +24,7 @@ import Pricing from "./pages/Pricing";
 import Taratibu from "./pages/Taratibu";
 import Muhimu from "./pages/Muhimu";
 import Packages from "./pages/Packages";
+import Hall from "./pages/Hall";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +54,8 @@ const App = () => (
             <Route path="/reports" element={<Reports />} />
             <Route path="/portal" element={<Portal />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/foods" element={<Foods />} />
+            <Route path="/halls/:hallId" element={<Hall />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
