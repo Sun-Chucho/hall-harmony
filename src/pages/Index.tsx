@@ -64,45 +64,45 @@ const HighlightCard = ({
   value: string;
   description: string;
 }) => (
-  <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-lg">
-    <p className="text-xs uppercase tracking-[0.4em] text-white/70">{title}</p>
-    <p className="mt-3 text-3xl font-bold text-white">{value}</p>
-    <p className="mt-2 text-sm text-white/60">{description}</p>
+  <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <p className="text-xs uppercase tracking-[0.4em] text-slate-500">{title}</p>
+    <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
+    <p className="mt-2 text-sm text-slate-600">{description}</p>
   </div>
 );
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-black/70 backdrop-blur-lg">
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="text-2xl font-semibold tracking-wide">
-            Kuringe<span className="text-red-500">Halls</span>
+          <Link to="/" className="text-2xl font-semibold tracking-wide text-slate-900">
+            Kuringe<span className="text-red-600">Halls</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-white/80 md:flex">
-            <a href="#halls" className="hover:text-white transition">
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+            <a href="#halls" className="hover:text-slate-900 transition">
               Halls
             </a>
-            <a href="#design" className="hover:text-white transition">
+            <a href="#design" className="hover:text-slate-900 transition">
               Studio
             </a>
-            <a href="#culinary" className="hover:text-white transition">
+            <a href="#culinary" className="hover:text-slate-900 transition">
               Culinary
             </a>
-            <a href="#process" className="hover:text-white transition">
+            <a href="#process" className="hover:text-slate-900 transition">
               Process
             </a>
           </nav>
-          <div className="hidden items-center gap-4 text-xs uppercase tracking-[0.3em] md:flex">
+          <div className="hidden items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-600 md:flex">
             <Link
               to="/bookings"
-              className="rounded-full border border-white/20 px-5 py-2 tracking-[0.4em] text-white transition hover:border-white"
+              className="rounded-full border border-slate-200 px-5 py-2 tracking-[0.4em] text-slate-900 transition hover:border-slate-400"
             >
               Bookings
             </Link>
             <Link
               to="/foods"
-              className="rounded-full border border-red-500 px-5 py-2 text-red-300 transition hover:bg-red-500 hover:text-white"
+              className="rounded-full border border-red-500 px-5 py-2 text-red-600 transition hover:bg-red-500 hover:text-white"
             >
               Culinary menu
             </Link>
@@ -110,69 +110,67 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="space-y-24 pb-24">
-        <section className="relative isolate overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-black px-6 pt-20">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(248,113,113,0.2),_transparent_45%)]" />
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+      <main className="space-y-20 pb-24">
+        <section className="relative px-6 pt-20">
+          <div className="mx-auto grid max-w-6xl gap-12 rounded-3xl border border-slate-200 bg-white p-10 shadow-lg lg:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-6">
-              <p className="text-xs uppercase tracking-[0.6em] text-white/60">Kuringe Halls</p>
-              <h1 className="text-4xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
+              <p className="text-xs uppercase tracking-[0.6em] text-slate-500">Kuringe Halls</p>
+              <h1 className="text-4xl font-bold leading-tight text-slate-900 md:text-5xl lg:text-6xl">
                 World-class venues, digital design tools, and flawless hospitality in Dar es Salaam.
               </h1>
-              <p className="text-lg text-white/70">
-                Every hall is crafted with purpose, concierge teams, and a planning studio that lets you preview
-                lighting, menus, and décor before the event day.
+              <p className="text-lg text-slate-600">
+                Every hall is designed for purpose, supported by concierge teams, and guided by a planning studio that lets
+                you explore lighting, menus, and décor ahead of time.
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link
                   to="/venues"
-                  className="rounded-full bg-white/20 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white/40"
+                  className="rounded-full border border-slate-900/20 bg-slate-900/5 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-slate-900 transition hover:border-slate-700"
                 >
                   Explore halls
                 </Link>
                 <Link
                   to="/foods"
-                  className="rounded-full border border-white/40 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white/10"
+                  className="rounded-full border border-red-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-red-600 transition hover:bg-red-50"
                 >
                   View culinary menu
                 </Link>
               </div>
               <div className="grid gap-4 pt-8 md:grid-cols-3">
                 {heroStats.map((stat) => (
-                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
-                    <p className="text-[0.6rem] uppercase tracking-[0.4em] text-white/60">{stat.label}</p>
-                    <p className="mt-3 text-2xl font-semibold">{stat.value}</p>
+                  <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+                    <p className="text-[0.6rem] uppercase tracking-[0.4em] text-slate-500">{stat.label}</p>
+                    <p className="mt-3 text-2xl font-semibold text-slate-900">{stat.value}</p>
                   </div>
                 ))}
               </div>
             </div>
             <div className="space-y-5">
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
-                <h2 className="text-xl font-semibold text-white">Glassy experience studio</h2>
-                <p className="mt-3 text-sm text-white/60">
-                  Design lines, sample menus, and collaborate with your planner inside a shared dashboard that mirrors
-                  the actual venue mood before any decision is locked.
+              <div className="space-y-4 rounded-[32px] border border-slate-200 bg-slate-50 p-8 shadow-lg">
+                <h2 className="text-xl font-semibold text-slate-900">Experience studio</h2>
+                <p className="text-sm text-slate-600">
+                  Sample lighting cues, taste menus, and collaborate with your planner before the event day.
                 </p>
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {designPillars.map((pillar) => (
-                    <div key={pillar.title} className="rounded-2xl bg-white/5 p-4 text-sm text-white/80">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/60">{pillar.title}</p>
-                      <p className="mt-2">{pillar.description}</p>
+                    <div key={pillar.title} className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{pillar.title}</p>
+                      <p className="mt-2 text-slate-800">{pillar.description}</p>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-red-500/30 via-black to-black p-8 text-white shadow-2xl">
-                <p className="text-sm uppercase tracking-[0.4em] text-white/70">Signature service</p>
-                <p className="mt-4 text-2xl font-bold">Concierge crews + ops directors</p>
-                <p className="mt-3 text-sm text-white/70">
-                  Operations & guest care teams are on-site to ensure every page-perfect plan plays out precisely.
+              <div className="space-y-2 rounded-[32px] border border-slate-200 bg-white p-8 shadow-lg">
+                <p className="text-sm uppercase tracking-[0.4em] text-slate-500">Signature service</p>
+                <p className="text-2xl font-bold text-slate-900">Concierge crews + ops directors</p>
+                <p className="text-sm text-slate-600">
+                  Operations and guest care experts are on-site to ensure everything happens exactly as planned.
                 </p>
-                <div className="mt-6 grid gap-3 text-white/80 sm:grid-cols-3">
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   {['Design', 'Guests', 'Tech'].map((label) => (
                     <div
                       key={label}
-                      className="rounded-2xl border border-white/10 p-3 text-center text-xs uppercase tracking-[0.3em]"
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-xs uppercase tracking-[0.3em] text-slate-600"
                     >
                       {label}
                     </div>
@@ -187,15 +185,15 @@ const Index = () => {
           <div className="mx-auto max-w-6xl space-y-8">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-white/60">Our halls</p>
-                <h2 className="text-3xl font-bold text-white">Every space has its own story.</h2>
-                <p className="mt-2 text-sm text-white/50">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Our halls</p>
+                <h2 className="text-3xl font-bold text-slate-900">Every space has its own story.</h2>
+                <p className="mt-2 text-sm text-slate-600">
                   Explore climate-controlled ballrooms, garden views, and intimate salons with bespoke services.
                 </p>
               </div>
               <Link
                 to="/venues"
-                className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white hover:text-white"
+                className="rounded-full border border-slate-200 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
               >
                 View all venues →
               </Link>
@@ -204,7 +202,7 @@ const Index = () => {
               {hallCatalog.map((hall) => (
                 <div
                   key={hall.id}
-                  className="space-y-4 rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-md"
+                  className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200"
                 >
                   <div className="relative h-48 rounded-2xl overflow-hidden">
                     <img
@@ -212,25 +210,25 @@ const Index = () => {
                       alt={hall.name}
                       className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
                     <div className="absolute bottom-4 left-4 text-xs uppercase tracking-[0.4em] text-white/80">
                       {hall.alias}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-bold text-white">{hall.name}</h3>
-                    <p className="text-sm text-white/70 leading-relaxed">{hall.description}</p>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/60">{hall.capacity}</p>
+                    <h3 className="text-2xl font-bold text-slate-900">{hall.name}</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{hall.description}</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{hall.capacity}</p>
                     <Link
                       to={`/halls/${hall.id}`}
-                      className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-400 transition hover:text-red-300"
+                      className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-500 transition hover:text-red-600"
                     >
                       View hall page →
                     </Link>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Starting rate</p>
-                    <p className="text-lg font-semibold text-white">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Starting rate</p>
+                    <p className="text-lg font-semibold text-slate-900">
                       {formatCurrency(Math.min(...hall.rates.map((rate) => rate.price)))}
                     </p>
                   </div>
@@ -243,8 +241,8 @@ const Index = () => {
         <section className="px-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Achievements</p>
-              <h2 className="text-3xl font-bold text-white">Performance that feels effortless.</h2>
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Achievements</p>
+              <h2 className="text-3xl font-bold text-slate-900">Performance that feels effortless.</h2>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {highlightCards.map((card) => (
@@ -257,9 +255,9 @@ const Index = () => {
         <section id="design" className="px-6">
           <div className="mx-auto max-w-6xl space-y-10">
             <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Design studio</p>
-              <h2 className="text-3xl font-bold text-white">Build your page-perfect event concept.</h2>
-              <p className="text-sm text-white/60">
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Design studio</p>
+              <h2 className="text-3xl font-bold text-slate-900">Build your page-perfect event concept.</h2>
+              <p className="text-sm text-slate-600">
                 Combine furniture, lighting, and themed décor within our studio then share polished visuals with clients or teams.
               </p>
             </div>
@@ -267,13 +265,13 @@ const Index = () => {
               {decorationPackages.slice(0, 3).map((pkg) => (
                 <div
                   key={pkg.title}
-                  className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70"
+                  className="space-y-3 rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm"
                 >
-                  <h3 className="text-xl font-semibold text-white">{pkg.title}</h3>
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  <h3 className="text-xl font-semibold text-slate-900">{pkg.title}</h3>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
                     {pkg.highlights.length} curated elements
                   </p>
-                  <ul className="space-y-1 text-white/70">
+                  <ul className="space-y-1 text-slate-600">
                     {pkg.highlights.slice(0, 3).map((highlight) => (
                       <li key={highlight}>• {highlight}</li>
                     ))}
@@ -287,15 +285,15 @@ const Index = () => {
         <section className="px-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Conference programs</p>
-              <h2 className="text-3xl font-bold text-white">Tailored agendas for every gathering.</h2>
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Conference programs</p>
+              <h2 className="text-3xl font-bold text-slate-900">Tailored agendas for every gathering.</h2>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {conferencePackages.map((pkg) => (
-                <div key={pkg.attendees} className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/50">{pkg.attendees}</p>
-                  <h3 className="text-xl font-semibold text-white">{pkg.pricePoint}</h3>
-                  <ul className="mt-3 space-y-2">
+                <div key={pkg.attendees} className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">{pkg.attendees}</p>
+                  <h3 className="text-xl font-semibold text-slate-900">{pkg.pricePoint}</h3>
+                  <ul className="mt-3 space-y-2 text-slate-600">
                     {pkg.amenities.map((amenity) => (
                       <li key={amenity} className="flex items-center gap-2">
                         <span className="text-red-400">•</span>
@@ -313,12 +311,12 @@ const Index = () => {
           <div className="mx-auto max-w-6xl space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-white/60">Culinary artistry</p>
-                <h2 className="text-3xl font-bold text-white">Menus shaped by Tanzania & the coast.</h2>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Culinary artistry</p>
+                <h2 className="text-3xl font-bold text-slate-900">Menus shaped by Tanzania & the coast.</h2>
               </div>
               <Link
                 to="/foods"
-                className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:border-white hover:text-white"
+                className="rounded-full border border-slate-200 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
               >
                 Explore menus →
               </Link>
@@ -327,10 +325,10 @@ const Index = () => {
               {beverageList.slice(0, 3).map((item) => (
                 <div
                   key={item.name}
-                  className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white/70"
+                  className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-700 shadow-sm"
                 >
-                  <p className="text-lg font-semibold text-white">{item.name}</p>
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Starting at {formatCurrency(item.price)}</p>
+                  <p className="text-lg font-semibold text-slate-900">{item.name}</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Starting at {formatCurrency(item.price)}</p>
                 </div>
               ))}
             </div>
@@ -340,14 +338,14 @@ const Index = () => {
         <section id="process" className="px-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <div className="space-y-2 text-center">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Process</p>
-              <h2 className="text-3xl font-bold text-white">Designed to keep every detail under control.</h2>
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Process</p>
+              <h2 className="text-3xl font-bold text-slate-900">Designed to keep every detail under control.</h2>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {processSteps.map((step, index) => (
-                <div key={step} className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Step {index + 1}</p>
-                  <p className="mt-3 text-lg font-semibold text-white">{step}</p>
+                <div key={step} className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Step {index + 1}</p>
+                  <p className="mt-3 text-lg font-semibold text-slate-900">{step}</p>
                 </div>
               ))}
             </div>
@@ -357,19 +355,19 @@ const Index = () => {
         <section className="px-6">
           <div className="mx-auto max-w-6xl space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Guidelines</p>
-                <p className="mt-3">{taratibuChecklist[0]}</p>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Guidelines</p>
+                <p className="mt-3 text-slate-600">{taratibuChecklist[0]}</p>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Commitments</p>
-                <p className="mt-3">{muhimuNotes[0]}</p>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Commitments</p>
+                <p className="mt-3 text-slate-600">{muhimuNotes[0]}</p>
               </div>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-red-600 to-purple-600 p-8 text-white shadow-2xl">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/70">Need support?</p>
+            <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-red-100 via-white to-purple-100 p-8 text-slate-900 shadow-2xl">
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Need support?</p>
               <h2 className="text-3xl font-bold">Call +255 717 000 000 or email bookings@kuringehalls.co.tz</h2>
-              <p className="mt-3 text-sm text-white/80">
+              <p className="mt-3 text-sm text-slate-600">
                 Payments via cash, transfer, or mobile money. Two-cashier model & audit-ready receipts keep you compliant.
               </p>
             </div>
