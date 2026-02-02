@@ -18,6 +18,11 @@ import Portal from "./pages/Portal";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
+import Venues from "./pages/Venues";
+import Pricing from "./pages/Pricing";
+import Taratibu from "./pages/Taratibu";
+import Muhimu from "./pages/Muhimu";
+import Packages from "./pages/Packages";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +35,11 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/venues" element={<Venues />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/taratibu" element={<Taratibu />} />
+            <Route path="/muhimu" element={<Muhimu />} />
+            <Route path="/packages" element={<Packages />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bookings" element={<Bookings />} />
