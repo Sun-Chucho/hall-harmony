@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Bookings from "./pages/Bookings";
@@ -33,35 +34,37 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/venues" element={<Venues />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/taratibu" element={<Taratibu />} />
-            <Route path="/muhimu" element={<Muhimu />} />
-            <Route path="/packages" element={<Packages />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/bookings" element={<Bookings />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/payments" element={<Payments />} />
-            <Route path="/cash-movement" element={<CashMovement />} />
-            <Route path="/services" element={<Services />} />
-            <Route path="/rentals" element={<Rentals />} />
-            <Route path="/documents" element={<Documents />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/portal" element={<Portal />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/foods" element={<Foods />} />
-            <Route path="/halls/:hallId" element={<Hall />} />
-            <Route path="/admin" element={<AdminConsole />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <LanguageProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/venues" element={<Venues />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/taratibu" element={<Taratibu />} />
+              <Route path="/muhimu" element={<Muhimu />} />
+              <Route path="/packages" element={<Packages />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/bookings" element={<Bookings />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/payments" element={<Payments />} />
+              <Route path="/cash-movement" element={<CashMovement />} />
+              <Route path="/services" element={<Services />} />
+              <Route path="/rentals" element={<Rentals />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/portal" element={<Portal />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/foods" element={<Foods />} />
+              <Route path="/halls/:hallId" element={<Hall />} />
+              <Route path="/admin" element={<AdminConsole />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </LanguageProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
