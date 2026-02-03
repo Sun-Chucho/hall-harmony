@@ -2,25 +2,14 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, MapPin, Users, Calendar, Star, Phone, Mail, Clock, ChevronRight } from 'lucide-react';
 import { hallCatalog } from '@/lib/landingData';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/contexts/LanguageContext';
+import LanguageToggle from '@/components/LanguageToggle';
 
 const hallImages: Record<string, string> = {
   witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
   kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
   'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1200&q=80',
 };
-
-const stats = [
-  { value: '450+', label: 'Events Hosted' },
-  { value: '98%', label: 'Client Satisfaction' },
-  { value: '3', label: 'Premium Venues' },
-  { value: '10+', label: 'Years Experience' },
-];
-
-const services = [
-  { icon: Users, title: 'Weddings', description: 'Elegant ceremonies and receptions' },
-  { icon: Calendar, title: 'Conferences', description: 'Professional meeting spaces' },
-  { icon: Star, title: 'Galas', description: 'Memorable celebrations' },
-];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -31,6 +20,21 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 const Index = () => {
+  const { t } = useLanguage();
+
+  const stats = [
+    { value: '450+', label: t('stats.eventsHosted') },
+    { value: '98%', label: t('stats.clientSatisfaction') },
+    { value: '3', label: t('stats.premiumVenues') },
+    { value: '10+', label: t('stats.yearsExperience') },
+  ];
+
+  const services = [
+    { icon: Users, title: t('services.weddings'), description: t('services.weddingsDesc') },
+    { icon: Calendar, title: t('services.conferences'), description: t('services.conferencesDesc') },
+    { icon: Star, title: t('services.galas'), description: t('services.galasDesc') },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -45,31 +49,32 @@ const Index = () => {
             
             <nav className="hidden md:flex items-center gap-8">
               <Link to="/venues" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Venues
+                {t('nav.venues')}
               </Link>
               <Link to="/packages" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Packages
+                {t('nav.packages')}
               </Link>
               <Link to="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
+                {t('nav.pricing')}
               </Link>
               <Link to="/taratibu" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Taratibu
+                {t('nav.taratibu')}
               </Link>
               <Link to="/muhimu" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Muhimu
+                {t('nav.muhimu')}
               </Link>
             </nav>
 
             <div className="flex items-center gap-3">
+              <LanguageToggle />
               <Link to="/login">
                 <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-                  Sign In
+                  {t('nav.signIn')}
                 </Button>
               </Link>
               <Link to="/bookings">
                 <Button size="sm" className="bg-primary hover:bg-primary/90">
-                  Book Now
+                  {t('nav.bookNow')}
                 </Button>
               </Link>
             </div>
@@ -92,29 +97,28 @@ const Index = () => {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-6">
               <MapPin className="w-4 h-4 text-primary" />
-              <span className="text-sm text-white/90">Dar es Salaam, Tanzania</span>
+              <span className="text-sm text-white/90">{t('hero.location')}</span>
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              Where Extraordinary
-              <span className="block text-primary">Events Come to Life</span>
+              {t('hero.title1')}
+              <span className="block text-primary">{t('hero.title2')}</span>
             </h1>
             
             <p className="text-lg text-white/80 mb-8 max-w-xl">
-              Experience world-class venues designed for weddings, conferences, and celebrations. 
-              Premium hospitality meets exceptional service at Kuringe Halls.
+              {t('hero.description')}
             </p>
             
             <div className="flex flex-wrap gap-4">
               <Link to="/venues">
                 <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-                  Explore Venues
+                  {t('hero.exploreVenues')}
                   <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
               <Link to="/pricing">
                 <Button size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
-                  View Pricing
+                  {t('hero.viewPricing')}
                 </Button>
               </Link>
             </div>
@@ -140,9 +144,9 @@ const Index = () => {
       <section className="py-20 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Our Services</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">{t('services.title')}</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              From intimate gatherings to grand celebrations, we provide exceptional spaces and services for every occasion.
+              {t('services.description')}
             </p>
           </div>
           
@@ -168,14 +172,14 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-12">
             <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Our Premium Venues</h2>
+              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">{t('venues.title')}</h2>
               <p className="text-muted-foreground max-w-xl">
-                Discover our collection of elegant spaces, each designed to create unforgettable moments.
+                {t('venues.description')}
               </p>
             </div>
             <Link to="/venues">
               <Button variant="outline" className="gap-2">
-                View All Venues
+                {t('venues.viewAll')}
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </Link>
@@ -207,14 +211,14 @@ const Index = () => {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-xs text-muted-foreground">Starting from</span>
+                      <span className="text-xs text-muted-foreground">{t('venues.startingFrom')}</span>
                       <div className="text-lg font-bold text-primary">
                         {formatCurrency(Math.min(...hall.rates.map((r) => r.price)))}
                       </div>
                     </div>
                     <Link to={`/venues`}>
                       <Button size="sm" variant="ghost" className="text-primary hover:text-primary/80 gap-1">
-                        Details
+                        {t('venues.details')}
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     </Link>
@@ -230,16 +234,16 @@ const Index = () => {
       <section className="py-20 bg-primary">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-primary-foreground mb-4">
-            Ready to Create Unforgettable Memories?
+            {t('cta.title')}
           </h2>
           <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-            Contact us today to schedule a venue tour or discuss your event requirements.
+            {t('cta.description')}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link to="/bookings">
               <Button size="lg" variant="secondary" className="gap-2">
                 <Calendar className="w-4 h-4" />
-                Book a Tour
+                {t('cta.bookTour')}
               </Button>
             </Link>
             <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 gap-2">
@@ -261,13 +265,12 @@ const Index = () => {
                 </span>
               </Link>
               <p className="text-background/70 mb-6 max-w-md">
-                Premium event venues in Dar es Salaam. World-class facilities, exceptional service, 
-                and unforgettable experiences.
+                {t('footer.description')}
               </p>
               <div className="flex flex-col gap-2 text-sm text-background/70">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
-                  Dar es Salaam, Tanzania
+                  {t('hero.location')}
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-primary" />
@@ -285,37 +288,37 @@ const Index = () => {
             </div>
             
             <div>
-              <h4 className="font-semibold text-background mb-4">Quick Links</h4>
+              <h4 className="font-semibold text-background mb-4">{t('footer.quickLinks')}</h4>
               <nav className="flex flex-col gap-2">
                 <Link to="/venues" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Venues
+                  {t('nav.venues')}
                 </Link>
                 <Link to="/packages" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Packages
+                  {t('nav.packages')}
                 </Link>
                 <Link to="/pricing" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Pricing
+                  {t('nav.pricing')}
                 </Link>
                 <Link to="/taratibu" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Taratibu
+                  {t('nav.taratibu')}
                 </Link>
                 <Link to="/muhimu" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Muhimu
+                  {t('nav.muhimu')}
                 </Link>
               </nav>
             </div>
             
             <div>
-              <h4 className="font-semibold text-background mb-4">Services</h4>
+              <h4 className="font-semibold text-background mb-4">{t('footer.services')}</h4>
               <nav className="flex flex-col gap-2">
                 <Link to="/bookings" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Bookings
+                  {t('footer.bookings')}
                 </Link>
                 <Link to="/foods" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Catering
+                  {t('footer.catering')}
                 </Link>
                 <Link to="/login" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  Staff Portal
+                  {t('footer.staffPortal')}
                 </Link>
               </nav>
             </div>
@@ -323,7 +326,7 @@ const Index = () => {
           
           <div className="mt-12 pt-8 border-t border-background/10">
             <p className="text-center text-sm text-background/50">
-              © {new Date().getFullYear()} Kuringe Halls. All rights reserved.
+              © {new Date().getFullYear()} Kuringe Halls. {t('footer.rights')}
             </p>
           </div>
         </div>
