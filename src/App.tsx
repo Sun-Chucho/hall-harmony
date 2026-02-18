@@ -2,9 +2,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthorizationProvider } from "@/contexts/AuthorizationContext";
+import { BookingProvider } from "@/contexts/BookingContext";
+import { PaymentProvider } from "@/contexts/PaymentContext";
+import { EventFinanceProvider } from "@/contexts/EventFinanceContext";
+import { InventoryProvider } from "@/contexts/InventoryContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { RouteGuard } from "@/components/auth/RouteGuard";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Bookings from "./pages/Bookings";
@@ -34,37 +40,47 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <LanguageProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/venues" element={<Venues />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/taratibu" element={<Taratibu />} />
-              <Route path="/muhimu" element={<Muhimu />} />
-              <Route path="/packages" element={<Packages />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/bookings" element={<Bookings />} />
-              <Route path="/customers" element={<Customers />} />
-              <Route path="/payments" element={<Payments />} />
-              <Route path="/cash-movement" element={<CashMovement />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/rentals" element={<Rentals />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/portal" element={<Portal />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/foods" element={<Foods />} />
-              <Route path="/halls/:hallId" element={<Hall />} />
-              <Route path="/admin" element={<AdminConsole />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </LanguageProvider>
+        <AuthorizationProvider>
+          <BookingProvider>
+            <PaymentProvider>
+              <EventFinanceProvider>
+                <InventoryProvider>
+                  <LanguageProvider>
+                    <Toaster />
+                    <Sonner />
+                    <BrowserRouter>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/venues" element={<Venues />} />
+                        <Route path="/pricing" element={<Pricing />} />
+                        <Route path="/taratibu" element={<Taratibu />} />
+                        <Route path="/muhimu" element={<Muhimu />} />
+                        <Route path="/packages" element={<Packages />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
+                        <Route path="/bookings" element={<RouteGuard path="/bookings" transactional><Bookings /></RouteGuard>} />
+                        <Route path="/customers" element={<RouteGuard path="/customers"><Customers /></RouteGuard>} />
+                        <Route path="/payments" element={<RouteGuard path="/payments" transactional><Payments /></RouteGuard>} />
+                        <Route path="/cash-movement" element={<RouteGuard path="/cash-movement" transactional><CashMovement /></RouteGuard>} />
+                        <Route path="/services" element={<RouteGuard path="/services"><Services /></RouteGuard>} />
+                        <Route path="/rentals" element={<RouteGuard path="/rentals"><Rentals /></RouteGuard>} />
+                        <Route path="/documents" element={<RouteGuard path="/documents"><Documents /></RouteGuard>} />
+                        <Route path="/reports" element={<RouteGuard path="/reports"><Reports /></RouteGuard>} />
+                        <Route path="/portal" element={<RouteGuard path="/portal"><Portal /></RouteGuard>} />
+                        <Route path="/settings" element={<RouteGuard path="/settings"><Settings /></RouteGuard>} />
+                        <Route path="/foods" element={<Foods />} />
+                        <Route path="/halls/:hallId" element={<Hall />} />
+                        <Route path="/admin" element={<RouteGuard path="/admin"><AdminConsole /></RouteGuard>} />
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </BrowserRouter>
+                  </LanguageProvider>
+                </InventoryProvider>
+              </EventFinanceProvider>
+            </PaymentProvider>
+          </BookingProvider>
+        </AuthorizationProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

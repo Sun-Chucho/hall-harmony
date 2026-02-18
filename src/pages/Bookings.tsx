@@ -1,114 +1,272 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useBookings } from '@/contexts/BookingContext';
+import { CreateBookingInput } from '@/types/booking';
 
-const bookingsStats = [
-  { title: "Today's Bookings", value: '3 events', description: 'scheduled for today' },
-  { title: 'Pending Approvals', value: '5 approvals', description: 'awaiting manager review' },
-  { title: 'Monthly Revenue', value: 'TSh 15,750,000', description: '+12% from last month' },
-  { title: 'Active Customers', value: '47 ongoing', description: 'clients with live bookings' },
+const halls = [
+  'Witness Hall',
+  'Kilimanjaro Hall',
+  'Garden Deck',
+  'Hall D',
 ];
 
-const bookingsSections = [
-  {
-    title: 'Event Coverage',
-    bullets: [
-      'Witness Hall reserved for a multi-day wedding through Sunday evening.',
-      'Kilimanjaro Hall is hosting a corporate offsite with hybrid streaming needs.',
-      'Garden Deck blocked for an intimate panel and cocktail reception.',
-    ],
-  },
-  {
-    title: 'Operations Ready',
-    bullets: [
-      'Assistant team lining up deposit reminders and contract sign-offs.',
-      'Venue setup briefs sent to catering, AV, and décor partners.',
-      'Security and parking rosters aligned with each slot.',
-    ],
-  },
-];
-
-const defaultEntry = {
-  event: '',
+const initialForm: CreateBookingInput = {
+  customerName: '',
+  customerPhone: '',
+  eventName: '',
+  eventType: '',
   hall: '',
   date: '',
-  time: '',
+  startTime: '',
+  endTime: '',
+  expectedGuests: 0,
+  quotedAmount: 0,
+  notes: '',
 };
 
-type BookingEntry = typeof defaultEntry & { id: string; status: string };
+function toShortStatus(value: string) {
+  return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function Bookings() {
-  const [entries, setEntries] = useState<BookingEntry[]>([]);
-  const [form, setForm] = useState(defaultEntry);
+  const { user } = useAuth();
+  const {
+    bookings,
+    createBooking,
+    updateBookingStatus,
+    updateEventDetailStatus,
+    hasConflict,
+  } = useBookings();
+  const [form, setForm] = useState<CreateBookingInput>(initialForm);
+  const [message, setMessage] = useState('');
 
-  const handleChange = (field: keyof typeof defaultEntry, value: string) => {
+  const stats = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const pending = bookings.filter((item) => item.bookingStatus === 'pending').length;
+    const approved = bookings.filter((item) => item.bookingStatus === 'approved').length;
+    const todayCount = bookings.filter((item) => item.date === today).length;
+    return [
+      { title: "Today's Bookings", value: `${todayCount}`, description: 'scheduled for today' },
+      { title: 'Pending Approvals', value: `${pending}`, description: 'awaiting workflow action' },
+      { title: 'Approved Bookings', value: `${approved}`, description: 'approved and active' },
+      { title: 'Total Records', value: `${bookings.length}`, description: 'all booking requests' },
+    ];
+  }, [bookings]);
+
+  const sections = [
+    {
+      title: 'Workflow',
+      bullets: [
+        'Assistant Hall Manager approves booking requests and event details.',
+        'Controller issues final event authorization when required by policy.',
+        'Conflict checks run before a booking is submitted for approval.',
+      ],
+    },
+  ];
+
+  const canManageBookings = user?.role === 'assistant_hall_manager' || user?.role === 'controller';
+  const canFinalizeEvent = user?.role === 'controller';
+
+  const conflict = form.hall && form.date && form.startTime && form.endTime
+    ? hasConflict(form)
+    : false;
+
+  const onChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddBooking = () => {
-    if (!form.event || !form.hall || !form.date || !form.time) return;
-    setEntries((prev) => [
-      { ...form, id: crypto.randomUUID(), status: 'Draft' },
-      ...prev,
-    ]);
-    setForm(defaultEntry);
+  const handleCreateBooking = () => {
+    const result = createBooking(form);
+    setMessage(result.message);
+    if (result.ok) {
+      setForm(initialForm);
+    }
   };
 
   return (
     <ManagementPageTemplate
       pageTitle="Bookings"
-      subtitle="Monitor the day’s schedule, pending approvals, and formation tasks for every hall."
-      stats={bookingsStats}
-      sections={bookingsSections}
+      subtitle="Booking and event approval workflow with conflict checks and status controls."
+      stats={stats}
+      sections={sections}
       action={
         <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Manual booking entry</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {(['event', 'hall', 'date', 'time'] as const).map((field) => (
-                <input
-                  key={field}
-                  type={field === 'date' ? 'date' : field === 'time' ? 'time' : 'text'}
-                  placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-                  className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  value={form[field]}
-                  onChange={(event) => handleChange(field, event.target.value)}
-                />
-              ))}
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Create Booking Request</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <input
+                type="text"
+                placeholder="Customer Name"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.customerName}
+                onChange={(event) => onChange('customerName', event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Customer Phone"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.customerPhone}
+                onChange={(event) => onChange('customerPhone', event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Event Name"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.eventName}
+                onChange={(event) => onChange('eventName', event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Event Type"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.eventType}
+                onChange={(event) => onChange('eventType', event.target.value)}
+              />
+              <select
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.hall}
+                onChange={(event) => onChange('hall', event.target.value)}
+              >
+                <option value="">Select Hall</option>
+                {halls.map((hall) => (
+                  <option key={hall} value={hall}>
+                    {hall}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.date}
+                onChange={(event) => onChange('date', event.target.value)}
+              />
+              <input
+                type="time"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.startTime}
+                onChange={(event) => onChange('startTime', event.target.value)}
+              />
+              <input
+                type="time"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.endTime}
+                onChange={(event) => onChange('endTime', event.target.value)}
+              />
+              <input
+                type="number"
+                placeholder="Expected Guests"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.expectedGuests || ''}
+                onChange={(event) => onChange('expectedGuests', Number(event.target.value))}
+              />
+              <input
+                type="number"
+                placeholder="Quoted Amount (TZS)"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.quotedAmount || ''}
+                onChange={(event) => onChange('quotedAmount', Number(event.target.value))}
+              />
+              <input
+                type="text"
+                placeholder="Notes"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.notes}
+                onChange={(event) => onChange('notes', event.target.value)}
+              />
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
-                Entries are stored locally until you integrate a persistence layer.
-              </span>
-              <Button size="sm" onClick={handleAddBooking}>
-                Add booking
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button size="sm" onClick={handleCreateBooking}>
+                Submit Booking
               </Button>
+              {conflict ? (
+                <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge>
+              ) : (
+                <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>
+              )}
+              {message ? <span className="text-xs text-slate-600">{message}</span> : null}
             </div>
           </div>
+
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Manual bookings</p>
-              <Badge className="bg-slate-100 text-slate-700">{entries.length} records</Badge>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Queue</p>
+              <Badge className="bg-slate-100 text-slate-700">{bookings.length} records</Badge>
             </div>
-            {entries.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">
-                No manual entries yet. Use the form above to register a booking.
-              </p>
+            {bookings.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-600">No booking requests yet.</p>
             ) : (
               <div className="mt-3 space-y-3">
-                {entries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-900">{entry.event}</span>
-                      <Badge className="bg-slate-200 text-slate-900">{entry.status}</Badge>
+                {bookings.map((booking) => (
+                  <div key={booking.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{booking.eventName}</p>
+                      <div className="flex gap-2">
+                        <Badge className="bg-slate-200 text-slate-900">
+                          Booking: {toShortStatus(booking.bookingStatus)}
+                        </Badge>
+                        <Badge className="bg-slate-200 text-slate-900">
+                          Event: {toShortStatus(booking.eventDetailStatus)}
+                        </Badge>
+                      </div>
                     </div>
-                    <p className="text-slate-500">
-                      {entry.hall} • {entry.date} {entry.time}
+                    <p className="mt-1 text-slate-600">
+                      {booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}
                     </p>
+                    <p className="text-slate-500">
+                      {booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {canManageBookings && booking.bookingStatus === 'pending' ? (
+                        <>
+                          <Button size="sm" onClick={() => setMessage(updateBookingStatus(booking.id, 'approved').message)}>
+                            Approve Booking
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setMessage(updateBookingStatus(booking.id, 'rejected').message)}
+                          >
+                            Reject Booking
+                          </Button>
+                        </>
+                      ) : null}
+
+                      {canManageBookings && booking.eventDetailStatus === 'pending_assistant' ? (
+                        <>
+                          <Button size="sm" variant="secondary" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'approved_assistant').message)}>
+                            Approve Event Details
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'rejected').message)}>
+                            Reject Event Details
+                          </Button>
+                        </>
+                      ) : null}
+
+                      {canFinalizeEvent && booking.eventDetailStatus === 'pending_controller' ? (
+                        <>
+                          <Button size="sm" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'approved_controller').message)}>
+                            Final Authorize Event
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'rejected').message)}>
+                            Final Reject Event
+                          </Button>
+                        </>
+                      ) : null}
+
+                      {canManageBookings && booking.bookingStatus === 'approved' ? (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => setMessage(updateBookingStatus(booking.id, 'cancelled').message)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setMessage(updateBookingStatus(booking.id, 'completed').message)}>
+                            Complete
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
