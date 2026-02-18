@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { ROLE_LABELS } from '@/types/auth';
+import { ROLE_LABELS, UserRole } from '@/types/auth';
 import {
   Sidebar,
   SidebarContent,
@@ -28,7 +28,6 @@ import {
   LayoutDashboard,
   Calendar,
   Users,
-  DollarSign,
   Car,
   FileText,
   BarChart3,
@@ -46,7 +45,7 @@ interface NavItem {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   path: string;
-  roles?: string[];
+  roles?: UserRole[];
 }
 
 const mainNavItems: NavItem[] = [
@@ -59,11 +58,13 @@ const mainNavItems: NavItem[] = [
     title: 'Bookings',
     icon: Calendar,
     path: '/bookings',
+    roles: ['manager', 'assistant_hall_manager', 'controller'],
   },
   {
     title: 'Customers',
     icon: Users,
     path: '/customers',
+    roles: ['manager', 'assistant_hall_manager', 'controller'],
   },
 ];
 
@@ -72,13 +73,13 @@ const financeNavItems: NavItem[] = [
     title: 'Payments',
     icon: CreditCard,
     path: '/payments',
-    roles: ['hall_manager', 'assistant_manager', 'cashier_1'],
+    roles: ['manager', 'cashier_1', 'controller', 'accountant'],
   },
   {
     title: 'Cash Movement',
     icon: Banknote,
     path: '/cash-movement',
-    roles: ['hall_manager', 'cashier_2'],
+    roles: ['cashier_2', 'cashier_1', 'controller', 'accountant'],
   },
 ];
 
@@ -87,48 +88,50 @@ const operationsNavItems: NavItem[] = [
     title: 'Services & Pricing',
     icon: Package,
     path: '/services',
-    roles: ['hall_manager', 'assistant_manager'],
+    roles: ['manager', 'assistant_hall_manager', 'controller'],
   },
   {
-    title: 'Rentals',
+    title: 'Inventory & Store',
     icon: Car,
     path: '/rentals',
+    roles: ['manager', 'assistant_hall_manager', 'controller', 'cashier_2', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Documents',
     icon: FileText,
     path: '/documents',
+    roles: ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'accountant'],
   },
 ];
 
 const adminNavItems: NavItem[] = [
   {
-    title: 'Admin Console',
+    title: 'Controller Console',
     icon: ShieldCheck,
     path: '/admin',
-    roles: ['hall_manager'],
+    roles: ['controller'],
   },
   {
     title: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    roles: ['hall_manager', 'assistant_manager'],
+    roles: ['manager', 'controller', 'accountant'],
   },
   {
     title: 'Web Portal',
     icon: Globe,
     path: '/portal',
-    roles: ['hall_manager'],
+    roles: ['manager', 'assistant_hall_manager', 'controller'],
   },
   {
     title: 'Settings',
     icon: Settings,
     path: '/settings',
-    roles: ['hall_manager'],
+    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller', 'store_keeper', 'purchaser', 'accountant'],
   },
 ];
 
-function filterByRole(items: NavItem[], userRole: string) {
+function filterByRole(items: NavItem[], userRole: UserRole) {
   return items.filter((item) => !item.roles || item.roles.includes(userRole));
 }
 

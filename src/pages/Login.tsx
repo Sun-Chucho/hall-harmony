@@ -10,10 +10,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#e6e7ea] px-4 py-8 lg:px-10 lg:py-10">
-      <div className="mx-auto mb-6 max-w-6xl text-center">
-        <h1 className="text-6xl font-extrabold tracking-tight text-slate-900 lg:text-7xl">Kuringe Nexus</h1>
-        <p className="mt-2 text-xl uppercase tracking-[0.2em] text-slate-500 lg:text-2xl">
+    <div className="min-h-screen bg-[#e6e7ea] px-4 py-5 lg:px-8 lg:py-6">
+      <div className="mx-auto mb-4 max-w-6xl text-center">
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">Kuringe Nexus</h1>
+        <p className="mt-1 text-sm uppercase tracking-[0.2em] text-slate-500 sm:text-base lg:text-lg">
           Moshi Halls Management System
         </p>
       </div>
