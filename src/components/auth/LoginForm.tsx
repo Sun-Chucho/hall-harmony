@@ -37,7 +37,7 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login, staffUsers, refreshStaffUsers } = useAuth();
+  const { loginWithResult, staffUsers, refreshStaffUsers } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -73,9 +73,9 @@ export function LoginForm() {
     }
 
     setIsLoading(true);
-    const success = await login(selectedUserId, password);
+    const result = await loginWithResult(selectedUserId, password);
 
-    if (success) {
+    if (result.ok) {
       toast({
         title: 'Login successful',
         description: 'Welcome to your workspace.',
@@ -84,7 +84,7 @@ export function LoginForm() {
     } else {
       toast({
         title: 'Login failed',
-        description: 'Incorrect password or inactive user account.',
+        description: result.message ?? 'Incorrect password or inactive user account.',
         variant: 'destructive',
       });
     }

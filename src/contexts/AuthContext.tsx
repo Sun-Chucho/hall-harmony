@@ -24,6 +24,7 @@ import { auth, db, firebaseConfig } from '@/lib/firebase';
 interface AuthContextType extends AuthState {
   staffUsers: User[];
   login: (identifier: string, password: string) => Promise<boolean>;
+  loginWithResult: (identifier: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   switchUser: (userId: string) => void;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ ok: boolean; message: string }>;
@@ -33,7 +34,15 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
-const DEFAULT_PASSWORD = '1234';
+const DEFAULT_PASSWORD = '123456';
+const LEGACY_PASSWORD_ALIAS = '1234';
+
+function resolveFirebasePassword(password: string) {
+  if (password === LEGACY_PASSWORD_ALIAS) {
+    return DEFAULT_PASSWORD;
+  }
+  return password;
+}
 
 function normalizeUser(input: Partial<User> & { id: string; email: string; name: string; role: UserRole }): User {
   return {
@@ -79,22 +88,26 @@ async function fetchStaffDirectory(): Promise<User[]> {
 }
 
 async function fetchProfileByUid(uid: string): Promise<User | null> {
-  const profileRef = doc(db, STAFF_COLLECTION, uid);
-  const snapshot = await getDoc(profileRef);
-  if (!snapshot.exists()) {
-    return null;
-  }
+  try {
+    const profileRef = doc(db, STAFF_COLLECTION, uid);
+    const snapshot = await getDoc(profileRef);
+    if (!snapshot.exists()) {
+      return STAFF_USERS.find((item) => item.id === uid) ?? null;
+    }
 
-  const data = snapshot.data() as Partial<User>;
-  return normalizeUser({
-    id: snapshot.id,
-    email: data.email ?? '',
-    name: data.name ?? '',
-    role: (data.role as UserRole) ?? 'manager',
-    isActive: data.isActive ?? true,
-    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
-    lastLogin: data.lastLogin,
-  });
+    const data = snapshot.data() as Partial<User>;
+    return normalizeUser({
+      id: snapshot.id,
+      email: data.email ?? '',
+      name: data.name ?? '',
+      role: (data.role as UserRole) ?? 'manager',
+      isActive: data.isActive ?? true,
+      createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+      lastLogin: data.lastLogin,
+    });
+  } catch {
+    return STAFF_USERS.find((item) => item.id === uid) ?? null;
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -145,8 +158,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const login = useCallback(
-    async (identifier: string, password: string): Promise<boolean> => {
+  const loginWithResult = useCallback(
+    async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
       const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
       const normalizedIdentifier = identifier.trim().toLowerCase();
       const targetUser = sourceUsers.find(
@@ -154,22 +167,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (!targetUser) {
-        return false;
+        return { ok: false, message: 'Selected user was not found.' };
       }
 
       try {
-        const credential = await signInWithEmailAndPassword(auth, targetUser.email, password || DEFAULT_PASSWORD);
-        const profile = await fetchProfileByUid(credential.user.uid);
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          targetUser.email,
+          resolveFirebasePassword(password || DEFAULT_PASSWORD),
+        );
+        const fallbackProfile = sourceUsers.find((item) => item.id === credential.user.uid || item.email === targetUser.email);
+        const profile = (await fetchProfileByUid(credential.user.uid)) ?? fallbackProfile ?? null;
         if (!profile || !profile.isActive) {
           await signOut(auth);
-          return false;
+          return { ok: false, message: 'This user is inactive and cannot sign in.' };
         }
 
         const nowIso = new Date().toISOString();
-        await updateDoc(doc(db, STAFF_COLLECTION, profile.id), {
-          lastLogin: nowIso,
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          await updateDoc(doc(db, STAFF_COLLECTION, profile.id), {
+            lastLogin: nowIso,
+            updatedAt: serverTimestamp(),
+          });
+        } catch {
+          // Continue when Firestore is unavailable.
+        }
 
         setState({
           user: {
@@ -179,13 +201,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         });
-        return true;
-      } catch {
-        return false;
+        return { ok: true };
+      } catch (error: unknown) {
+        const authCode = typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code?: string }).code)
+          : '';
+        if (
+          authCode === 'auth/invalid-credential' ||
+          authCode === 'auth/wrong-password' ||
+          authCode === 'auth/user-not-found' ||
+          authCode === 'auth/invalid-login-credentials'
+        ) {
+          return { ok: false, message: 'Invalid email/password in Firebase Authentication for this staff account.' };
+        }
+        return { ok: false, message: 'Firebase sign-in failed. Please verify Firebase Authentication and Firestore setup.' };
       }
     },
     [staffUsers],
   );
+
+  const login = useCallback(async (identifier: string, password: string): Promise<boolean> => {
+    const result = await loginWithResult(identifier, password);
+    return result.ok;
+  }, [loginWithResult]);
 
   const logout = useCallback(async () => {
     await signOut(auth);
@@ -204,8 +242,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const changePassword = useCallback(
     async (userId: string, currentPassword: string, newPassword: string) => {
       const cleanPassword = newPassword.trim();
-      if (cleanPassword.length < 4) {
-        return { ok: false, message: 'New password must be at least 4 characters.' };
+      if (cleanPassword.length < 6) {
+        return { ok: false, message: 'New password must be at least 6 characters.' };
       }
 
       const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
@@ -216,7 +254,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         if (auth.currentUser && auth.currentUser.uid === targetUser.id && auth.currentUser.email) {
-          const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+          const credential = EmailAuthProvider.credential(
+            auth.currentUser.email,
+            resolveFirebasePassword(currentPassword),
+          );
           await reauthenticateWithCredential(auth.currentUser, credential);
           await updatePassword(auth.currentUser, cleanPassword);
           return { ok: true, message: 'Password updated successfully.' };
@@ -225,7 +266,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const tempAppName = `password-change-${Date.now()}`;
         const tempApp = initializeApp(firebaseConfig, tempAppName);
         const tempAuth = getAuth(tempApp);
-        const tempCredential = await signInWithEmailAndPassword(tempAuth, targetUser.email, currentPassword);
+        const tempCredential = await signInWithEmailAndPassword(
+          tempAuth,
+          targetUser.email,
+          resolveFirebasePassword(currentPassword),
+        );
         await updatePassword(tempCredential.user, cleanPassword);
         await signOut(tempAuth);
         await deleteApp(tempApp);
@@ -266,13 +311,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...state,
       staffUsers,
       login,
+      loginWithResult,
       logout,
       switchUser,
       changePassword,
       refreshStaffUsers,
       updateStaffRole,
     }),
-    [changePassword, login, logout, refreshStaffUsers, staffUsers, state, switchUser, updateStaffRole],
+    [changePassword, login, loginWithResult, logout, refreshStaffUsers, staffUsers, state, switchUser, updateStaffRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -12,7 +12,7 @@ const serviceAccountPath =
   process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
   'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-abfa71b989.json';
 
-const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '1234';
+const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '123456';
 
 const staffUsers = [
   {
@@ -128,29 +128,38 @@ async function main() {
   const nowIso = new Date().toISOString();
 
   for (const user of staffUsers) {
-    const authResult = await upsertAuthUser(auth, user);
+    try {
+      const authResult = await upsertAuthUser(auth, user);
 
-    await auth.setCustomUserClaims(user.uid, {
-      role: user.role,
-      canResetPasswords: ['manager', 'controller'].includes(user.role),
-      canChangeRoles: ['manager', 'controller'].includes(user.role),
-    });
-
-    await db.collection('staff_users').doc(user.uid).set(
-      {
-        id: user.uid,
-        email: user.email,
-        name: user.name,
+      await auth.setCustomUserClaims(user.uid, {
         role: user.role,
-        isActive: user.isActive,
-        createdAt: nowIso,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+        canResetPasswords: ['manager', 'controller'].includes(user.role),
+        canChangeRoles: ['manager', 'controller'].includes(user.role),
+      });
 
-    // Keep logs concise without exposing secrets.
-    console.log(`[seed] ${authResult}: ${user.name} (${user.role})`);
+      try {
+        await db.collection('staff_users').doc(user.uid).set(
+          {
+            id: user.uid,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            isActive: user.isActive,
+            createdAt: nowIso,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      } catch (firestoreError) {
+        const message = firestoreError?.message || 'Unknown Firestore error';
+        console.warn(`[seed] Firestore skipped for ${user.name}: ${message}`);
+      }
+
+      console.log(`[seed] ${authResult}: ${user.name} (${user.role})`);
+    } catch (userError) {
+      const message = userError?.message || 'Unknown error';
+      console.error(`[seed] Failed for ${user.name}: ${message}`);
+    }
   }
 
   console.log('[seed] Completed staff user provisioning.');
@@ -158,5 +167,11 @@ async function main() {
 
 main().catch((error) => {
   console.error('[seed] Failed:', error.message);
+  if (error?.code) {
+    console.error('[seed] Code:', error.code);
+  }
+  if (error?.stack) {
+    console.error(error.stack);
+  }
   process.exitCode = 1;
 });

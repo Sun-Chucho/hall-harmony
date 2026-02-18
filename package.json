@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "firebase:ensure-db": "node scripts/ensure-firestore-database.mjs",
     "seed:firebase": "node scripts/seed-firebase-users.mjs"
   },
   "dependencies": {
