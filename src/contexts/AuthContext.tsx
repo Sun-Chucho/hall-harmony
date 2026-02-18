@@ -15,7 +15,6 @@ import {
   PASSWORD_RESET_AUTHORITIES,
   ROLE_CHANGE_AUTHORITIES,
   ROLE_LABELS,
-  STAFF_USERS,
   User,
   UserRole,
 } from '@/types/auth';
@@ -59,9 +58,6 @@ function normalizeUser(input: Partial<User> & { id: string; email: string; name:
 async function fetchStaffDirectory(): Promise<User[]> {
   try {
     const snapshot = await getDocs(collection(db, STAFF_COLLECTION));
-    if (snapshot.empty) {
-      return STAFF_USERS;
-    }
 
     return snapshot.docs
       .map((item) => {
@@ -83,7 +79,7 @@ async function fetchStaffDirectory(): Promise<User[]> {
       .filter((user) => user.email && user.name)
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {
-    return STAFF_USERS;
+    return [];
   }
 }
 
@@ -92,7 +88,7 @@ async function fetchProfileByUid(uid: string): Promise<User | null> {
     const profileRef = doc(db, STAFF_COLLECTION, uid);
     const snapshot = await getDoc(profileRef);
     if (!snapshot.exists()) {
-      return STAFF_USERS.find((item) => item.id === uid) ?? null;
+      return null;
     }
 
     const data = snapshot.data() as Partial<User>;
@@ -106,7 +102,7 @@ async function fetchProfileByUid(uid: string): Promise<User | null> {
       lastLogin: data.lastLogin,
     });
   } catch {
-    return STAFF_USERS.find((item) => item.id === uid) ?? null;
+    return null;
   }
 }
 
@@ -116,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
     isLoading: true,
   });
-  const [staffUsers, setStaffUsers] = useState<User[]>(STAFF_USERS);
+  const [staffUsers, setStaffUsers] = useState<User[]>([]);
 
   const refreshStaffUsers = useCallback(async () => {
     const directory = await fetchStaffDirectory();
@@ -160,14 +156,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithResult = useCallback(
     async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
-      const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
       const normalizedIdentifier = identifier.trim().toLowerCase();
-      const targetUser = sourceUsers.find(
+      const targetUser = staffUsers.find(
         (item) => item.id === identifier || item.email.toLowerCase() === normalizedIdentifier,
       );
 
       if (!targetUser) {
-        return { ok: false, message: 'Selected user was not found.' };
+        return { ok: false, message: 'Selected user was not found in Firestore staff directory.' };
       }
 
       try {
@@ -176,8 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           targetUser.email,
           resolveFirebasePassword(password || DEFAULT_PASSWORD),
         );
-        const fallbackProfile = sourceUsers.find((item) => item.id === credential.user.uid || item.email === targetUser.email);
-        const profile = (await fetchProfileByUid(credential.user.uid)) ?? fallbackProfile ?? null;
+        const profile = await fetchProfileByUid(credential.user.uid);
         if (!profile || !profile.isActive) {
           await signOut(auth);
           return { ok: false, message: 'This user is inactive and cannot sign in.' };
@@ -246,8 +240,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: 'New password must be at least 6 characters.' };
       }
 
-      const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
-      const targetUser = sourceUsers.find((item) => item.id === userId);
+      const targetUser = staffUsers.find((item) => item.id === userId)
+        ?? (state.user && state.user.id === userId ? state.user : null);
       if (!targetUser) {
         return { ok: false, message: 'Selected user account was not found.' };
       }
@@ -279,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: 'Password update failed. Please verify the current password.' };
       }
     },
-    [staffUsers],
+    [staffUsers, state.user],
   );
 
   const updateStaffRole = useCallback(

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, STAFF_USERS, UserRole } from '@/types/auth';
+import { ROLE_DESCRIPTIONS, ROLE_LABELS, UserRole } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,11 +41,9 @@ export function LoginForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
-
   const selectedRoleUsers = useMemo(
-    () => sourceUsers.filter((user) => user.role === selectedRole),
-    [selectedRole, sourceUsers],
+    () => staffUsers.filter((user) => user.role === selectedRole),
+    [selectedRole, staffUsers],
   );
 
   useEffect(() => {
@@ -161,6 +159,11 @@ export function LoginForm() {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedRoleUsers.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No users found for this role. Sync `staff_users` in Firestore.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-3">

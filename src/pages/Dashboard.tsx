@@ -1,220 +1,21 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ROLE_LABELS } from '@/types/auth';
-import {
-  Calendar,
-  Users,
-  DollarSign,
-  Clock,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-  Building,
-} from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useBookings } from '@/contexts/BookingContext';
+import { usePayments } from '@/contexts/PaymentContext';
+import { useAuthorization } from '@/contexts/AuthorizationContext';
+import { useEventFinance } from '@/contexts/EventFinanceContext';
+import { ROLE_LABELS, UserRole } from '@/types/auth';
+import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Users } from 'lucide-react';
 
-// Type definitions for role-specific stats
-interface ManagerStats {
-  todayBookings: number;
-  pendingApprovals: number;
-  monthlyRevenue: number;
-  activeCustomers: number;
+interface StatCard {
+  title: string;
+  value: string;
+  hint: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
-
-interface AssistantStats {
-  todayBookings: number;
-  pendingFollowups: number;
-  quotationsPending: number;
-  newInquiries: number;
-}
-
-interface Cashier1Stats {
-  todayPayments: number;
-  pendingReceipts: number;
-  totalReceived: number;
-  awaitingApproval: number;
-}
-
-interface Cashier2Stats {
-  pendingMovements: number;
-  todayDeposits: number;
-  tillBalance: number;
-  safeBalance: number;
-}
-
-// Mock data for dashboard stats
-const MANAGER_STATS: ManagerStats = {
-  todayBookings: 3,
-  pendingApprovals: 5,
-  monthlyRevenue: 15750000,
-  activeCustomers: 47,
-};
-
-const ASSISTANT_STATS: AssistantStats = {
-  todayBookings: 3,
-  pendingFollowups: 8,
-  quotationsPending: 4,
-  newInquiries: 6,
-};
-
-const CASHIER1_STATS: Cashier1Stats = {
-  todayPayments: 4,
-  pendingReceipts: 2,
-  totalReceived: 3500000,
-  awaitingApproval: 3,
-};
-
-const CASHIER2_STATS: Cashier2Stats = {
-  pendingMovements: 2,
-  todayDeposits: 1,
-  tillBalance: 850000,
-  safeBalance: 4200000,
-};
-
-const recentBookings = [
-  {
-    event: 'Executive Gala',
-    hall: 'Kilimanjaro Hall & Gardens',
-    time: '09:00 AM, Feb 10',
-    status: 'Confirmed',
-  },
-  {
-    event: 'Investor Summit',
-    hall: 'Witness Hall',
-    time: 'Audio check 12:30 PM',
-    status: 'In Production',
-  },
-  {
-    event: 'Intimate Board Dinner',
-    hall: 'Hall D',
-    time: '06:00 PM, Feb 12',
-    status: 'Tentative',
-  },
-];
-
-const quickActions = [
-  {
-    label: 'Approve deposit',
-    description: 'Release the deposit held for today’s bookings.',
-    action: 'Deposit approved',
-    path: '/payments',
-  },
-  {
-    label: 'Assign crew',
-    description: 'Lock down the hospitality crew for active events.',
-    action: 'Crew assigned',
-    path: '/rentals',
-  },
-  {
-    label: 'Send confirmation',
-    description: 'Email the latest contract to the client.',
-    action: 'Confirmation sent',
-    path: '/documents',
-  },
-];
-
-const functionalitySets: Record<
-  string,
-  { label: string; description: string; path: string; action: string }[]
-> = {
-  hall_manager: [
-    {
-      label: 'Review bookings',
-      description: 'Compare arrivals, capacity, and staffing in one view.',
-      path: '/bookings',
-      action: 'Opened booking review',
-    },
-    {
-      label: 'Customer care',
-      description: 'Send confirmations, follow up on inquiries, and assign assistants.',
-      path: '/customers',
-      action: 'Opened customer care',
-    },
-    {
-      label: 'Reports',
-      description: 'Generate the latest revenue and operations report.',
-      path: '/reports',
-      action: 'Opened reports',
-    },
-  ],
-  assistant_manager: [
-    {
-      label: 'Follow up leads',
-      description: 'Track new inquiries and confirm their availability.',
-      path: '/customers',
-      action: 'Opened follow-ups',
-    },
-    {
-      label: 'Lock packages',
-      description: 'Confirm décor, services, and menus per event.',
-      path: '/services',
-      action: 'Opened services & pricing',
-    },
-    {
-      label: 'Order rentals',
-      description: 'Reserve vehicles, equipment, and AV support.',
-      path: '/rentals',
-      action: 'Opened rentals',
-    },
-  ],
-  cashier_1: [
-    {
-      label: 'Record payments',
-      description: 'Capture cash, bank transfers, and mobile money receipts.',
-      path: '/payments',
-      action: 'Opened payments',
-    },
-    {
-      label: 'Print receipts',
-      description: 'Generate document-ready copies for auditors.',
-      path: '/documents',
-      action: 'Opened documents',
-    },
-    {
-      label: 'Monitor cash',
-      description: 'Track pending approvals from the till.',
-      path: '/cash-movement',
-      action: 'Opened cash movement',
-    },
-  ],
-  cashier_2: [
-    {
-      label: 'Approve movements',
-      description: 'Review till transfers before banking.',
-      path: '/cash-movement',
-      action: 'Opened cash movement approvals',
-    },
-    {
-      label: 'Update deposits',
-      description: 'Confirm bank deposit slips and reconciliation.',
-      path: '/payments',
-      action: 'Opened payment deposits',
-    },
-    {
-      label: 'Check balances',
-      description: 'Make sure safe and till balances match.',
-      path: '/reports',
-      action: 'Opened reports',
-    },
-  ],
-};
-
-const defaultFunctionalities = [
-  {
-    label: 'Visit bookings',
-    description: 'Browse every event scheduled for Kuringe Halls.',
-    path: '/bookings',
-    action: 'Viewed bookings',
-  },
-  {
-    label: 'Visit services',
-    description: 'Open the services & pricing catalog to customize menus.',
-    path: '/services',
-    action: 'Viewed services',
-  },
-];
 
 function formatTZS(amount: number): string {
   return new Intl.NumberFormat('en-TZ', {
@@ -225,322 +26,188 @@ function formatTZS(amount: number): string {
   }).format(amount);
 }
 
-function ManagerDashboard({ stats }: { stats: ManagerStats }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Today's Bookings</CardTitle>
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.todayBookings}</div>
-          <p className="text-xs text-slate-600">events scheduled today</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Pending Approvals</CardTitle>
-          <AlertCircle className="h-4 w-4 text-warning" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.pendingApprovals}</div>
-          <p className="text-xs text-slate-600">items need your attention</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Monthly Revenue</CardTitle>
-          <TrendingUp className="h-4 w-4 text-success" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatTZS(stats.monthlyRevenue)}</div>
-          <p className="text-xs text-slate-600">+12% from last month</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Active Customers</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.activeCustomers}</div>
-          <p className="text-xs text-slate-600">with ongoing bookings</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function AssistantDashboard({ stats }: { stats: AssistantStats }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Today's Bookings</CardTitle>
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.todayBookings}</div>
-          <p className="text-xs text-slate-600">events scheduled</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Pending Follow-ups</CardTitle>
-          <Clock className="h-4 w-4 text-warning" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.pendingFollowups}</div>
-          <p className="text-xs text-slate-600">customers to contact</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Quotations Pending</CardTitle>
-          <Building className="h-4 w-4 text-info" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.quotationsPending}</div>
-          <p className="text-xs text-slate-600">awaiting response</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">New Inquiries</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.newInquiries}</div>
-          <p className="text-xs text-slate-600">from web portal</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Cashier1Dashboard({ stats }: { stats: Cashier1Stats }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Today's Payments</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.todayPayments}</div>
-          <p className="text-xs text-slate-600">payments recorded</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Pending Receipts</CardTitle>
-          <Clock className="h-4 w-4 text-warning" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.pendingReceipts}</div>
-          <p className="text-xs text-slate-600">to be printed</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Total Received</CardTitle>
-          <TrendingUp className="h-4 w-4 text-success" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatTZS(stats.totalReceived)}</div>
-          <p className="text-xs text-slate-600">today's collections</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Awaiting Approval</CardTitle>
-          <AlertCircle className="h-4 w-4 text-warning" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.awaitingApproval}</div>
-          <p className="text-xs text-slate-600">payments pending</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Cashier2Dashboard({ stats }: { stats: Cashier2Stats }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Pending Movements</CardTitle>
-          <Clock className="h-4 w-4 text-warning" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.pendingMovements}</div>
-          <p className="text-xs text-slate-600">awaiting approval</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Today's Deposits</CardTitle>
-          <CheckCircle2 className="h-4 w-4 text-success" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.todayDeposits}</div>
-          <p className="text-xs text-slate-600">bank deposits made</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Till Balance</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatTZS(stats.tillBalance)}</div>
-          <p className="text-xs text-slate-600">current cash in till</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-900">Safe Balance</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatTZS(stats.safeBalance)}</div>
-          <p className="text-xs text-slate-600">current cash in safe</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+function isTodayIso(value: string): boolean {
+  return value.slice(0, 10) === new Date().toISOString().slice(0, 10);
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { bookings } = useBookings();
+  const { payments } = usePayments();
+  const { approvals, auditLog } = useAuthorization();
+  const { allocations, logs } = useEventFinance();
   const navigate = useNavigate();
-  const [lastQuickAction, setLastQuickAction] = useState('No actions yet');
+
+  const metrics = useMemo(() => {
+    const todayBookings = bookings.filter((item) => item.date === new Date().toISOString().slice(0, 10)).length;
+    const pendingBookings = bookings.filter((item) => item.bookingStatus === 'pending').length;
+    const approvedBookings = bookings.filter((item) => item.bookingStatus === 'approved').length;
+    const activeCustomers = new Set(
+      bookings
+        .filter((item) => item.bookingStatus !== 'rejected' && item.bookingStatus !== 'cancelled')
+        .map((item) => item.customerName),
+    ).size;
+    const pendingApprovals = approvals.filter((item) => item.status === 'pending').length;
+    const paymentsToday = payments.filter((item) => isTodayIso(item.receivedAt)).length;
+    const totalReceived = payments.reduce((sum, item) => sum + item.amount, 0);
+    const pendingAllocations = allocations.filter((item) => item.status === 'pending_controller').length;
+    const releasedAllocations = allocations.filter((item) => item.status === 'funds_released').length;
+    const openAllocations = allocations.filter((item) => item.status !== 'closed' && item.status !== 'rejected_controller').length;
+    const recentActivityCount = auditLog.length + logs.length;
+    return {
+      todayBookings,
+      pendingBookings,
+      approvedBookings,
+      activeCustomers,
+      pendingApprovals,
+      paymentsToday,
+      totalReceived,
+      pendingAllocations,
+      releasedAllocations,
+      openAllocations,
+      recentActivityCount,
+    };
+  }, [allocations, approvals, auditLog.length, bookings, logs.length, payments]);
+
+  const statsByRole = useMemo<Record<UserRole, StatCard[]>>(
+    () => ({
+      manager: [
+        { title: "Today's Bookings", value: String(metrics.todayBookings), hint: 'Scheduled for today', icon: Calendar },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Waiting for review', icon: AlertCircle },
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'Recorded payments', icon: DollarSign },
+        { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'With active bookings', icon: Users },
+      ],
+      assistant_hall_manager: [
+        { title: "Today's Bookings", value: String(metrics.todayBookings), hint: 'Scheduled for today', icon: Calendar },
+        { title: 'Pending Bookings', value: String(metrics.pendingBookings), hint: 'Need processing', icon: Clock },
+        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Ready for execution', icon: CheckCircle2 },
+        { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Current customer load', icon: Users },
+      ],
+      cashier_1: [
+        { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Recorded today', icon: DollarSign },
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded receipts', icon: CheckCircle2 },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Payment-related approvals', icon: AlertCircle },
+        { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Paying customers', icon: Users },
+      ],
+      cashier_2: [
+        { title: 'Pending Allocations', value: String(metrics.pendingAllocations), hint: 'Awaiting controller', icon: Clock },
+        { title: 'Released Allocations', value: String(metrics.releasedAllocations), hint: 'Ready for spending', icon: CheckCircle2 },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Not yet closed', icon: AlertCircle },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Finance + authorization logs', icon: Calendar },
+      ],
+      controller: [
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Needs final decision', icon: AlertCircle },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Active requests', icon: Clock },
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'Recorded collections', icon: DollarSign },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'System-level actions', icon: CheckCircle2 },
+      ],
+      store_keeper: [
+        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Events to prepare for', icon: Calendar },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Allocation-linked events', icon: Clock },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Workflow visibility', icon: AlertCircle },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Stock-related actions', icon: Users },
+      ],
+      purchaser: [
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Potential purchase requests', icon: Clock },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Awaiting controller', icon: AlertCircle },
+        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Event demand basis', icon: Calendar },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Approval and finance trail', icon: CheckCircle2 },
+      ],
+      accountant: [
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
+        { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Transactions today', icon: Calendar },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Outstanding allocations', icon: AlertCircle },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance logs', icon: Clock },
+      ],
+    }),
+    [metrics],
+  );
 
   if (!user) return null;
 
-  const renderDashboardContent = () => {
-    switch (user.role) {
-      case 'hall_manager':
-        return <ManagerDashboard stats={MANAGER_STATS} />;
-      case 'assistant_manager':
-        return <AssistantDashboard stats={ASSISTANT_STATS} />;
-      case 'cashier_1':
-        return <Cashier1Dashboard stats={CASHIER1_STATS} />;
-      case 'cashier_2':
-        return <Cashier2Dashboard stats={CASHIER2_STATS} />;
-      default:
-        return <ManagerDashboard stats={MANAGER_STATS} />;
-    }
-  };
+  const roleCards = statsByRole[user.role];
+  const recentBookings = [...bookings]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5);
 
-  const userFunctionalities = functionalitySets[user.role] ?? defaultFunctionalities;
-
-  const handleActionClick = (item: { action: string; path?: string }) => {
-    setLastQuickAction(item.action);
-    if (item.path) {
-      navigate(item.path);
-    }
-  };
+  const quickLinks = [
+    { label: 'Bookings', path: '/bookings' },
+    { label: 'Payments', path: '/payments' },
+    { label: 'Reports', path: '/reports' },
+    { label: 'Settings', path: '/settings' },
+  ];
 
   return (
     <DashboardLayout title="Dashboard">
       <div className="space-y-6 text-slate-900">
-        {/* Welcome Header */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome back, {user.name.split(' ')[0]}!
-          </h1>
-          <p className="text-sm text-slate-600">
-            {ROLE_LABELS[user.role]} • Here's what's happening today
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back, {user.name.split(' ')[0]}!</h1>
+          <p className="text-sm text-slate-600">{ROLE_LABELS[user.role]} • Live system overview</p>
         </div>
 
-        {/* Role-specific Stats */}
-        {renderDashboardContent()}
-
-        {/* Functionalities */}
-        <div className="space-y-4">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Functionalities</p>
-              <h3 className="text-xl font-semibold text-slate-900">Tools for {ROLE_LABELS[user.role]}</h3>
-            </div>
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">{ROLE_LABELS[user.role]}</span>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {userFunctionalities.map((item) => (
-              <div
-                key={item.label}
-                className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-700 shadow-sm"
-              >
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{item.label}</p>
-                <p className="text-sm text-slate-600">{item.description}</p>
-                <button
-                  type="button"
-                  onClick={() => handleActionClick(item)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.3em] text-red-500 transition hover:text-red-600"
-                >
-                  Open →
-                </button>
-              </div>
-            ))}
-          </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {roleCards.map((card) => (
+            <Card key={card.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-slate-900">{card.title}</CardTitle>
+                <card.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{card.value}</div>
+                <p className="text-xs text-slate-600">{card.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Recent Activity + Quick Actions */}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-slate-900">Recent Bookings</CardTitle>
-              <CardDescription className="text-slate-600">Latest booking activity</CardDescription>
+              <CardDescription className="text-slate-600">Latest real booking records</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {recentBookings.map((booking) => (
-                <div
-                  key={booking.event}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{booking.event}</p>
-                    <p className="text-xs text-slate-600">{booking.hall}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">{booking.time}</p>
-                    <span className="text-xs font-semibold uppercase tracking-[0.3em] text-kuringe-red">
-                      {booking.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-slate-900">Quick Actions</CardTitle>
-              <CardDescription className="text-slate-600">Trigger frequent tasks</CardDescription>
-            </CardHeader>
-              <CardContent className="space-y-3">
-                {quickActions.map((action) => (
+            <CardContent className="space-y-3">
+              {recentBookings.length === 0 ? (
+                <p className="text-sm text-slate-500">No booking records yet.</p>
+              ) : (
+                recentBookings.map((booking) => (
                   <div
-                    key={action.label}
+                    key={booking.id}
                     className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
                   >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{action.label}</p>
-                    <p className="text-xs text-slate-600">{action.description}</p>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{booking.eventName}</p>
+                      <p className="text-xs text-slate-600">{booking.hall}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleActionClick(action)}
-                      className="rounded-full border border-slate-300 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-slate-800"
-                    >
-                      Run
-                    </button>
-                </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500">{booking.date}</p>
+                      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-kuringe-red">
+                        {booking.bookingStatus}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-slate-900">Quick Links</CardTitle>
+              <CardDescription className="text-slate-600">Open a working module</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {quickLinks.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-left"
+                >
+                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                  <span className="text-xs uppercase tracking-[0.2em] text-red-500">Open</span>
+                </button>
               ))}
-              <p className="text-xs text-slate-500">Last action: {lastQuickAction}</p>
             </CardContent>
           </Card>
         </div>
