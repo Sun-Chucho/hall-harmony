@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isControllerOrManager() {
+      return isSignedIn()
+        && (request.auth.token.role == 'controller' || request.auth.token.role == 'manager');
+    }
+
+    function isSelfUpdateSafe() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'lastLogin',
+        'updatedAt'
+      ]);
+    }
+
+    // Login directory: visible before login so staff can select role/user.
+    match /staff_users/{userId} {
+      allow read: if true;
+
+      // User may only update last-login metadata.
+      allow update: if isSignedIn() && request.auth.uid == userId && isSelfUpdateSafe();
+
+      // Controller and manager can edit role and activation status.
+      allow create, delete, update: if isControllerOrManager();
+    }
+  }
+}

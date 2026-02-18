@@ -20,20 +20,18 @@ export default function Login() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Building2 className="h-6 w-6 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-sidebar-foreground">
-              Kuringe Halls
-            </span>
+            <span className="text-2xl font-bold text-sidebar-foreground">Kuringe Halls</span>
           </div>
         </div>
-        
+
         <div className="space-y-6">
           <h1 className="text-4xl font-bold text-sidebar-foreground leading-tight">
             Hall Booking &<br />
             Management System
           </h1>
           <p className="text-sidebar-foreground/70 text-lg max-w-md">
-            Streamline your venue bookings, manage customers, track payments, 
-            and coordinate events all in one place.
+            Streamline venue bookings, manage customers, track payments,
+            and coordinate events in one place.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-4">
             <div className="rounded-lg bg-sidebar-accent p-4">
@@ -47,14 +45,12 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="text-sm text-sidebar-foreground/50">
-          © 2024 Kuringe Halls. All rights reserved.
-        </div>
+        <div className="text-sm text-sidebar-foreground/50">(c) 2026 Kuringe Halls. All rights reserved.</div>
       </div>
 
       {/* Right Panel - Login Form */}
       <div className="flex flex-1 items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-xl">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
             <div className="inline-flex items-center gap-3">
