@@ -5,10 +5,9 @@ import { ROLE_DESCRIPTIONS, ROLE_LABELS, STAFF_USERS, UserRole } from '@/types/a
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, KeyRound, Loader2, LogIn, Settings2, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, LogIn, UserRound } from 'lucide-react';
 
 const ROLE_ORDER: UserRole[] = [
   'manager',
@@ -16,18 +15,27 @@ const ROLE_ORDER: UserRole[] = [
   'cashier_1',
   'cashier_2',
   'controller',
-  'purchaser',
   'store_keeper',
+  'purchaser',
   'accountant',
 ];
 
+const SHORT_ROLE_LABELS: Record<UserRole, string> = {
+  manager: 'Hall Manager',
+  assistant_hall_manager: 'Assistant Hall Manager',
+  cashier_1: 'Cashier 1',
+  cashier_2: 'Cashier 2',
+  controller: 'Controller',
+  store_keeper: 'Storekeeper',
+  purchaser: 'Purchaser',
+  accountant: 'Accountant',
+};
+
 export function LoginForm() {
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>('controller');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const [settingsRole, setSettingsRole] = useState<UserRole>('manager');
   const [settingsUserId, setSettingsUserId] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -37,16 +45,12 @@ export function LoginForm() {
   const { login, changePassword, staffUsers, refreshStaffUsers } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const sourceUsers = staffUsers.length > 0 ? staffUsers : STAFF_USERS;
 
   const selectedRoleUsers = useMemo(
-    () => (selectedRole ? sourceUsers.filter((user) => user.role === selectedRole) : []),
+    () => sourceUsers.filter((user) => user.role === selectedRole),
     [selectedRole, sourceUsers],
-  );
-
-  const settingsRoleUsers = useMemo(
-    () => sourceUsers.filter((user) => user.role === settingsRole),
-    [settingsRole, sourceUsers],
   );
 
   useEffect(() => {
@@ -62,19 +66,20 @@ export function LoginForm() {
   }, [selectedRoleUsers]);
 
   useEffect(() => {
-    if (settingsRoleUsers.length > 0) {
-      setSettingsUserId(settingsRoleUsers[0].id);
+    if (selectedRoleUsers.length > 0) {
+      setSettingsUserId(selectedRoleUsers[0].id);
       return;
     }
     setSettingsUserId('');
-  }, [settingsRoleUsers]);
+  }, [selectedRoleUsers]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole || !selectedUserId) {
+
+    if (!selectedUserId) {
       toast({
         title: 'Selection required',
-        description: 'Please choose a role and a staff member first.',
+        description: 'Please select a staff member.',
         variant: 'destructive',
       });
       return;
@@ -86,7 +91,7 @@ export function LoginForm() {
     if (success) {
       toast({
         title: 'Login successful',
-        description: 'Welcome to Kuringe Halls Management System.',
+        description: 'Welcome to your workspace.',
       });
       navigate('/dashboard');
     } else {
@@ -96,22 +101,14 @@ export function LoginForm() {
         variant: 'destructive',
       });
     }
-
     setIsLoading(false);
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!settingsUserId) {
-      toast({
-        title: 'Selection required',
-        description: 'Please select a staff member.',
-        variant: 'destructive',
-      });
       return;
     }
-
     if (newPassword !== confirmPassword) {
       toast({
         title: 'Passwords do not match',
@@ -123,78 +120,80 @@ export function LoginForm() {
 
     setIsChangingPassword(true);
     const result = await changePassword(settingsUserId, currentPassword, newPassword);
-
     toast({
       title: result.ok ? 'Password updated' : 'Password update failed',
       description: result.message,
       variant: result.ok ? 'default' : 'destructive',
     });
-
     if (result.ok) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     }
-
     setIsChangingPassword(false);
   };
 
   return (
-    <div className="w-full max-w-xl space-y-6">
-      <Card className="border-2">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-bold">Staff Login</CardTitle>
-          <CardDescription>
-            Default password for all users is <span className="font-semibold text-foreground">1234</span>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!selectedRole ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Select your role to continue.</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {ROLE_ORDER.map((role) => (
-                  <Button
-                    key={role}
-                    type="button"
-                    variant="outline"
-                    className="h-auto items-start justify-start px-3 py-3 text-left"
-                    onClick={() => setSelectedRole(role)}
-                  >
-                    <div className="space-y-1">
-                      <p className="font-semibold">{ROLE_LABELS[role]}</p>
-                      <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[role]}</p>
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSignIn} className="space-y-4">
-              <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Selected role</p>
-                  <p className="font-semibold">{ROLE_LABELS[selectedRole]}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedRole(null);
-                    setPassword('');
-                  }}
-                >
-                  <ArrowLeft className="mr-1 h-4 w-4" />
-                  Back
-                </Button>
-              </div>
+    <div className="mx-auto w-full max-w-6xl rounded-[24px] border border-[#d8d9dd] bg-[#eceef2] shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+      <div className="grid min-h-[740px] grid-cols-1 lg:grid-cols-[1.02fr_1.5fr]">
+        <aside className="flex flex-col rounded-t-[24px] bg-[#a80c10] p-9 text-white lg:rounded-l-[24px] lg:rounded-tr-none">
+          <div>
+            <h2 className="text-5xl font-bold tracking-tight">Staff Directory</h2>
+            <p className="mt-4 max-w-sm text-2xl text-white/75">
+              Select your operational area to access your dashboard.
+            </p>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="staff-user">Staff member</Label>
+          <div className="mt-12 flex-1 space-y-3">
+            {ROLE_ORDER.map((role) => {
+              const active = selectedRole === role;
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setSelectedRole(role)}
+                  className={`flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left text-3xl font-semibold transition ${
+                    active
+                      ? 'bg-white text-[#a80c10] shadow-[0_10px_24px_rgba(0,0,0,0.14)]'
+                      : 'bg-transparent text-white/95 hover:bg-white/10'
+                  }`}
+                >
+                  <span>{SHORT_ROLE_LABELS[role]}</span>
+                  {active ? <ArrowRight className="h-6 w-6" /> : null}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="mt-8 inline-flex items-center gap-2 text-2xl text-white/90 hover:text-white"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Back to Public Page
+          </button>
+        </aside>
+
+        <section className="rounded-b-[24px] bg-[#f3f4f6] p-8 text-slate-900 lg:rounded-b-none lg:rounded-r-[24px] lg:px-14 lg:py-16">
+          <div className="mx-auto w-full max-w-2xl">
+            <h3 className="text-5xl font-bold">{SHORT_ROLE_LABELS[selectedRole]}</h3>
+            <p className="mt-3 text-3xl text-slate-500">{ROLE_DESCRIPTIONS[selectedRole]}</p>
+
+            <form onSubmit={handleSignIn} className="mt-12 space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="staff-user" className="text-3xl font-semibold text-slate-700">
+                  Identify Yourself
+                </Label>
                 <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger id="staff-user">
-                    <SelectValue placeholder="Select a staff member" />
+                  <SelectTrigger
+                    id="staff-user"
+                    className="h-16 rounded-2xl border-2 border-slate-200 bg-white text-xl"
+                  >
+                    <div className="flex items-center gap-2">
+                      <UserRound className="h-5 w-5 text-slate-400" />
+                      <SelectValue placeholder="Select a staff member" />
+                    </div>
                   </SelectTrigger>
                   <SelectContent>
                     {selectedRoleUsers.map((user) => (
@@ -206,125 +205,84 @@ export function LoginForm() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-3">
+                <Label htmlFor="password" className="text-3xl font-semibold text-slate-700">
+                  Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="h-16 rounded-2xl border-2 border-slate-200 bg-white text-xl"
                   required
                   disabled={isLoading}
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <LogIn className="mr-2 h-4 w-4" />
-                )}
-                Sign In
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="h-16 w-full rounded-2xl bg-[#cb8b8d] text-2xl font-semibold hover:bg-[#c27b7f]"
+              >
+                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
+                Login to Workspace
               </Button>
             </form>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card className="border-dashed">
-        <CardHeader className="space-y-2 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings2 className="h-4 w-4" />
-            Password Settings
-          </CardTitle>
-          <CardDescription>Change password for a specific user account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordChange} className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="settings-role">Role</Label>
-                <Select value={settingsRole} onValueChange={(value: UserRole) => setSettingsRole(value)}>
-                  <SelectTrigger id="settings-role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLE_ORDER.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="settings-user">User</Label>
+            <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Settings</p>
+              <p className="mt-1 text-sm text-slate-600">Default password is 1234. You can change it here.</p>
+
+              <form onSubmit={handlePasswordChange} className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Select value={settingsUserId} onValueChange={setSettingsUserId}>
-                  <SelectTrigger id="settings-user">
+                  <SelectTrigger className="h-11 rounded-xl border-slate-200">
                     <SelectValue placeholder="Select user" />
                   </SelectTrigger>
                   <SelectContent>
-                    {settingsRoleUsers.map((user) => (
+                    {selectedRoleUsers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
-                        {user.name} {!user.isActive ? '(Inactive)' : ''}
+                        {user.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                disabled={isChangingPassword}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New password</Label>
                 <Input
-                  id="new-password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Current password"
+                  className="h-11 rounded-xl border-slate-200"
+                  required
+                />
+                <Input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password"
+                  className="h-11 rounded-xl border-slate-200"
                   required
-                  disabled={isChangingPassword}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={isChangingPassword}
-                />
-              </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                    className="h-11 rounded-xl border-slate-200"
+                    required
+                  />
+                  <Button type="submit" variant="outline" className="h-11 rounded-xl" disabled={isChangingPassword}>
+                    {isChangingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update'}
+                  </Button>
+                </div>
+              </form>
             </div>
-
-            <Button type="submit" variant="outline" className="w-full" disabled={isChangingPassword}>
-              {isChangingPassword ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  <UserRound className="mr-1 h-4 w-4" />
-                </>
-              )}
-              Update Password
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
