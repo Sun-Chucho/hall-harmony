@@ -27,5 +27,26 @@ service cloud.firestore {
       // Controller and manager can edit role and activation status.
       allow create, delete, update: if isControllerOrManager();
     }
+
+    // Booking records: public can create booking requests, staff can view/process.
+    match /bookings/{bookingId} {
+      allow create: if request.auth != null
+        || request.resource.data.createdByUserId == 'public-web';
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isControllerOrManager();
+    }
+
+    // Documents manual form outputs: staff-only visibility and submission.
+    match /document_form_outputs/{entryId} {
+      allow create, read: if isSignedIn();
+      allow update, delete: if isControllerOrManager();
+    }
+
+    // Shared app state docs synced by authenticated staff.
+    match /system_state/{stateId} {
+      allow create, read, update: if isSignedIn();
+      allow delete: if isControllerOrManager();
+    }
   }
 }

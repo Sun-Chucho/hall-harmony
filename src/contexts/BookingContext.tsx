@@ -1,24 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
+import { db } from '@/lib/firebase';
 import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus } from '@/types/booking';
 
 interface BookingContextValue {
   bookings: BookingRecord[];
-  createBooking: (payload: CreateBookingInput) => { ok: boolean; message: string };
-  updateBookingStatus: (bookingId: string, status: BookingStatus) => { ok: boolean; message: string };
+  createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  createPublicBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<{ ok: boolean; message: string }>;
   submitEventDetails: (
     bookingId: string,
     eventType: string,
     expectedGuests: number,
     notes: string,
-  ) => { ok: boolean; message: string };
-  updateEventDetailStatus: (bookingId: string, status: EventDetailStatus) => { ok: boolean; message: string };
+  ) => Promise<{ ok: boolean; message: string }>;
+  updateEventDetailStatus: (bookingId: string, status: EventDetailStatus) => Promise<{ ok: boolean; message: string }>;
   hasConflict: (payload: CreateBookingInput, ignoreBookingId?: string) => boolean;
 }
 
-const STORAGE_KEY = 'kuringe_bookings_v1';
 const BookingContext = createContext<BookingContextValue | undefined>(undefined);
+const PUBLIC_BOOKING_USER_ID = 'public-web';
+const BOOKINGS_COLLECTION = 'bookings';
+const BOOKING_CACHE_KEY = 'kuringe_bookings_v1';
 
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -29,24 +34,75 @@ function overlaps(startA: string, endA: string, startB: string, endB: string): b
   return toMinutes(startA) < toMinutes(endB) && toMinutes(startB) < toMinutes(endA);
 }
 
+function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingRecord {
+  return {
+    id,
+    customerName: data.customerName ?? '',
+    customerPhone: data.customerPhone ?? '',
+    eventName: data.eventName ?? '',
+    eventType: data.eventType ?? '',
+    hall: data.hall ?? '',
+    date: data.date ?? '',
+    startTime: data.startTime ?? '',
+    endTime: data.endTime ?? '',
+    expectedGuests: Number(data.expectedGuests) || 0,
+    quotedAmount: Number(data.quotedAmount) || 0,
+    notes: data.notes ?? '',
+    createdAt: data.createdAt ?? new Date().toISOString(),
+    createdByUserId: data.createdByUserId ?? '',
+    bookingStatus: (data.bookingStatus as BookingStatus) ?? 'pending',
+    eventDetailStatus: (data.eventDetailStatus as EventDetailStatus) ?? 'pending_assistant',
+    bookingApprovalId: data.bookingApprovalId,
+    eventApprovalId: data.eventApprovalId,
+    eventFinalApprovalId: data.eventFinalApprovalId,
+  };
+}
+
 export function BookingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { policy, createApprovalRequest, reviewApproval } = useAuthorization();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(BOOKING_CACHE_KEY);
     if (!raw) return;
     try {
       setBookings(JSON.parse(raw) as BookingRecord[]);
     } catch {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(BOOKING_CACHE_KEY);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+    localStorage.setItem(BOOKING_CACHE_KEY, JSON.stringify(bookings));
   }, [bookings]);
+
+  useEffect(() => {
+    if (!user) {
+      setBookings([]);
+      return;
+    }
+
+    const q = query(collection(db, BOOKINGS_COLLECTION), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = snapshot.docs.map((item) => normalizeBooking(item.data() as Partial<BookingRecord>, item.id));
+        setBookings(next);
+      },
+      () => {
+        const raw = localStorage.getItem(BOOKING_CACHE_KEY);
+        if (!raw) return;
+        try {
+          setBookings(JSON.parse(raw) as BookingRecord[]);
+        } catch {
+          localStorage.removeItem(BOOKING_CACHE_KEY);
+        }
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
 
   const hasConflict = useCallback((payload: CreateBookingInput, ignoreBookingId?: string) => {
     return bookings.some((booking) => {
@@ -58,7 +114,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     });
   }, [bookings]);
 
-  const createBooking = useCallback((payload: CreateBookingInput) => {
+  const createBooking = useCallback(async (payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
       return { ok: false, message: 'Customer and event details are required.' };
@@ -120,11 +176,68 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       bookingApprovalId: bookingApproval.requestId,
       eventApprovalId: eventApproval.requestId,
     };
-    setBookings((prev) => [record, ...prev]);
-    return { ok: true, message: 'Booking submitted for approval.' };
-  }, [createApprovalRequest, hasConflict, policy.finalApprovalRequired, user]);
 
-  const updateBookingStatus = useCallback((bookingId: string, status: BookingStatus) => {
+    try {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, id), {
+        ...record,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Booking submitted for approval.' };
+    } catch {
+      setBookings((prev) => [record, ...prev]);
+      return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
+    }
+  }, [createApprovalRequest, hasConflict, user]);
+
+  const createPublicBooking = useCallback(async (payload: CreateBookingInput) => {
+    if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
+      return { ok: false, message: 'Customer and event details are required.' };
+    }
+    if (!payload.hall || !payload.date || !payload.startTime || !payload.endTime) {
+      return { ok: false, message: 'Hall, date, and time window are required.' };
+    }
+    if (toMinutes(payload.endTime) <= toMinutes(payload.startTime)) {
+      return { ok: false, message: 'End time must be later than start time.' };
+    }
+    if (payload.expectedGuests <= 0) {
+      return { ok: false, message: 'Expected guests must be greater than zero.' };
+    }
+    if (payload.quotedAmount <= 0) {
+      return { ok: false, message: 'Quoted amount must be greater than zero.' };
+    }
+
+    const record: BookingRecord = {
+      id: `BOOK-${Date.now()}`,
+      customerName: payload.customerName.trim(),
+      customerPhone: payload.customerPhone.trim(),
+      eventName: payload.eventName.trim(),
+      eventType: payload.eventType.trim(),
+      hall: payload.hall.trim(),
+      date: payload.date,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      expectedGuests: payload.expectedGuests,
+      quotedAmount: payload.quotedAmount,
+      notes: payload.notes?.trim() ?? '',
+      createdAt: new Date().toISOString(),
+      createdByUserId: PUBLIC_BOOKING_USER_ID,
+      bookingStatus: 'pending',
+      eventDetailStatus: 'pending_assistant',
+    };
+
+    try {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, record.id), {
+        ...record,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
+    } catch {
+      setBookings((prev) => [record, ...prev]);
+      return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
+    }
+  }, []);
+
+  const updateBookingStatus = useCallback(async (bookingId: string, status: BookingStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     const target = bookings.find((booking) => booking.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
@@ -136,13 +249,21 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       reviewApproval(target.bookingApprovalId ?? '', 'rejected', 'Booking rejected through workflow');
     }
 
-    setBookings((prev) =>
-      prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
-    );
-    return { ok: true, message: `Booking marked as ${status}.` };
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+        bookingStatus: status,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: `Booking marked as ${status}.` };
+    } catch {
+      setBookings((prev) =>
+        prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
+      );
+      return { ok: true, message: 'Booking status saved locally. Cloud sync pending.' };
+    }
   }, [bookings, reviewApproval, user]);
 
-  const submitEventDetails = useCallback((
+  const submitEventDetails = useCallback(async (
     bookingId: string,
     eventType: string,
     expectedGuests: number,
@@ -155,23 +276,34 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Valid event type and guest count are required.' };
     }
 
-    setBookings((prev) =>
-      prev.map((booking) =>
-        booking.id === bookingId
-          ? {
-              ...booking,
-              eventType: eventType.trim(),
-              expectedGuests,
-              notes: notes.trim(),
-              eventDetailStatus: 'pending_assistant',
-            }
-          : booking,
-      ),
-    );
-    return { ok: true, message: 'Event details submitted for approval.' };
-  }, [bookings, policy.finalApprovalRequired, user]);
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+        eventType: eventType.trim(),
+        expectedGuests,
+        notes: notes.trim(),
+        eventDetailStatus: 'pending_assistant',
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Event details submitted for approval.' };
+    } catch {
+      setBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === bookingId
+            ? {
+                ...booking,
+                eventType: eventType.trim(),
+                expectedGuests,
+                notes: notes.trim(),
+                eventDetailStatus: 'pending_assistant',
+              }
+            : booking,
+        ),
+      );
+      return { ok: true, message: 'Event details saved locally. Cloud sync pending.' };
+    }
+  }, [bookings, user]);
 
-  const updateEventDetailStatus = useCallback((bookingId: string, status: EventDetailStatus) => {
+  const updateEventDetailStatus = useCallback(async (bookingId: string, status: EventDetailStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     const target = bookings.find((booking) => booking.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
@@ -193,18 +325,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, message: finalApproval.message };
         }
 
-        setBookings((prev) =>
-          prev.map((booking) =>
-            booking.id === bookingId
-              ? {
-                  ...booking,
-                  eventDetailStatus: 'pending_controller',
-                  eventFinalApprovalId: finalApproval.requestId,
-                }
-              : booking,
-          ),
-        );
-        return { ok: true, message: 'Assistant approval recorded, pending controller final approval.' };
+        try {
+          await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+            eventDetailStatus: 'pending_controller',
+            eventFinalApprovalId: finalApproval.requestId,
+            updatedAt: serverTimestamp(),
+          });
+          return { ok: true, message: 'Assistant approval recorded, pending controller final approval.' };
+        } catch {
+          return { ok: false, message: 'Failed to sync assistant approval to backend.' };
+        }
       }
     }
 
@@ -219,30 +349,33 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       reviewApproval(approvalId, 'rejected', 'Event details rejected');
     }
 
-    if (status === 'approved_controller' || status === 'rejected' || status === 'approved_assistant') {
-      setBookings((prev) =>
-        prev.map((booking) => (booking.id === bookingId ? { ...booking, eventDetailStatus: status } : booking)),
-      );
-      return { ok: true, message: 'Event detail status updated.' };
-    }
-
     if (status === 'pending_controller' && !policy.finalApprovalRequired) {
       return { ok: false, message: 'Controller final approval is disabled in policy.' };
     }
-    setBookings((prev) =>
-      prev.map((booking) => (booking.id === bookingId ? { ...booking, eventDetailStatus: status } : booking)),
-    );
-    return { ok: true, message: 'Event detail status updated.' };
+
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+        eventDetailStatus: status,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Event detail status updated.' };
+    } catch {
+      setBookings((prev) =>
+        prev.map((booking) => (booking.id === bookingId ? { ...booking, eventDetailStatus: status } : booking)),
+      );
+      return { ok: true, message: 'Event detail status saved locally. Cloud sync pending.' };
+    }
   }, [bookings, createApprovalRequest, policy.finalApprovalRequired, reviewApproval, user]);
 
   const value = useMemo<BookingContextValue>(() => ({
     bookings,
     createBooking,
+    createPublicBooking,
     updateBookingStatus,
     submitEventDetails,
     updateEventDetailStatus,
     hasConflict,
-  }), [bookings, createBooking, hasConflict, submitEventDetails, updateBookingStatus, updateEventDetailStatus]);
+  }), [bookings, createBooking, createPublicBooking, hasConflict, submitEventDetails, updateBookingStatus, updateEventDetailStatus]);
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
 }

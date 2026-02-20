@@ -16,7 +16,7 @@ const Taratibu = () => {
           <Link to="/" className="text-2xl font-bold text-foreground">
             Kuringe<span className="text-primary">Halls</span>
           </Link>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Book Now
             </Button>
@@ -141,7 +141,7 @@ const Taratibu = () => {
                 View Venues
               </Button>
             </Link>
-            <Link to="/login">
+            <Link to="/#book-now">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
                 Start Booking
               </Button>

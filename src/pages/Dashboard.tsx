@@ -77,6 +77,12 @@ export default function Dashboard() {
         { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'Recorded payments', icon: DollarSign },
         { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'With active bookings', icon: Users },
       ],
+      managing_director: [
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded collections', icon: DollarSign },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Items awaiting decision', icon: AlertCircle },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Current financial commitments', icon: Clock },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance trail', icon: CheckCircle2 },
+      ],
       assistant_hall_manager: [
         { title: "Today's Bookings", value: String(metrics.todayBookings), hint: 'Scheduled for today', icon: Calendar },
         { title: 'Pending Bookings', value: String(metrics.pendingBookings), hint: 'Need processing', icon: Clock },

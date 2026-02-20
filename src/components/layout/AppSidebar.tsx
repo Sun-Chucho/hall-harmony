@@ -55,6 +55,12 @@ const mainNavItems: NavItem[] = [
     path: '/dashboard',
   },
   {
+    title: 'MD Dashboard',
+    icon: LayoutDashboard,
+    path: '/managing-director-dashboard',
+    roles: ['managing_director'],
+  },
+  {
     title: 'Bookings',
     icon: Calendar,
     path: '/bookings',
@@ -100,7 +106,7 @@ const operationsNavItems: NavItem[] = [
     title: 'Documents',
     icon: FileText,
     path: '/documents',
-    roles: ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'accountant'],
+    roles: ['manager', 'assistant_hall_manager', 'cashier_2', 'controller', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
   },
 ];
 
@@ -115,7 +121,7 @@ const adminNavItems: NavItem[] = [
     title: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    roles: ['manager', 'controller', 'accountant'],
+    roles: ['manager', 'controller', 'accountant', 'managing_director'],
   },
   {
     title: 'Web Portal',
@@ -127,7 +133,7 @@ const adminNavItems: NavItem[] = [
     title: 'Settings',
     icon: Settings,
     path: '/settings',
-    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller', 'store_keeper', 'purchaser', 'accountant'],
+    roles: ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller', 'store_keeper', 'purchaser', 'accountant'],
   },
 ];
 

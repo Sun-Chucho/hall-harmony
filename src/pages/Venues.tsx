@@ -34,7 +34,7 @@ const Venues = () => {
           <Link to="/" className="text-2xl font-bold text-foreground">
             Kuringe<span className="text-primary">Halls</span>
           </Link>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Book Now
             </Button>
@@ -145,7 +145,7 @@ const Venues = () => {
                     >
                       View Details
                     </Button>
-                    <Link to="/login">
+                    <Link to="/#book-now">
                       <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 px-8">
                         <Calendar className="w-4 h-4 mr-2" />
                         Book This Venue
@@ -168,7 +168,7 @@ const Venues = () => {
           <p className="text-lg text-background/70 mb-8">
             Contact us today to discuss your requirements and secure your preferred date.
           </p>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
               Start Booking Process
             </Button>

@@ -11,6 +11,7 @@ import { ArrowLeft, ArrowRight, Loader2, LogIn, UserRound } from 'lucide-react';
 
 const ROLE_ORDER: UserRole[] = [
   'manager',
+  'managing_director',
   'assistant_hall_manager',
   'cashier_1',
   'cashier_2',
@@ -22,6 +23,7 @@ const ROLE_ORDER: UserRole[] = [
 
 const SHORT_ROLE_LABELS: Record<UserRole, string> = {
   manager: 'Hall Manager',
+  managing_director: 'Managing Director',
   assistant_hall_manager: 'Assistant Hall Manager',
   cashier_1: 'Cashier 1',
   cashier_2: 'Cashier 2',
@@ -30,6 +32,10 @@ const SHORT_ROLE_LABELS: Record<UserRole, string> = {
   purchaser: 'Purchaser',
   accountant: 'Accountant',
 };
+
+function getDashboardRoute(role: UserRole) {
+  return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
+}
 
 export function LoginForm() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('controller');
@@ -74,11 +80,12 @@ export function LoginForm() {
     const result = await loginWithResult(selectedUserId, password);
 
     if (result.ok) {
+      const selectedUser = staffUsers.find((item) => item.id === selectedUserId);
       toast({
         title: 'Login successful',
         description: 'Welcome to your workspace.',
       });
-      navigate('/dashboard');
+      navigate(getDashboardRoute(selectedUser?.role ?? selectedRole));
     } else {
       toast({
         title: 'Login failed',

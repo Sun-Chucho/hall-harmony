@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, Sparkles, Crown, Diamond, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { decorationPackages, beverageList, conferencePackages } from '@/lib/landingData';
@@ -30,7 +30,7 @@ const Pricing = () => {
           <Link to="/" className="text-2xl font-bold text-foreground">
             Kuringe<span className="text-primary">Halls</span>
           </Link>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Book Now
             </Button>
@@ -94,7 +94,7 @@ const Pricing = () => {
                   </div>
 
                   <h3 className={`text-xl font-bold mb-2 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
-                    {pkg.title.split('–')[0].trim()}
+                    {pkg.title.split(' - ')[0].trim()}
                   </h3>
                   
                   <p className={`text-3xl font-bold mb-4 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
@@ -113,7 +113,7 @@ const Pricing = () => {
                     ))}
                   </ul>
 
-                  <Link to="/login">
+                  <Link to="/#book-now">
                     <Button className={`w-full py-5 ${
                       isFeatured 
                         ? 'bg-background text-foreground hover:bg-background/90' 
@@ -203,7 +203,7 @@ const Pricing = () => {
           <p className="text-lg text-background/70 mb-8">
             Contact us for tailored solutions that match your specific requirements and budget.
           </p>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
               Get Custom Quote
             </Button>
@@ -222,3 +222,4 @@ const Pricing = () => {
 };
 
 export default Pricing;
+

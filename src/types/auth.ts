@@ -1,5 +1,6 @@
 export type UserRole =
   | 'manager'
+  | 'managing_director'
   | 'assistant_hall_manager'
   | 'cashier_1'
   | 'cashier_2'
@@ -26,6 +27,7 @@ export interface AuthState {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   manager: 'Hall Manager',
+  managing_director: 'Managing Director',
   assistant_hall_manager: 'Assistant Hall Manager & Receptionist',
   cashier_1: 'Cashier 1 (Payments)',
   cashier_2: 'Cashier 2 (Event Allocation)',
@@ -37,6 +39,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   manager: 'Oversees hall operations, bookings, and service delivery.',
+  managing_director: 'Reviews executive fund distribution and high-level business performance.',
   assistant_hall_manager: 'Handles reception and daily booking coordination.',
   cashier_1: 'Manages customer payments and receipts.',
   cashier_2: 'Supports event allocation and payment processing.',

@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { db } from '@/lib/firebase';
 import {
   DamagedItemRecord,
   EventItemAllocation,
@@ -30,12 +32,9 @@ interface InventoryContextValue {
   getReport: () => InventoryReport;
 }
 
-const ITEMS_KEY = 'kuringe_inventory_items_v1';
-const MOVEMENTS_KEY = 'kuringe_inventory_movements_v1';
-const DAMAGES_KEY = 'kuringe_inventory_damages_v1';
-const ALLOCATIONS_KEY = 'kuringe_inventory_allocations_v1';
-
 const InventoryContext = createContext<InventoryContextValue | undefined>(undefined);
+const INVENTORY_STATE_REF = doc(db, 'system_state', 'inventory');
+const INVENTORY_CACHE_KEY = 'kuringe_inventory_cache_v1';
 
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -45,47 +44,103 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [damages, setDamages] = useState<DamagedItemRecord[]>([]);
   const [allocations, setAllocations] = useState<EventItemAllocation[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const rawItems = localStorage.getItem(ITEMS_KEY);
-    const rawMovements = localStorage.getItem(MOVEMENTS_KEY);
-    const rawDamages = localStorage.getItem(DAMAGES_KEY);
-    const rawAllocations = localStorage.getItem(ALLOCATIONS_KEY);
-
-    if (rawItems) {
-      try {
-        setItems(JSON.parse(rawItems) as InventoryItem[]);
-      } catch {
-        localStorage.removeItem(ITEMS_KEY);
-      }
-    }
-    if (rawMovements) {
-      try {
-        setMovements(JSON.parse(rawMovements) as InventoryMovement[]);
-      } catch {
-        localStorage.removeItem(MOVEMENTS_KEY);
-      }
-    }
-    if (rawDamages) {
-      try {
-        setDamages(JSON.parse(rawDamages) as DamagedItemRecord[]);
-      } catch {
-        localStorage.removeItem(DAMAGES_KEY);
-      }
-    }
-    if (rawAllocations) {
-      try {
-        setAllocations(JSON.parse(rawAllocations) as EventItemAllocation[]);
-      } catch {
-        localStorage.removeItem(ALLOCATIONS_KEY);
-      }
+    const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw) as {
+        items?: InventoryItem[];
+        movements?: InventoryMovement[];
+        damages?: DamagedItemRecord[];
+        allocations?: EventItemAllocation[];
+      };
+      setItems(Array.isArray(data.items) ? data.items : []);
+      setMovements(Array.isArray(data.movements) ? data.movements : []);
+      setDamages(Array.isArray(data.damages) ? data.damages : []);
+      setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
+    } catch {
+      localStorage.removeItem(INVENTORY_CACHE_KEY);
     }
   }, []);
 
-  useEffect(() => localStorage.setItem(ITEMS_KEY, JSON.stringify(items)), [items]);
-  useEffect(() => localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(movements)), [movements]);
-  useEffect(() => localStorage.setItem(DAMAGES_KEY, JSON.stringify(damages)), [damages]);
-  useEffect(() => localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(allocations)), [allocations]);
+  useEffect(() => {
+    localStorage.setItem(
+      INVENTORY_CACHE_KEY,
+      JSON.stringify({
+        items,
+        movements,
+        damages,
+        allocations,
+      }),
+    );
+  }, [allocations, damages, items, movements]);
+
+  useEffect(() => {
+    if (!user) {
+      setItems([]);
+      setMovements([]);
+      setDamages([]);
+      setAllocations([]);
+      setHydrated(false);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      INVENTORY_STATE_REF,
+      (snapshot) => {
+        const data = snapshot.data() as {
+          items?: InventoryItem[];
+          movements?: InventoryMovement[];
+          damages?: DamagedItemRecord[];
+          allocations?: EventItemAllocation[];
+        } | undefined;
+        setItems(Array.isArray(data?.items) ? data.items : []);
+        setMovements(Array.isArray(data?.movements) ? data.movements : []);
+        setDamages(Array.isArray(data?.damages) ? data.damages : []);
+        setAllocations(Array.isArray(data?.allocations) ? data.allocations : []);
+        setHydrated(true);
+      },
+      () => {
+        const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw) as {
+              items?: InventoryItem[];
+              movements?: InventoryMovement[];
+              damages?: DamagedItemRecord[];
+              allocations?: EventItemAllocation[];
+            };
+            setItems(Array.isArray(data.items) ? data.items : []);
+            setMovements(Array.isArray(data.movements) ? data.movements : []);
+            setDamages(Array.isArray(data.damages) ? data.damages : []);
+            setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
+          } catch {
+            localStorage.removeItem(INVENTORY_CACHE_KEY);
+          }
+        }
+        setHydrated(true);
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !hydrated) return;
+    void setDoc(
+      INVENTORY_STATE_REF,
+      {
+        items,
+        movements,
+        damages,
+        allocations,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [allocations, damages, hydrated, items, movements, user]);
 
   const canManage = useCallback(() => {
     if (!user) return false;

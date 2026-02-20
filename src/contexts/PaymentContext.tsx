@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { db } from '@/lib/firebase';
 import { BookingPaymentStatus, CreatePaymentInput, PaymentRecord } from '@/types/payment';
 
 interface BookingFinancials {
@@ -19,9 +21,9 @@ interface PaymentContextValue {
   generateReceiptText: (paymentId: string) => { ok: boolean; message: string; receipt?: string };
 }
 
-const PAYMENTS_KEY = 'kuringe_payments_v1';
-const STATUS_OVERRIDE_KEY = 'kuringe_payment_status_override_v1';
 const DEPOSIT_RATIO = 0.3;
+const PAYMENT_STATE_REF = doc(db, 'system_state', 'payments');
+const PAYMENT_CACHE_KEY = 'kuringe_payments_cache_v1';
 
 const PaymentContext = createContext<PaymentContextValue | undefined>(undefined);
 
@@ -31,33 +33,85 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const { policy } = useAuthorization();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [statusOverride, setStatusOverride] = useState<Record<string, BookingPaymentStatus>>({});
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const rawPayments = localStorage.getItem(PAYMENTS_KEY);
-    const rawOverride = localStorage.getItem(STATUS_OVERRIDE_KEY);
-    if (rawPayments) {
-      try {
-        setPayments(JSON.parse(rawPayments) as PaymentRecord[]);
-      } catch {
-        localStorage.removeItem(PAYMENTS_KEY);
-      }
-    }
-    if (rawOverride) {
-      try {
-        setStatusOverride(JSON.parse(rawOverride) as Record<string, BookingPaymentStatus>);
-      } catch {
-        localStorage.removeItem(STATUS_OVERRIDE_KEY);
-      }
+    const raw = localStorage.getItem(PAYMENT_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw) as {
+        payments?: PaymentRecord[];
+        statusOverride?: Record<string, BookingPaymentStatus>;
+      };
+      setPayments(Array.isArray(data.payments) ? data.payments : []);
+      setStatusOverride(data.statusOverride ?? {});
+    } catch {
+      localStorage.removeItem(PAYMENT_CACHE_KEY);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
-  }, [payments]);
+    localStorage.setItem(
+      PAYMENT_CACHE_KEY,
+      JSON.stringify({
+        payments,
+        statusOverride,
+      }),
+    );
+  }, [payments, statusOverride]);
 
   useEffect(() => {
-    localStorage.setItem(STATUS_OVERRIDE_KEY, JSON.stringify(statusOverride));
-  }, [statusOverride]);
+    if (!user) {
+      setPayments([]);
+      setStatusOverride({});
+      setHydrated(false);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      PAYMENT_STATE_REF,
+      (snapshot) => {
+        const data = snapshot.data() as {
+          payments?: PaymentRecord[];
+          statusOverride?: Record<string, BookingPaymentStatus>;
+        } | undefined;
+        setPayments(Array.isArray(data?.payments) ? data?.payments : []);
+        setStatusOverride(data?.statusOverride ?? {});
+        setHydrated(true);
+      },
+      () => {
+        const raw = localStorage.getItem(PAYMENT_CACHE_KEY);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw) as {
+              payments?: PaymentRecord[];
+              statusOverride?: Record<string, BookingPaymentStatus>;
+            };
+            setPayments(Array.isArray(data.payments) ? data.payments : []);
+            setStatusOverride(data.statusOverride ?? {});
+          } catch {
+            localStorage.removeItem(PAYMENT_CACHE_KEY);
+          }
+        }
+        setHydrated(true);
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !hydrated) return;
+    void setDoc(
+      PAYMENT_STATE_REF,
+      {
+        payments,
+        statusOverride,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [hydrated, payments, statusOverride, user]);
 
   const computeStatus = useCallback((bookingId: string): BookingPaymentStatus => {
     const booking = bookings.find((item) => item.id === bookingId);

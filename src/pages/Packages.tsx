@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, Star, Crown, Diamond, Sparkles, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { decorationPackages } from '@/lib/landingData';
@@ -42,7 +42,7 @@ const Packages = () => {
           <Link to="/" className="text-2xl font-bold text-foreground">
             Kuringe<span className="text-primary">Halls</span>
           </Link>
-          <Link to="/login">
+          <Link to="/#book-now">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Book Now
             </Button>
@@ -100,10 +100,10 @@ const Packages = () => {
 
                   <div className="p-6">
                     <h3 className={`text-xl font-bold mb-1 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
-                      {pkg.title.split('–')[0].trim()}
+                      {pkg.title.split(' - ')[0].trim()}
                     </h3>
                     <p className={`text-sm mb-4 ${isFeatured ? 'text-background/60' : 'text-muted-foreground'}`}>
-                      {pkg.title.includes('–') ? pkg.title.split('–')[1].trim() : 'Complete Setup'}
+                      {pkg.title.includes(' - ') ? pkg.title.split(' - ')[1].trim() : 'Complete Setup'}
                     </p>
                     
                     <p className={`text-3xl font-bold mb-6 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
@@ -122,7 +122,7 @@ const Packages = () => {
                       ))}
                     </ul>
 
-                    <Link to="/login">
+                    <Link to="/#book-now">
                       <Button className={`w-full py-6 text-lg ${
                         isFeatured 
                           ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
@@ -187,7 +187,7 @@ const Packages = () => {
                 View All Pricing
               </Button>
             </Link>
-            <Link to="/login">
+            <Link to="/#book-now">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
                 Request Custom Quote
               </Button>
@@ -207,3 +207,4 @@ const Packages = () => {
 };
 
 export default Packages;
+

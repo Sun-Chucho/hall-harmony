@@ -31,7 +31,8 @@ export function RouteGuard({
   const permissionAllowed = !requiredPermission || can(requiredPermission);
 
   if (!roleAllowedByRoute || !roleAllowedByProp || !permissionAllowed) {
-    return <Navigate to="/dashboard" replace />;
+    const defaultRoute = user.role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
+    return <Navigate to={defaultRoute} replace />;
   }
 
   if (transactional && policy.transactionsFrozen && user.role !== 'controller') {

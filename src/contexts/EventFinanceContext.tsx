@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { usePayments } from '@/contexts/PaymentContext';
+import { db } from '@/lib/firebase';
 import {
   AllocationRequest,
   BudgetCategory,
@@ -49,12 +51,9 @@ interface EventFinanceContextValue {
   generateExpenseSheet: (requestId: string) => { ok: boolean; message: string; sheet?: string };
 }
 
-const BUDGETS_KEY = 'kuringe_event_budgets_v1';
-const ALLOCATIONS_KEY = 'kuringe_event_allocations_v1';
-const DISTRIBUTIONS_KEY = 'kuringe_event_distributions_v1';
-const LOGS_KEY = 'kuringe_event_finance_logs_v1';
-
 const EventFinanceContext = createContext<EventFinanceContextValue | undefined>(undefined);
+const EVENT_FINANCE_STATE_REF = doc(db, 'system_state', 'event_finance');
+const EVENT_FINANCE_CACHE_KEY = 'kuringe_event_finance_cache_v1';
 
 function sumBudget(categories: Record<BudgetCategory, number>): number {
   return Object.values(categories).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
@@ -69,47 +68,103 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   const [allocations, setAllocations] = useState<AllocationRequest[]>([]);
   const [distributions, setDistributions] = useState<ExpenseDistribution[]>([]);
   const [logs, setLogs] = useState<EventFinanceLog[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const rawBudgets = localStorage.getItem(BUDGETS_KEY);
-    const rawAllocations = localStorage.getItem(ALLOCATIONS_KEY);
-    const rawDistributions = localStorage.getItem(DISTRIBUTIONS_KEY);
-    const rawLogs = localStorage.getItem(LOGS_KEY);
-
-    if (rawBudgets) {
-      try {
-        setBudgets(JSON.parse(rawBudgets) as EventBudget[]);
-      } catch {
-        localStorage.removeItem(BUDGETS_KEY);
-      }
-    }
-    if (rawAllocations) {
-      try {
-        setAllocations(JSON.parse(rawAllocations) as AllocationRequest[]);
-      } catch {
-        localStorage.removeItem(ALLOCATIONS_KEY);
-      }
-    }
-    if (rawDistributions) {
-      try {
-        setDistributions(JSON.parse(rawDistributions) as ExpenseDistribution[]);
-      } catch {
-        localStorage.removeItem(DISTRIBUTIONS_KEY);
-      }
-    }
-    if (rawLogs) {
-      try {
-        setLogs(JSON.parse(rawLogs) as EventFinanceLog[]);
-      } catch {
-        localStorage.removeItem(LOGS_KEY);
-      }
+    const raw = localStorage.getItem(EVENT_FINANCE_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw) as {
+        budgets?: EventBudget[];
+        allocations?: AllocationRequest[];
+        distributions?: ExpenseDistribution[];
+        logs?: EventFinanceLog[];
+      };
+      setBudgets(Array.isArray(data.budgets) ? data.budgets : []);
+      setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
+      setDistributions(Array.isArray(data.distributions) ? data.distributions : []);
+      setLogs(Array.isArray(data.logs) ? data.logs : []);
+    } catch {
+      localStorage.removeItem(EVENT_FINANCE_CACHE_KEY);
     }
   }, []);
 
-  useEffect(() => localStorage.setItem(BUDGETS_KEY, JSON.stringify(budgets)), [budgets]);
-  useEffect(() => localStorage.setItem(ALLOCATIONS_KEY, JSON.stringify(allocations)), [allocations]);
-  useEffect(() => localStorage.setItem(DISTRIBUTIONS_KEY, JSON.stringify(distributions)), [distributions]);
-  useEffect(() => localStorage.setItem(LOGS_KEY, JSON.stringify(logs)), [logs]);
+  useEffect(() => {
+    localStorage.setItem(
+      EVENT_FINANCE_CACHE_KEY,
+      JSON.stringify({
+        budgets,
+        allocations,
+        distributions,
+        logs,
+      }),
+    );
+  }, [allocations, budgets, distributions, logs]);
+
+  useEffect(() => {
+    if (!user) {
+      setBudgets([]);
+      setAllocations([]);
+      setDistributions([]);
+      setLogs([]);
+      setHydrated(false);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      EVENT_FINANCE_STATE_REF,
+      (snapshot) => {
+        const data = snapshot.data() as {
+          budgets?: EventBudget[];
+          allocations?: AllocationRequest[];
+          distributions?: ExpenseDistribution[];
+          logs?: EventFinanceLog[];
+        } | undefined;
+        setBudgets(Array.isArray(data?.budgets) ? data.budgets : []);
+        setAllocations(Array.isArray(data?.allocations) ? data.allocations : []);
+        setDistributions(Array.isArray(data?.distributions) ? data.distributions : []);
+        setLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setHydrated(true);
+      },
+      () => {
+        const raw = localStorage.getItem(EVENT_FINANCE_CACHE_KEY);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw) as {
+              budgets?: EventBudget[];
+              allocations?: AllocationRequest[];
+              distributions?: ExpenseDistribution[];
+              logs?: EventFinanceLog[];
+            };
+            setBudgets(Array.isArray(data.budgets) ? data.budgets : []);
+            setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
+            setDistributions(Array.isArray(data.distributions) ? data.distributions : []);
+            setLogs(Array.isArray(data.logs) ? data.logs : []);
+          } catch {
+            localStorage.removeItem(EVENT_FINANCE_CACHE_KEY);
+          }
+        }
+        setHydrated(true);
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !hydrated) return;
+    void setDoc(
+      EVENT_FINANCE_STATE_REF,
+      {
+        budgets,
+        allocations,
+        distributions,
+        logs,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [allocations, budgets, distributions, hydrated, logs, user]);
 
   const appendLog = useCallback((action: string, referenceId: string, detail: string) => {
     if (!user) return;

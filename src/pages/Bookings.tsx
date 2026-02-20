@@ -78,12 +78,22 @@ export default function Bookings() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleCreateBooking = () => {
-    const result = createBooking(form);
+  const handleCreateBooking = async () => {
+    const result = await createBooking(form);
     setMessage(result.message);
     if (result.ok) {
       setForm(initialForm);
     }
+  };
+
+  const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
+    const result = await updateBookingStatus(bookingId, status);
+    setMessage(result.message);
+  };
+
+  const handleEventStatus = async (bookingId: string, status: 'approved_assistant' | 'approved_controller' | 'rejected') => {
+    const result = await updateEventDetailStatus(bookingId, status);
+    setMessage(result.message);
   };
 
   return (
@@ -218,16 +228,19 @@ export default function Bookings() {
                     <p className="text-slate-500">
                       {booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}
                     </p>
+                    {booking.createdByUserId === 'public-web' ? (
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Source: Public Web Booking</p>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
                       {canManageBookings && booking.bookingStatus === 'pending' ? (
                         <>
-                          <Button size="sm" onClick={() => setMessage(updateBookingStatus(booking.id, 'approved').message)}>
+                          <Button size="sm" onClick={() => void handleBookingStatus(booking.id, 'approved')}>
                             Approve Booking
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setMessage(updateBookingStatus(booking.id, 'rejected').message)}
+                            onClick={() => void handleBookingStatus(booking.id, 'rejected')}
                           >
                             Reject Booking
                           </Button>
@@ -236,10 +249,10 @@ export default function Bookings() {
 
                       {canManageBookings && booking.eventDetailStatus === 'pending_assistant' ? (
                         <>
-                          <Button size="sm" variant="secondary" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'approved_assistant').message)}>
+                          <Button size="sm" variant="secondary" onClick={() => void handleEventStatus(booking.id, 'approved_assistant')}>
                             Approve Event Details
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'rejected').message)}>
+                          <Button size="sm" variant="outline" onClick={() => void handleEventStatus(booking.id, 'rejected')}>
                             Reject Event Details
                           </Button>
                         </>
@@ -247,10 +260,10 @@ export default function Bookings() {
 
                       {canFinalizeEvent && booking.eventDetailStatus === 'pending_controller' ? (
                         <>
-                          <Button size="sm" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'approved_controller').message)}>
+                          <Button size="sm" onClick={() => void handleEventStatus(booking.id, 'approved_controller')}>
                             Final Authorize Event
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => setMessage(updateEventDetailStatus(booking.id, 'rejected').message)}>
+                          <Button size="sm" variant="outline" onClick={() => void handleEventStatus(booking.id, 'rejected')}>
                             Final Reject Event
                           </Button>
                         </>
@@ -258,10 +271,10 @@ export default function Bookings() {
 
                       {canManageBookings && booking.bookingStatus === 'approved' ? (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => setMessage(updateBookingStatus(booking.id, 'cancelled').message)}>
+                          <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'cancelled')}>
                             Cancel
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => setMessage(updateBookingStatus(booking.id, 'completed').message)}>
+                          <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'completed')}>
                             Complete
                           </Button>
                         </>

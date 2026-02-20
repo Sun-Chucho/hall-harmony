@@ -34,6 +34,7 @@ import Muhimu from "./pages/Muhimu";
 import Packages from "./pages/Packages";
 import Hall from "./pages/Hall";
 import AdminConsole from "./pages/AdminConsole";
+import ManagingDirectorDashboard from "./pages/ManagingDirectorDashboard";
 
 const queryClient = new QueryClient();
 const LIVE_DATA_RESET_MARKER = "kuringe_live_data_reset_v1";
@@ -84,6 +85,7 @@ const App = () => {
                           <Route path="/packages" element={<Packages />} />
                           <Route path="/login" element={<Login />} />
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
+                          <Route path="/managing-director-dashboard" element={<RouteGuard path="/managing-director-dashboard"><ManagingDirectorDashboard /></RouteGuard>} />
                           <Route path="/bookings" element={<RouteGuard path="/bookings" transactional><Bookings /></RouteGuard>} />
                           <Route path="/customers" element={<RouteGuard path="/customers"><Customers /></RouteGuard>} />
                           <Route path="/payments" element={<RouteGuard path="/payments" transactional><Payments /></RouteGuard>} />

@@ -35,6 +35,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
 const DEFAULT_PASSWORD = '123456';
 const LEGACY_PASSWORD_ALIAS = '1234';
+const LOCAL_MD_SESSION_KEY = 'kuringe_local_md_session_v1';
+const LOCAL_MD_USER = {
+  id: 'md-local-edward-mushi',
+  email: 'edward.mushi@kuringe.co.tz',
+  name: 'Edward Mushi',
+  role: 'managing_director' as const,
+  isActive: true,
+};
+const LOCAL_MD_PASSWORD = '1234';
 
 function resolveFirebasePassword(password: string) {
   if (password === LEGACY_PASSWORD_ALIAS) {
@@ -53,6 +62,14 @@ function normalizeUser(input: Partial<User> & { id: string; email: string; name:
     createdAt: input.createdAt ?? new Date().toISOString(),
     lastLogin: input.lastLogin,
   };
+}
+
+function buildLocalManagingDirectorUser(lastLogin?: string): User {
+  return normalizeUser({
+    ...LOCAL_MD_USER,
+    createdAt: new Date().toISOString(),
+    lastLogin,
+  });
 }
 
 async function fetchStaffDirectory(): Promise<User[]> {
@@ -116,7 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshStaffUsers = useCallback(async () => {
     const directory = await fetchStaffDirectory();
-    setStaffUsers(directory);
+    const hasManagingDirector = directory.some(
+      (item) => item.id === LOCAL_MD_USER.id || item.email.toLowerCase() === LOCAL_MD_USER.email.toLowerCase(),
+    );
+    setStaffUsers(hasManagingDirector ? directory : [buildLocalManagingDirectorUser(), ...directory]);
   }, []);
 
   useEffect(() => {
@@ -126,6 +146,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
+        const localSessionRaw = localStorage.getItem(LOCAL_MD_SESSION_KEY);
+        if (localSessionRaw) {
+          try {
+            const parsed = JSON.parse(localSessionRaw) as { lastLogin?: string };
+            setState({
+              user: buildLocalManagingDirectorUser(parsed.lastLogin),
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return;
+          } catch {
+            localStorage.removeItem(LOCAL_MD_SESSION_KEY);
+          }
+        }
+
         setState({ user: null, isAuthenticated: false, isLoading: false });
         return;
       }
@@ -160,6 +195,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const targetUser = staffUsers.find(
         (item) => item.id === identifier || item.email.toLowerCase() === normalizedIdentifier,
       );
+      if (
+        identifier === LOCAL_MD_USER.id ||
+        targetUser?.email.toLowerCase() === LOCAL_MD_USER.email.toLowerCase() ||
+        normalizedIdentifier === LOCAL_MD_USER.email.toLowerCase() ||
+        normalizedIdentifier === LOCAL_MD_USER.name.toLowerCase()
+      ) {
+        if (password.trim() !== LOCAL_MD_PASSWORD) {
+          return { ok: false, message: 'Invalid Managing Director password.' };
+        }
+        const nowIso = new Date().toISOString();
+        localStorage.setItem(LOCAL_MD_SESSION_KEY, JSON.stringify({ lastLogin: nowIso }));
+        setState({
+          user: buildLocalManagingDirectorUser(nowIso),
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        return { ok: true };
+      }
+      localStorage.removeItem(LOCAL_MD_SESSION_KEY);
 
       if (!targetUser) {
         return { ok: false, message: 'Selected user was not found in Firestore staff directory.' };
@@ -220,6 +274,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loginWithResult]);
 
   const logout = useCallback(async () => {
+    localStorage.removeItem(LOCAL_MD_SESSION_KEY);
     await signOut(auth);
     setState({
       user: null,
@@ -244,6 +299,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ?? (state.user && state.user.id === userId ? state.user : null);
       if (!targetUser) {
         return { ok: false, message: 'Selected user account was not found.' };
+      }
+      if (targetUser.id === LOCAL_MD_USER.id) {
+        return { ok: false, message: 'Managing Director password is fixed by system configuration.' };
       }
 
       try {

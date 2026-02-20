@@ -28,7 +28,7 @@ const Foods = () => {
             <h1 className="text-3xl font-bold text-slate-900">Food, beverage, and sensory experiences</h1>
           </div>
           <Link
-            to="/bookings"
+            to="/#book-now"
             className="rounded-full border border-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 transition hover:bg-slate-900 hover:text-white"
           >
             Plan an event
@@ -63,7 +63,7 @@ const Foods = () => {
               Book a tasting with our chefs to pair food & beverages, finalize plating, and lock your décor palette.
             </p>
             <Link
-              to="/bookings"
+              to="/#book-now"
               className="mt-6 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-red-600"
             >
               Schedule a tasting →
@@ -94,7 +94,7 @@ const Foods = () => {
               <p className="text-2xl font-bold">Signature drinks for every toast.</p>
             </div>
             <Link
-              to="/bookings"
+              to="/#book-now"
               className="rounded-full border border-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white hover:text-slate-900"
             >
               Reserve a tasting

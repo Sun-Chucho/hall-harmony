@@ -23,6 +23,14 @@ const staffUsers = [
     isActive: true,
   },
   {
+    uid: '10',
+    email: 'edward.mushi@kuringe.co.tz',
+    name: 'Edward Mushi',
+    role: 'managing_director',
+    isActive: true,
+    password: 'EDWARD MUSHI',
+  },
+  {
     uid: '2',
     email: 'gladness.tesha@kuringe.co.tz',
     name: 'Gladness Donat Tesha',
@@ -90,13 +98,14 @@ function readServiceAccount(filePath) {
 }
 
 async function upsertAuthUser(auth, user) {
+  const password = user.password || defaultPassword;
   try {
     await auth.getUser(user.uid);
     await auth.updateUser(user.uid, {
       email: user.email,
       displayName: user.name,
       disabled: !user.isActive,
-      password: defaultPassword,
+      password,
     });
     return 'updated';
   } catch (error) {
@@ -108,7 +117,7 @@ async function upsertAuthUser(auth, user) {
       email: user.email,
       displayName: user.name,
       disabled: !user.isActive,
-      password: defaultPassword,
+      password,
     });
     return 'created';
   }

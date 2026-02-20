@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   ApprovalLevel,
   ApprovalModule,
@@ -44,58 +46,109 @@ interface AuthorizationContextValue {
 }
 
 const AuthorizationContext = createContext<AuthorizationContextValue | undefined>(undefined);
-
-const POLICY_KEY = 'kuringe_policy_v1';
-const APPROVALS_KEY = 'kuringe_approvals_v1';
-const AUDIT_KEY = 'kuringe_authorization_audit_v1';
+const AUTHZ_STATE_REF = doc(db, 'system_state', 'authorization');
+const AUTHZ_CACHE_KEY = 'kuringe_authorization_state_cache_v1';
 
 export function AuthorizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [policy, setPolicy] = useState<SystemPolicy>(DEFAULT_SYSTEM_POLICY);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [auditLog, setAuditLog] = useState<AuthorizationAuditEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const rawPolicy = localStorage.getItem(POLICY_KEY);
-    const rawApprovals = localStorage.getItem(APPROVALS_KEY);
-    const rawAudit = localStorage.getItem(AUDIT_KEY);
-
-    if (rawPolicy) {
-      try {
-        setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...JSON.parse(rawPolicy) as SystemPolicy });
-      } catch {
-        localStorage.removeItem(POLICY_KEY);
-      }
-    }
-
-    if (rawApprovals) {
-      try {
-        setApprovals(JSON.parse(rawApprovals) as ApprovalRequest[]);
-      } catch {
-        localStorage.removeItem(APPROVALS_KEY);
-      }
-    }
-
-    if (rawAudit) {
-      try {
-        setAuditLog(JSON.parse(rawAudit) as AuthorizationAuditEntry[]);
-      } catch {
-        localStorage.removeItem(AUDIT_KEY);
-      }
+    const raw = localStorage.getItem(AUTHZ_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw) as {
+        policy?: SystemPolicy;
+        approvals?: ApprovalRequest[];
+        auditLog?: AuthorizationAuditEntry[];
+      };
+      setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
+      setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+      setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
+    } catch {
+      localStorage.removeItem(AUTHZ_CACHE_KEY);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(POLICY_KEY, JSON.stringify(policy));
-  }, [policy]);
+    localStorage.setItem(
+      AUTHZ_CACHE_KEY,
+      JSON.stringify({
+        policy,
+        approvals,
+        auditLog,
+      }),
+    );
+  }, [approvals, auditLog, policy]);
 
   useEffect(() => {
-    localStorage.setItem(APPROVALS_KEY, JSON.stringify(approvals));
-  }, [approvals]);
+    if (!user) {
+      setPolicy(DEFAULT_SYSTEM_POLICY);
+      setApprovals([]);
+      setAuditLog([]);
+      setHydrated(false);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      AUTHZ_STATE_REF,
+      (snapshot) => {
+        const data = snapshot.data() as {
+          policy?: SystemPolicy;
+          approvals?: ApprovalRequest[];
+          auditLog?: AuthorizationAuditEntry[];
+        } | undefined;
+        if (!data) {
+          setPolicy(DEFAULT_SYSTEM_POLICY);
+          setApprovals([]);
+          setAuditLog([]);
+          setHydrated(true);
+          return;
+        }
+        setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
+        setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+        setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
+        setHydrated(true);
+      },
+      () => {
+        const raw = localStorage.getItem(AUTHZ_CACHE_KEY);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw) as {
+              policy?: SystemPolicy;
+              approvals?: ApprovalRequest[];
+              auditLog?: AuthorizationAuditEntry[];
+            };
+            setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
+            setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+            setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
+          } catch {
+            localStorage.removeItem(AUTHZ_CACHE_KEY);
+          }
+        }
+        setHydrated(true);
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
-    localStorage.setItem(AUDIT_KEY, JSON.stringify(auditLog));
-  }, [auditLog]);
+    if (!user || !hydrated) return;
+    void setDoc(
+      AUTHZ_STATE_REF,
+      {
+        policy,
+        approvals,
+        auditLog,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [approvals, auditLog, hydrated, policy, user]);
 
   const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
     const record: AuthorizationAuditEntry = {

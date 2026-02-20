@@ -16,6 +16,7 @@ const categories: BudgetCategory[] = [
   'logistics',
   'other',
 ];
+const MD_TRANSFER_TAG = '[MD_TRANSFER]';
 
 function label(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -61,6 +62,12 @@ export default function CashMovement() {
     amount: 0,
     description: '',
     proofReference: '',
+  });
+  const [mdTransferForm, setMdTransferForm] = useState({
+    allocationRequestId: '',
+    amount: 0,
+    reference: '',
+    notes: '',
   });
   const [releaseReference, setReleaseReference] = useState('');
 
@@ -137,7 +144,19 @@ export default function CashMovement() {
     setMessage(result.message);
   };
 
+  const handleMdTransfer = () => {
+    const result = addDistribution({
+      allocationRequestId: mdTransferForm.allocationRequestId,
+      category: 'other',
+      amount: Number(mdTransferForm.amount) || 0,
+      description: `${MD_TRANSFER_TAG} Transfer to Managing Director (${mdTransferForm.notes.trim() || 'No notes'})`,
+      proofReference: mdTransferForm.reference,
+    });
+    setMessage(result.message);
+  };
+
   const distributionReadyRequests = allocations.filter((item) => item.status === 'funds_released');
+  const managingDirectorTransfers = distributions.filter((item) => item.description.includes(MD_TRANSFER_TAG));
 
   return (
     <ManagementPageTemplate
@@ -156,6 +175,7 @@ export default function CashMovement() {
               <TabsTrigger value="budget">Event Budget Tab</TabsTrigger>
               <TabsTrigger value="allocation">Event Allocation Request Tab</TabsTrigger>
               <TabsTrigger value="distribution">Expense Distribution Tab</TabsTrigger>
+              <TabsTrigger value="md-transfer">Managing Director Transfer Tab</TabsTrigger>
               <TabsTrigger value="history">Event Expense History Tab</TabsTrigger>
             </TabsList>
 
@@ -447,6 +467,85 @@ export default function CashMovement() {
                           <p className="font-semibold text-slate-900">{entry.action}</p>
                           <p>{new Date(entry.timestamp).toLocaleString()} | {entry.actorRole} | {entry.referenceId}</p>
                           <p>{entry.detail}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="md-transfer">
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Distribute Funds to Managing Director</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <select
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={mdTransferForm.allocationRequestId}
+                      onChange={(event) =>
+                        setMdTransferForm((prev) => ({ ...prev, allocationRequestId: event.target.value }))
+                      }
+                    >
+                      <option value="">Select Released Allocation</option>
+                      {distributionReadyRequests.map((request) => (
+                        <option key={request.id} value={request.id}>
+                          {request.id} | {request.bookingId}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Transfer amount"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={mdTransferForm.amount || ''}
+                      onChange={(event) =>
+                        setMdTransferForm((prev) => ({ ...prev, amount: Number(event.target.value) }))
+                      }
+                    />
+                    <input
+                      type="text"
+                      placeholder="Transfer reference"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={mdTransferForm.reference}
+                      onChange={(event) =>
+                        setMdTransferForm((prev) => ({ ...prev, reference: event.target.value }))
+                      }
+                    />
+                    <input
+                      type="text"
+                      placeholder="Notes (optional)"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={mdTransferForm.notes}
+                      onChange={(event) =>
+                        setMdTransferForm((prev) => ({ ...prev, notes: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <Button size="sm" disabled={!canCashier2} onClick={handleMdTransfer}>
+                      Transfer to Managing Director
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Managing Director Transfer History</p>
+                  <div className="mt-3 space-y-3">
+                    {managingDirectorTransfers.length === 0 ? (
+                      <p className="text-sm text-slate-600">No transfers to Managing Director yet.</p>
+                    ) : (
+                      managingDirectorTransfers.slice(0, 20).map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-900">{item.bookingId}</p>
+                            <Badge className="bg-slate-200 text-slate-900">MD Transfer</Badge>
+                          </div>
+                          <p className="text-slate-600">
+                            Amount: TZS {item.amount.toLocaleString()} | Allocation: {item.allocationRequestId}
+                          </p>
+                          <p className="text-slate-500">{item.description.replace(MD_TRANSFER_TAG, '').trim()}</p>
+                          {item.proofReference ? <p className="text-slate-500">Reference: {item.proofReference}</p> : null}
                         </div>
                       ))
                     )}

@@ -129,7 +129,7 @@ const Hall = () => {
           </div>
           <div className="flex flex-wrap gap-4">
             <Link
-              to="/bookings"
+              to="/#book-now"
               className="rounded-full bg-red-500 px-6 py-3 text-xs font-semibold uppercase tracking-[0.4em] text-white transition hover:bg-red-400"
             >
               Book {hall.alias}

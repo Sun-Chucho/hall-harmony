@@ -87,6 +87,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'approval.review.minor',
     'audit.read',
   ],
+  managing_director: [
+    'payment.read',
+    'report.read',
+    'report.export',
+    'audit.read',
+  ],
   assistant_hall_manager: [
     'booking.read',
     'booking.write',
@@ -144,6 +150,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   '/dashboard': [
     'manager',
+    'managing_director',
     'assistant_hall_manager',
     'cashier_1',
     'cashier_2',
@@ -158,11 +165,13 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   '/cash-movement': ['cashier_2', 'cashier_1', 'controller', 'accountant'],
   '/services': ['manager', 'assistant_hall_manager', 'controller'],
   '/rentals': ['manager', 'assistant_hall_manager', 'controller', 'cashier_2', 'store_keeper', 'purchaser'],
-  '/documents': ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'accountant'],
+  '/documents': ['manager', 'assistant_hall_manager', 'cashier_2', 'controller', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
   '/reports': ['accountant', 'manager', 'controller'],
+  '/managing-director-dashboard': ['managing_director'],
   '/portal': ['manager', 'assistant_hall_manager', 'controller'],
   '/settings': [
     'manager',
+    'managing_director',
     'assistant_hall_manager',
     'cashier_1',
     'cashier_2',

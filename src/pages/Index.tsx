@@ -1,17 +1,51 @@
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, MapPin, Users, Calendar, Star, Phone, Mail, Clock, ChevronRight } from 'lucide-react';
-import { hallCatalog } from '@/lib/landingData';
+import { ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, FileText, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLanguage } from '@/contexts/LanguageContext';
-import LanguageToggle from '@/components/LanguageToggle';
+import { useToast } from '@/hooks/use-toast';
+import { useBookings } from '@/contexts/BookingContext';
+import { CreateBookingInput } from '@/types/booking';
+import {
+  beverageList,
+  beverageNotes,
+  cakeOptions,
+  clientDeclaration,
+  conferencePackages,
+  decorationPackages,
+  externalServices,
+  hallCatalog,
+  muhimuNotes,
+  taratibuChecklist,
+} from '@/lib/landingData';
 
-const hallImages: Record<string, string> = {
-  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
-  kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
-  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1200&q=80',
+const HALL_OPTIONS = [
+  { id: 'witness', label: 'Witness Hall (Pax 500-700)', name: 'Witness Hall', capacityMax: 700 },
+  {
+    id: 'kilimanjaro',
+    label: 'Kilimanjaro Hall (Hall B 200-300) & Garden (300-400)',
+    name: 'Kilimanjaro Hall',
+    capacityMax: 400,
+  },
+  { id: 'hall-d', label: 'Hall D (Capacity 30-60)', name: 'Hall D', capacityMax: 60 },
+] as const;
+
+type HallOption = (typeof HALL_OPTIONS)[number];
+
+const INITIAL_BOOKING: CreateBookingInput = {
+  customerName: '',
+  customerPhone: '',
+  eventName: '',
+  eventType: 'Wedding',
+  hall: '',
+  date: '',
+  startTime: '17:30',
+  endTime: '23:59',
+  expectedGuests: 0,
+  quotedAmount: 0,
+  notes: '',
 };
 
-const formatCurrency = (value: number) =>
+const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
     style: 'currency',
     currency: 'TZS',
@@ -19,320 +53,307 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const Index = () => {
-  const { t } = useLanguage();
+function getHallPriceByDate(hallId: HallOption['id'], isoDate: string): number {
+  if (!isoDate) return 0;
+  const day = new Date(isoDate).getDay();
 
-  const stats = [
-    { value: '450+', label: t('stats.eventsHosted') },
-    { value: '98%', label: t('stats.clientSatisfaction') },
-    { value: '3', label: t('stats.premiumVenues') },
-    { value: '10+', label: t('stats.yearsExperience') },
-  ];
+  if (hallId === 'witness') {
+    if (day === 6) return 3835000;
+    if (day === 1 || day === 2) return 1534000;
+    return 2301000;
+  }
 
-  const services = [
-    { icon: Users, title: t('services.weddings'), description: t('services.weddingsDesc') },
-    { icon: Calendar, title: t('services.conferences'), description: t('services.conferencesDesc') },
-    { icon: Star, title: t('services.galas'), description: t('services.galasDesc') },
-  ];
+  if (hallId === 'kilimanjaro') {
+    if (day === 6) return 2301000;
+    if (day === 1 || day === 2) return 1227000;
+    return 1534000;
+  }
+
+  if (day === 1 || day === 2) return 177000;
+  return 236000;
+}
+
+export default function Index() {
+  const { createPublicBooking, hasConflict } = useBookings();
+  const { toast } = useToast();
+
+  const [form, setForm] = useState<CreateBookingInput>(INITIAL_BOOKING);
+
+  useEffect(() => {
+    const selected = HALL_OPTIONS.find((item) => item.name === form.hall);
+    if (!selected || !form.date) return;
+    const amount = getHallPriceByDate(selected.id, form.date);
+    setForm((prev) => ({ ...prev, quotedAmount: amount }));
+  }, [form.hall, form.date]);
+
+  const selectedHall = useMemo(() => HALL_OPTIONS.find((item) => item.name === form.hall), [form.hall]);
+  const currentQuote = selectedHall && form.date ? getHallPriceByDate(selectedHall.id, form.date) : 0;
+  const conflict = form.hall && form.date && form.startTime && form.endTime ? hasConflict(form) : false;
+
+  const onChange = <K extends keyof CreateBookingInput>(key: K, value: CreateBookingInput[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const result = await createPublicBooking(form);
+    toast({
+      title: result.ok ? 'Booking submitted' : 'Booking failed',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
+
+    if (result.ok) {
+      setForm(INITIAL_BOOKING);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-foreground">
-                Kuringe<span className="text-primary">Halls</span>
-              </span>
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+          <Link to="/" className="text-2xl font-black tracking-tight text-slate-900">
+            Kuringe <span className="text-[#a80c10]">Halls</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/pricing" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 md:inline">
+              Bei Zetu
             </Link>
-            
-            <nav className="hidden md:flex items-center gap-8">
-              <Link to="/venues" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {t('nav.venues')}
-              </Link>
-              <Link to="/packages" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {t('nav.packages')}
-              </Link>
-              <Link to="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {t('nav.pricing')}
-              </Link>
-              <Link to="/taratibu" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {t('nav.taratibu')}
-              </Link>
-              <Link to="/muhimu" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {t('nav.muhimu')}
-              </Link>
-            </nav>
-
-            <div className="flex items-center gap-3">
-              <LanguageToggle />
-              <Link to="/login">
-                <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-                  {t('nav.signIn')}
-                </Button>
-              </Link>
-              <Link to="/bookings">
-                <Button size="sm" className="bg-primary hover:bg-primary/90">
-                  {t('nav.bookNow')}
-                </Button>
-              </Link>
-            </div>
+            <Link to="/taratibu" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 md:inline">
+              Taratibu
+            </Link>
+            <Link to="/muhimu" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 md:inline">
+              Muhimu
+            </Link>
+            <Link to="/login">
+              <Button variant="outline" size="sm">Staff Login</Button>
+            </Link>
+            <a href="#book-now">
+              <Button size="sm" className="bg-[#a80c10] hover:bg-[#8e0a0d]">Book Now</Button>
+            </a>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-16 min-h-[90vh] flex items-center">
-        <div className="absolute inset-0 z-0">
-          <img
-            src="https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1920&q=80"
-            alt="Elegant venue"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/40" />
-        </div>
-        
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-6">
-              <MapPin className="w-4 h-4 text-primary" />
-              <span className="text-sm text-white/90">{t('hero.location')}</span>
-            </div>
-            
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              {t('hero.title1')}
-              <span className="block text-primary">{t('hero.title2')}</span>
+      <section className="bg-[linear-gradient(135deg,#0f172a,#1e293b_55%,#a80c10)] px-4 py-16 text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-white/70">Kuringe Halls Booking Portal</p>
+            <h1 className="mt-3 text-4xl font-black leading-tight md:text-5xl">
+              Weka Booking Yako Moja Kwa Moja Kwenye Mfumo
             </h1>
-            
-            <p className="text-lg text-white/80 mb-8 max-w-xl">
-              {t('hero.description')}
+            <p className="mt-4 max-w-2xl text-base text-white/80 md:text-lg">
+              Chagua ukumbi, tarehe, na weka taarifa za tukio. Booking ikiwasilishwa hapa inaingia moja kwa moja
+              kwenye mfumo wa staff kwa mapitio na uthibitisho.
             </p>
-            
-            <div className="flex flex-wrap gap-4">
-              <Link to="/venues">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-                  {t('hero.exploreVenues')}
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link to="/pricing">
-                <Button size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
-                  {t('hero.viewPricing')}
-                </Button>
-              </Link>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Ukumbi</p>
+                <p className="mt-1 text-xl font-bold">3</p>
+              </div>
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">Uwezo</p>
+                <p className="mt-1 text-xl font-bold">30 - 700</p>
+              </div>
+              <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/70">VAT</p>
+                <p className="mt-1 text-xl font-bold">18%</p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-secondary">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-primary mb-2">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <section className="py-20 bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">{t('services.title')}</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              {t('services.description')}
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {services.map((service) => (
-              <div
-                key={service.title}
-                className="group p-8 rounded-2xl bg-card border border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300"
-              >
-                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
-                  <service.icon className="w-7 h-7 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">{service.title}</h3>
-                <p className="text-muted-foreground">{service.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Venues Section */}
-      <section className="py-20 bg-secondary">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-12">
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">{t('venues.title')}</h2>
-              <p className="text-muted-foreground max-w-xl">
-                {t('venues.description')}
-              </p>
+          <form id="book-now" onSubmit={onSubmit} className="rounded-3xl border border-white/20 bg-white p-6 text-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">Fomu ya Booking</h2>
+              <CalendarDays className="h-5 w-5 text-[#a80c10]" />
             </div>
-            <Link to="/venues">
-              <Button variant="outline" className="gap-2">
-                {t('venues.viewAll')}
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <input className="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Jina la mteja" value={form.customerName} onChange={(e) => onChange('customerName', e.target.value)} />
+              <input className="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Namba ya simu" value={form.customerPhone} onChange={(e) => onChange('customerPhone', e.target.value)} />
+              <input className="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Jina la tukio" value={form.eventName} onChange={(e) => onChange('eventName', e.target.value)} />
+              <select className="rounded-xl border border-slate-300 px-3 py-2 text-sm" value={form.eventType} onChange={(e) => onChange('eventType', e.target.value)}>
+                <option>Wedding</option>
+                <option>Conference</option>
+                <option>Birthday</option>
+                <option>Corporate Event</option>
+                <option>Other</option>
+              </select>
+              <select className="rounded-xl border border-slate-300 px-3 py-2 text-sm md:col-span-2" value={form.hall} onChange={(e) => onChange('hall', e.target.value)}>
+                <option value="">Chagua ukumbi</option>
+                {HALL_OPTIONS.map((hall) => (
+                  <option key={hall.id} value={hall.name}>{hall.label}</option>
+                ))}
+              </select>
+              <input type="date" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" value={form.date} onChange={(e) => onChange('date', e.target.value)} />
+              <input type="number" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Idadi ya watu" value={form.expectedGuests || ''} onChange={(e) => onChange('expectedGuests', Number(e.target.value))} />
+              <input type="time" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" value={form.startTime} onChange={(e) => onChange('startTime', e.target.value)} />
+              <input type="time" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" value={form.endTime} onChange={(e) => onChange('endTime', e.target.value)} />
+              <textarea className="rounded-xl border border-slate-300 px-3 py-2 text-sm md:col-span-2" rows={3} placeholder="Maelezo ya ziada" value={form.notes} onChange={(e) => onChange('notes', e.target.value)} />
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-700">Makadirio ya ukumbi:</p>
+              <p className="mt-1 text-lg font-bold text-[#a80c10]">{currentQuote > 0 ? formatTZS(currentQuote) : 'Chagua ukumbi na tarehe'}</p>
+              {selectedHall && form.expectedGuests > selectedHall.capacityMax ? (
+                <p className="mt-1 text-xs text-rose-600">Idadi ya watu imezidi uwezo wa ukumbi uliyochagua.</p>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-500">Bei za huduma nyingine na VAT zitaongezwa kulingana na chaguo zako.</p>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {conflict ? 'Muda umechukuliwa' : 'Hakuna conflict'}
+              </div>
+              <Button type="submit" className="bg-[#a80c10] hover:bg-[#8e0a0d]">Wasilisha Booking</Button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <main className="mx-auto max-w-7xl space-y-10 px-4 py-10">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <CircleDollarSign className="h-5 w-5 text-[#a80c10]" />
+            <h2 className="text-2xl font-bold">Bei ya Kukodi Ukumbi</h2>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="mt-5 grid gap-5 lg:grid-cols-3">
             {hallCatalog.map((hall) => (
-              <div
-                key={hall.id}
-                className="group bg-card rounded-2xl overflow-hidden border border-border hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative h-56 overflow-hidden">
-                  <img
-                    src={hallImages[hall.id]}
-                    alt={hall.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="inline-block px-3 py-1 rounded-full bg-primary/90 text-primary-foreground text-xs font-medium">
-                      {hall.capacity}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-foreground mb-2">{hall.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{hall.description}</p>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs text-muted-foreground">{t('venues.startingFrom')}</span>
-                      <div className="text-lg font-bold text-primary">
-                        {formatCurrency(Math.min(...hall.rates.map((r) => r.price)))}
-                      </div>
+              <div key={hall.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{hall.alias}</p>
+                <h3 className="mt-1 text-lg font-bold">{hall.name}</h3>
+                <p className="text-sm text-slate-600">{hall.capacity}</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  {hall.rates.map((rate) => (
+                    <div key={rate.label} className="flex items-center justify-between gap-3">
+                      <span className="text-slate-700">{rate.label}</span>
+                      <span className="font-semibold text-slate-900">{formatTZS(rate.price)}</span>
                     </div>
-                    <Link to={`/venues`}>
-                      <Button size="sm" variant="ghost" className="text-primary hover:text-primary/80 gap-1">
-                        {t('venues.details')}
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-primary">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-primary-foreground mb-4">
-            {t('cta.title')}
-          </h2>
-          <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-            {t('cta.description')}
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/bookings">
-              <Button size="lg" variant="secondary" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                {t('cta.bookTour')}
-              </Button>
-            </Link>
-            <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 gap-2">
-              <Phone className="w-4 h-4" />
-              +255 717 000 000
-            </Button>
+        <section className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Taratibu za Ukumbi</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              {taratibuChecklist.map((item) => (
+                <div key={item} className="flex gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#a80c10]" />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="py-16 bg-foreground text-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-12">
-            <div className="md:col-span-2">
-              <Link to="/" className="inline-block mb-4">
-                <span className="text-2xl font-bold">
-                  Kuringe<span className="text-primary">Halls</span>
-                </span>
-              </Link>
-              <p className="text-background/70 mb-6 max-w-md">
-                {t('footer.description')}
-              </p>
-              <div className="flex flex-col gap-2 text-sm text-background/70">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  {t('hero.location')}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Muhimu</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              {muhimuNotes.map((note) => (
+                <div key={note} className="flex gap-2">
+                  <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[#a80c10]" />
+                  <p>{note}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-primary" />
-                  +255 717 000 000
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
+              <p>{clientDeclaration}</p>
+              <p className="mt-2 text-xs text-slate-500">Saini: _____________________ Tarehe: _____________________</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Keki (Ndafu)</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              {cakeOptions.map((item) => (
+                <div key={item.title} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span>{item.title}</span>
+                  <span className="font-semibold">{item.pricePoint}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-primary" />
-                  bookings@kuringehalls.co.tz
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
-                  Mon - Sat: 8:00 AM - 6:00 PM
-                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Huduma Nyingine Nje ya Ukumbi</h2>
+            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+              {externalServices.map((item) => (
+                <div key={item} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">{item}</div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">Vinywaji</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {beverageList.map((item) => (
+              <div key={item.name} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <span>{item.name}</span>
+                <span className="font-semibold">{formatTZS(item.price)}</span>
               </div>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-background mb-4">{t('footer.quickLinks')}</h4>
-              <nav className="flex flex-col gap-2">
-                <Link to="/venues" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('nav.venues')}
-                </Link>
-                <Link to="/packages" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('nav.packages')}
-                </Link>
-                <Link to="/pricing" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('nav.pricing')}
-                </Link>
-                <Link to="/taratibu" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('nav.taratibu')}
-                </Link>
-                <Link to="/muhimu" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('nav.muhimu')}
-                </Link>
-              </nav>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-background mb-4">{t('footer.services')}</h4>
-              <nav className="flex flex-col gap-2">
-                <Link to="/bookings" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('footer.bookings')}
-                </Link>
-                <Link to="/foods" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('footer.catering')}
-                </Link>
-                <Link to="/login" className="text-sm text-background/70 hover:text-primary transition-colors">
-                  {t('footer.staffPortal')}
-                </Link>
-              </nav>
-            </div>
+            ))}
           </div>
-          
-          <div className="mt-12 pt-8 border-t border-background/10">
-            <p className="text-center text-sm text-background/50">
-              © {new Date().getFullYear()} Kuringe Halls. {t('footer.rights')}
-            </p>
+          <div className="mt-4 space-y-1 text-sm text-slate-600">
+              {beverageNotes.map((note) => (
+                <p key={note}>- {note}</p>
+              ))}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">Gharama za Mapambo</h2>
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            {decorationPackages.map((pkg) => (
+              <div key={pkg.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-lg font-bold">{pkg.title}</h3>
+                <ul className="mt-3 space-y-1 text-sm text-slate-700">
+                  {pkg.highlights.map((h) => (
+                    <li key={h}>- {h}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">Conference Package</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {conferencePackages.map((pkg) => (
+              <div key={pkg.attendees} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-lg font-bold">{pkg.attendees}</h3>
+                <p className="mt-1 text-sm font-semibold text-[#a80c10]">{pkg.pricePoint}</p>
+                <ul className="mt-3 space-y-1 text-sm text-slate-700">
+                  {pkg.amenities.map((amenity) => (
+                    <li key={amenity}>- {amenity}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white px-4 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <p className="text-lg font-bold text-slate-900">Kuringe Halls</p>
+            <p className="text-sm text-slate-500">Moshi Halls Management System</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <a href="#book-now" className="inline-flex items-center gap-2 rounded-full bg-[#a80c10] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white">
+              Book Now
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+            <span className="inline-flex items-center gap-1 text-sm text-slate-600"><Phone className="h-4 w-4" /> +255 717 000 000</span>
           </div>
         </div>
       </footer>
     </div>
   );
-};
-
-export default Index;
+}
