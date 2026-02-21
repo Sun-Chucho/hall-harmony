@@ -34,6 +34,8 @@ const SHORT_ROLE_LABELS: Record<UserRole, string> = {
 };
 
 function getDashboardRoute(role: UserRole) {
+  if (role === 'cashier_1') return '/bookings';
+  if (role === 'cashier_2') return '/cash-movement';
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
 }
 

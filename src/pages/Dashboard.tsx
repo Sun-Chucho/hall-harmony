@@ -7,6 +7,7 @@ import { useBookings } from '@/contexts/BookingContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
+import { useInventory } from '@/contexts/InventoryContext';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Users } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const { payments } = usePayments();
   const { approvals, auditLog } = useAuthorization();
   const { allocations, logs } = useEventFinance();
+  const { items } = useInventory();
   const navigate = useNavigate();
 
   const metrics = useMemo(() => {
@@ -53,6 +55,9 @@ export default function Dashboard() {
     const pendingAllocations = allocations.filter((item) => item.status === 'pending_controller').length;
     const releasedAllocations = allocations.filter((item) => item.status === 'funds_released').length;
     const openAllocations = allocations.filter((item) => item.status !== 'closed' && item.status !== 'rejected_controller').length;
+    const cashierQueue = bookings.filter((item) => item.assignedToRole === 'cashier_1' && item.bookingStatus !== 'cancelled' && item.bookingStatus !== 'rejected').length;
+    const lowStockItems = items.filter((item) => item.currentQuantity <= item.reorderLevel).length;
+    const criticalLowStockItems = items.filter((item) => item.currentQuantity === 0).length;
     const recentActivityCount = auditLog.length + logs.length;
     return {
       todayBookings,
@@ -65,9 +70,12 @@ export default function Dashboard() {
       pendingAllocations,
       releasedAllocations,
       openAllocations,
+      cashierQueue,
+      lowStockItems,
+      criticalLowStockItems,
       recentActivityCount,
     };
-  }, [allocations, approvals, auditLog.length, bookings, logs.length, payments]);
+  }, [allocations, approvals, auditLog.length, bookings, items, logs.length, payments]);
 
   const statsByRole = useMemo<Record<UserRole, StatCard[]>>(
     () => ({
@@ -91,8 +99,8 @@ export default function Dashboard() {
       ],
       cashier_1: [
         { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Recorded today', icon: DollarSign },
+        { title: 'Booking Quotes Queue', value: String(metrics.cashierQueue), hint: 'From Assistant Hall booking desk', icon: Clock },
         { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded receipts', icon: CheckCircle2 },
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Payment-related approvals', icon: AlertCircle },
         { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Paying customers', icon: Users },
       ],
       cashier_2: [
@@ -114,10 +122,10 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Stock-related actions', icon: Users },
       ],
       purchaser: [
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Potential purchase requests', icon: Clock },
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Awaiting controller', icon: AlertCircle },
-        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Event demand basis', icon: Calendar },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Approval and finance trail', icon: CheckCircle2 },
+        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'items at or below reorder level', icon: AlertCircle },
+        { title: 'Out of Stock', value: String(metrics.criticalLowStockItems), hint: 'items with zero balance', icon: Clock },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'procurement demand visibility', icon: Calendar },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'approval and finance trail', icon: CheckCircle2 },
       ],
       accountant: [
         { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
@@ -136,12 +144,31 @@ export default function Dashboard() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
 
-  const quickLinks = [
-    { label: 'Bookings', path: '/bookings' },
-    { label: 'Payments', path: '/payments' },
-    { label: 'Reports', path: '/reports' },
-    { label: 'Settings', path: '/settings' },
-  ];
+  const quickLinks = user.role === 'assistant_hall_manager'
+    ? [
+        { label: 'Bookings', path: '/bookings' },
+        { label: 'Inventory', path: '/rentals' },
+        { label: 'Documents', path: '/documents' },
+        { label: 'Settings', path: '/settings' },
+      ]
+    : user.role === 'purchaser'
+      ? [
+          { label: 'Inventory', path: '/rentals' },
+          { label: 'Documents', path: '/documents' },
+          { label: 'Settings', path: '/settings' },
+        ]
+      : user.role === 'accountant'
+        ? [
+            { label: 'Money Oversight', path: '/cash-movement' },
+            { label: 'Reports', path: '/reports' },
+            { label: 'Settings', path: '/settings' },
+          ]
+    : [
+        { label: 'Bookings', path: '/bookings' },
+        { label: 'Payments', path: '/payments' },
+        { label: 'Reports', path: '/reports' },
+        { label: 'Settings', path: '/settings' },
+      ];
 
   return (
     <DashboardLayout title="Dashboard">

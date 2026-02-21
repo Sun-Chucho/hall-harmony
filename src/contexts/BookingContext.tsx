@@ -52,6 +52,8 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
     createdByUserId: data.createdByUserId ?? '',
     bookingStatus: (data.bookingStatus as BookingStatus) ?? 'pending',
     eventDetailStatus: (data.eventDetailStatus as EventDetailStatus) ?? 'pending_assistant',
+    assignedToRole: data.assignedToRole,
+    sentToCashier1At: data.sentToCashier1At,
     bookingApprovalId: data.bookingApprovalId,
     eventApprovalId: data.eventApprovalId,
     eventFinalApprovalId: data.eventFinalApprovalId,
@@ -173,6 +175,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       createdByUserId: user.id,
       bookingStatus: 'pending',
       eventDetailStatus: 'pending_assistant',
+      assignedToRole: user.role === 'assistant_hall_manager' ? 'cashier_1' : undefined,
+      sentToCashier1At: user.role === 'assistant_hall_manager' ? new Date().toISOString() : undefined,
       bookingApprovalId: bookingApproval.requestId,
       eventApprovalId: eventApproval.requestId,
     };
@@ -223,6 +227,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       createdByUserId: PUBLIC_BOOKING_USER_ID,
       bookingStatus: 'pending',
       eventDetailStatus: 'pending_assistant',
+      assignedToRole: 'cashier_1',
+      sentToCashier1At: new Date().toISOString(),
     };
 
     try {

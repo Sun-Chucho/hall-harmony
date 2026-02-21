@@ -39,6 +39,7 @@ import {
   Package,
   Globe,
   ShieldCheck,
+  MessageSquare,
 } from 'lucide-react';
 
 interface NavItem {
@@ -64,7 +65,7 @@ const mainNavItems: NavItem[] = [
     title: 'Bookings',
     icon: Calendar,
     path: '/bookings',
-    roles: ['manager', 'assistant_hall_manager', 'controller'],
+    roles: ['manager', 'assistant_hall_manager', 'controller', 'accountant'],
   },
   {
     title: 'Customers',
@@ -124,6 +125,12 @@ const adminNavItems: NavItem[] = [
     roles: ['manager', 'controller', 'accountant', 'managing_director'],
   },
   {
+    title: 'Messages',
+    icon: MessageSquare,
+    path: '/messages',
+    roles: ['manager', 'accountant', 'controller'],
+  },
+  {
     title: 'Web Portal',
     icon: Globe,
     path: '/portal',
@@ -158,6 +165,41 @@ export function AppSidebar() {
     logout();
     navigate('/login');
   };
+
+  const assistantHallNavItems: NavItem[] = [
+    { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { title: 'Bookings', icon: Calendar, path: '/bookings' },
+    { title: 'Inventory', icon: Car, path: '/rentals' },
+    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
+
+  const cashier1NavItems: NavItem[] = [
+    { title: 'Bookings', icon: Calendar, path: '/bookings' },
+    { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
+    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Managing Director', icon: CreditCard, path: '/md-transfer' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
+  ];
+
+  const cashier2NavItems: NavItem[] = [
+    { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
+    { title: 'Distributing Money', icon: Package, path: '/distribution' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
+
+  const purchaserNavItems: NavItem[] = [
+    { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { title: 'Inventory', icon: Car, path: '/rentals' },
+    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
+
+  const accountantNavItems: NavItem[] = [
+    { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
 
   const renderNavGroup = (label: string, items: NavItem[]) => {
     const filteredItems = filterByRole(items, user.role);
@@ -201,10 +243,24 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="scrollbar-thin">
-        {renderNavGroup('Main', mainNavItems)}
-        {renderNavGroup('Finance', financeNavItems)}
-        {renderNavGroup('Operations', operationsNavItems)}
-        {renderNavGroup('Administration', adminNavItems)}
+        {user.role === 'assistant_hall_manager' ? (
+          renderNavGroup('Assistant Hall', assistantHallNavItems)
+        ) : user.role === 'cashier_1' ? (
+          renderNavGroup('Cashier 1', cashier1NavItems)
+        ) : user.role === 'cashier_2' ? (
+          renderNavGroup('Cashier 2', cashier2NavItems)
+        ) : user.role === 'purchaser' ? (
+          renderNavGroup('Purchaser', purchaserNavItems)
+        ) : user.role === 'accountant' ? (
+          renderNavGroup('Accountant', accountantNavItems)
+        ) : (
+          <>
+            {renderNavGroup('Main', mainNavItems)}
+            {renderNavGroup('Finance', financeNavItems)}
+            {renderNavGroup('Operations', operationsNavItems)}
+            {renderNavGroup('Administration', adminNavItems)}
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">

@@ -4,552 +4,410 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBookings } from '@/contexts/BookingContext';
+import { useMessages } from '@/contexts/MessageContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
-import { BudgetCategory } from '@/types/eventFinance';
+import { usePayments } from '@/contexts/PaymentContext';
 
-const categories: BudgetCategory[] = [
-  'decoration',
-  'cooking',
-  'drinks',
-  'cleaning',
-  'logistics',
-  'other',
-];
-const MD_TRANSFER_TAG = '[MD_TRANSFER]';
-
-function label(value: string) {
-  return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+function statusLabel(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default function CashMovement() {
   const { user } = useAuth();
-  const { bookings } = useBookings();
+  const { sendManagerAlert } = useMessages();
+  const { payments } = usePayments();
   const {
-    budgets,
-    allocations,
-    distributions,
-    logs,
-    createBudget,
-    requestAllocation,
-    controllerDecision,
-    releaseFunds,
-    addDistribution,
-    getAllocationSummary,
-    generateExpenseSheet,
+    cashTransfers,
+    mdTransfers,
+    cashDistributions,
+    sendCashToCashier2,
+    requestCashTransferFromCashier2,
+    approveCashTransferRequest,
+    declineCashTransferRequest,
+    confirmCashTransferReceived,
   } = useEventFinance();
 
   const [message, setMessage] = useState('');
-  const [sheetPreview, setSheetPreview] = useState('');
-  const [budgetForm, setBudgetForm] = useState({
-    bookingId: '',
-    notes: '',
-    decoration: 0,
-    cooking: 0,
-    drinks: 0,
-    cleaning: 0,
-    logistics: 0,
-    other: 0,
-  });
-  const [allocationForm, setAllocationForm] = useState({
-    budgetId: '',
-    requestedAmount: 0,
-    purpose: '',
-  });
-  const [distributionForm, setDistributionForm] = useState({
-    allocationRequestId: '',
-    category: 'decoration' as BudgetCategory,
-    amount: 0,
-    description: '',
-    proofReference: '',
-  });
-  const [mdTransferForm, setMdTransferForm] = useState({
-    allocationRequestId: '',
-    amount: 0,
-    reference: '',
-    notes: '',
-  });
-  const [releaseReference, setReleaseReference] = useState('');
+  const [moveCashAmount, setMoveCashAmount] = useState(0);
+  const [moveCashComment, setMoveCashComment] = useState('');
+  const [requestAmount, setRequestAmount] = useState(0);
+  const [requestComment, setRequestComment] = useState('');
+  const [decisionAmount, setDecisionAmount] = useState<Record<string, number>>({});
+  const [decisionComment, setDecisionComment] = useState<Record<string, string>>({});
+  const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
+  const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
 
-  const approvedEvents = useMemo(
-    () =>
-      bookings.filter(
-        (booking) =>
-          booking.bookingStatus === 'approved' &&
-          (booking.eventDetailStatus === 'approved_assistant' || booking.eventDetailStatus === 'approved_controller'),
-      ),
-    [bookings],
+  const pendingRequests = useMemo(
+    () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2'),
+    [cashTransfers],
+  );
+  const sentTransfers = useMemo(
+    () => cashTransfers.filter((item) => item.status === 'sent_to_cashier_2' || item.status === 'received_by_cashier_2'),
+    [cashTransfers],
+  );
+  const incomingForCashier2 = useMemo(
+    () => cashTransfers.filter((item) => item.status === 'sent_to_cashier_2'),
+    [cashTransfers],
   );
 
-  const stats = useMemo(() => {
-    const pendingController = allocations.filter((item) => item.status === 'pending_controller').length;
-    const released = allocations.filter((item) => item.status === 'funds_released').length;
-    const totalDistributed = distributions.reduce((sum, item) => sum + item.amount, 0);
-    return [
-      { title: 'Pending Requests', value: `${pendingController}`, description: 'awaiting controller decision' },
-      { title: 'Funds Released', value: `${released}`, description: 'released by cashier 1' },
-      { title: 'Budgets', value: `${budgets.length}`, description: 'event budget sheets prepared' },
-      { title: 'Distributed Total', value: `TZS ${totalDistributed.toLocaleString()}`, description: 'allocated to categories' },
-    ];
-  }, [allocations, budgets.length, distributions]);
-
-  const sections = [
-    {
-      title: 'Step 4 Flow',
-      bullets: [
-        'Cashier 2 prepares event budget and submits allocation request.',
-        'Controller approves or rejects the allocation request.',
-        'Cashier 1 releases approved funds; Cashier 2 records distribution by category.',
-      ],
-    },
+  const stats = [
+    { title: 'Pending Requests', value: `${pendingRequests.length}`, description: 'waiting cashier 1 decision' },
+    { title: 'Sent Transfers', value: `${sentTransfers.filter((item) => item.status === 'sent_to_cashier_2').length}`, description: 'waiting cashier 2 confirmation' },
+    { title: 'Received', value: `${sentTransfers.filter((item) => item.status === 'received_by_cashier_2').length}`, description: 'confirmed by cashier 2' },
+    { title: 'Total Records', value: `${cashTransfers.length}`, description: 'cash movement trail' },
   ];
 
-  const canCashier2 = user?.role === 'cashier_2' || user?.role === 'controller';
-  const canController = user?.role === 'controller';
-  const canCashier1 = user?.role === 'cashier_1' || user?.role === 'controller';
+  if (user?.role === 'accountant') {
+    const rows = [
+      ...payments.map((item) => ({
+        id: item.id,
+        type: 'Payment',
+        amount: item.amount,
+        date: item.receivedAt,
+        detail: `${item.bookingId} | ${item.referenceNumber} | ${item.notes || '-'}`,
+      })),
+      ...cashTransfers.map((item) => ({
+        id: item.id,
+        type: `Cash Movement (${statusLabel(item.status)})`,
+        amount: item.approvedAmount || item.requestedAmount,
+        date: item.receivedAt ?? item.sentAt ?? item.requestedAt,
+        detail: [item.requestComment, item.decisionComment, item.receiveComment].filter(Boolean).join(' | ') || '-',
+      })),
+      ...mdTransfers.map((item) => ({
+        id: item.id,
+        type: 'Managing Director Transfer',
+        amount: item.amount,
+        date: item.transferredAt,
+        detail: `${item.reference} | ${item.notes || '-'}`,
+      })),
+      ...cashDistributions.map((item) => ({
+        id: item.id,
+        type: `Distribution (${item.category.replace(/_/g, ' ')})`,
+        amount: item.amount,
+        date: item.distributedAt,
+        detail: item.reason,
+      })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const handleCreateBudget = () => {
-    const result = createBudget({
-      bookingId: budgetForm.bookingId,
-      notes: budgetForm.notes,
-      categories: {
-        decoration: Number(budgetForm.decoration) || 0,
-        cooking: Number(budgetForm.cooking) || 0,
-        drinks: Number(budgetForm.drinks) || 0,
-        cleaning: Number(budgetForm.cleaning) || 0,
-        logistics: Number(budgetForm.logistics) || 0,
-        other: Number(budgetForm.other) || 0,
-      },
-    });
-    setMessage(result.message);
-  };
+    return (
+      <ManagementPageTemplate
+        pageTitle="Money Oversight"
+        subtitle="View-only oversight of money movement with comment submission."
+        stats={[
+          { title: 'Payments', value: `${payments.length}`, description: 'recorded payment rows' },
+          { title: 'Cash Moves', value: `${cashTransfers.length}`, description: 'cash transfer rows' },
+          { title: 'MD Transfers', value: `${mdTransfers.length}`, description: 'managing director transfers' },
+          { title: 'Distributions', value: `${cashDistributions.length}`, description: 'cash distribution rows' },
+        ]}
+        sections={[
+          {
+            title: 'Accountant Oversight',
+            bullets: [
+              'All rows are view-only.',
+              'Use comments to raise observations on specific movement rows.',
+            ],
+          },
+        ]}
+        action={
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Movement Oversight</p>
+            <div className="mt-3 space-y-3">
+              {rows.length === 0 ? (
+                <p className="text-sm text-slate-600">No movement records yet.</p>
+              ) : (
+                rows.map((row) => (
+                  <div key={row.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{row.type}</p>
+                      <Badge className="bg-slate-200 text-slate-900">TZS {row.amount.toLocaleString()}</Badge>
+                    </div>
+                    <p className="text-slate-600">{new Date(row.date).toLocaleString()}</p>
+                    <p className="text-slate-500">{row.detail}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Comment on this movement"
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs w-[320px]"
+                        value={oversightComment[row.id] ?? ''}
+                        onChange={(event) => setOversightComment((prev) => ({ ...prev, [row.id]: event.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          const text = oversightComment[row.id]?.trim();
+                          if (!text) {
+                            setMessage('Enter a comment first.');
+                            return;
+                          }
+                          const result = await sendManagerAlert({
+                            title: `Accountant movement comment: ${row.type}`,
+                            body: `Reference ${row.id}: ${text}`,
+                          });
+                          setMessage(result.message);
+                          if (result.ok) {
+                            setOversightComment((prev) => ({ ...prev, [row.id]: '' }));
+                          }
+                        }}
+                      >
+                        Comment
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {message ? <p className="mt-3 text-xs text-slate-600">{message}</p> : null}
+          </div>
+        }
+      />
+    );
+  }
 
-  const handleRequestAllocation = () => {
-    const result = requestAllocation({
-      budgetId: allocationForm.budgetId,
-      requestedAmount: Number(allocationForm.requestedAmount) || 0,
-      purpose: allocationForm.purpose,
-    });
-    setMessage(result.message);
-  };
+  if (user?.role === 'cashier_2') {
+    const waitingApproval = cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2');
+    return (
+      <ManagementPageTemplate
+        pageTitle="Cash Movement"
+        subtitle="Money received from Cashier 1 and cash request approvals."
+        stats={stats}
+        sections={[
+          {
+            title: 'Cashier 2 Actions',
+            bullets: [
+              'Confirm money sent from Cashier 1 by pressing Received.',
+              'Request amount with reason and send for approval.',
+              'Pending requests stay in a grey waiting box until approved.',
+            ],
+          },
+        ]}
+        action={
+          <div className="space-y-6">
+            {message ? <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{message}</div> : null}
+            <Tabs defaultValue="move-cash" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
+              </TabsList>
 
-  const handleAddDistribution = () => {
-    const result = addDistribution({
-      allocationRequestId: distributionForm.allocationRequestId,
-      category: distributionForm.category,
-      amount: Number(distributionForm.amount) || 0,
-      description: distributionForm.description,
-      proofReference: distributionForm.proofReference,
-    });
-    setMessage(result.message);
-  };
+              <TabsContent value="move-cash">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Money Received from Cashier 1</p>
+                    <div className="mt-3 space-y-3">
+                      {incomingForCashier2.length === 0 ? (
+                        <p className="text-sm text-slate-600">No transfers waiting confirmation.</p>
+                      ) : (
+                        incomingForCashier2.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold text-slate-900">{item.id}</p>
+                              <Badge className="bg-amber-100 text-amber-800">Waiting</Badge>
+                            </div>
+                            <p className="text-slate-600">Amount sent: TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <input
+                                type="text"
+                                placeholder="Receive comment"
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                value={receiveComment[item.id] ?? ''}
+                                onChange={(event) => setReceiveComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '');
+                                  setMessage(result.message);
+                                }}
+                              >
+                                Received
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
 
-  const handleMdTransfer = () => {
-    const result = addDistribution({
-      allocationRequestId: mdTransferForm.allocationRequestId,
-      category: 'other',
-      amount: Number(mdTransferForm.amount) || 0,
-      description: `${MD_TRANSFER_TAG} Transfer to Managing Director (${mdTransferForm.notes.trim() || 'No notes'})`,
-      proofReference: mdTransferForm.reference,
-    });
-    setMessage(result.message);
-  };
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Request Amount</p>
+                    <div className="mt-3 grid gap-3">
+                      <input type="number" placeholder="Requested Amount (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={requestAmount || ''} onChange={(event) => setRequestAmount(Number(event.target.value))} />
+                      <input type="text" placeholder="Reason" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={requestComment} onChange={(event) => setRequestComment(event.target.value)} />
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const result = requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment });
+                          setMessage(result.message);
+                          if (result.ok) {
+                            setRequestAmount(0);
+                            setRequestComment('');
+                          }
+                        }}
+                      >
+                        Send for Approval
+                      </Button>
+                    </div>
 
-  const distributionReadyRequests = allocations.filter((item) => item.status === 'funds_released');
-  const managingDirectorTransfers = distributions.filter((item) => item.description.includes(MD_TRANSFER_TAG));
+                    <div className="mt-4 space-y-2">
+                      {waitingApproval.length === 0 ? null : waitingApproval.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-slate-300 bg-slate-200 p-3 text-xs text-slate-700">
+                          <p className="font-semibold">Waiting for approval</p>
+                          <p>{item.id} | TZS {item.requestedAmount.toLocaleString()}</p>
+                          <p>{item.requestComment || '-'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        }
+      />
+    );
+  }
 
   return (
     <ManagementPageTemplate
       pageTitle="Cash Movement"
-      subtitle="Event budgeting, fund allocation, and category-based expense distribution."
+      subtitle="Move cash to Cashier 2 and manage requested cash approvals."
       stats={stats}
-      sections={sections}
+      sections={[
+        {
+          title: 'Cashier 1 Actions',
+          bullets: [
+            'Send cash directly to Cashier 2.',
+            'Review requested cash from Cashier 2 and approve with amount or decline.',
+            'Track waiting and received statuses with date/time and comments.',
+          ],
+        },
+      ]}
       action={
         <div className="space-y-6">
-          {message ? (
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{message}</div>
-          ) : null}
-
-          <Tabs defaultValue="budget" className="space-y-4">
+          {message ? <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{message}</div> : null}
+          <Tabs defaultValue="move-cash" className="space-y-4">
             <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="budget">Event Budget Tab</TabsTrigger>
-              <TabsTrigger value="allocation">Event Allocation Request Tab</TabsTrigger>
-              <TabsTrigger value="distribution">Expense Distribution Tab</TabsTrigger>
-              <TabsTrigger value="md-transfer">Managing Director Transfer Tab</TabsTrigger>
-              <TabsTrigger value="history">Event Expense History Tab</TabsTrigger>
+              <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
+              <TabsTrigger value="requested-cash">Requested Cash</TabsTrigger>
+              <TabsTrigger value="history">Cash Moved</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="budget">
+            <TabsContent value="move-cash">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Create Event Budget</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <select
-                    className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
-                    value={budgetForm.bookingId}
-                    onChange={(event) => setBudgetForm((prev) => ({ ...prev, bookingId: event.target.value }))}
-                  >
-                    <option value="">Select Approved Event</option>
-                    {approvedEvents.map((event) => (
-                      <option key={event.id} value={event.id}>
-                        {event.id} | {event.eventName} | {event.customerName}
-                      </option>
-                    ))}
-                  </select>
-                  {categories.map((category) => (
-                    <input
-                      key={category}
-                      type="number"
-                      placeholder={`${label(category)} (TZS)`}
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={budgetForm[category] || ''}
-                      onChange={(event) =>
-                        setBudgetForm((prev) => ({
-                          ...prev,
-                          [category]: Number(event.target.value),
-                        }))
-                      }
-                    />
-                  ))}
-                  <input
-                    type="text"
-                    placeholder="Budget notes"
-                    className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
-                    value={budgetForm.notes}
-                    onChange={(event) => setBudgetForm((prev) => ({ ...prev, notes: event.target.value }))}
-                  />
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Send Cash to Cashier 2</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <input type="number" placeholder="Amount to Move (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashAmount || ''} onChange={(event) => setMoveCashAmount(Number(event.target.value))} />
+                  <input type="text" placeholder="Comment" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashComment} onChange={(event) => setMoveCashComment(event.target.value)} />
                 </div>
                 <div className="mt-4">
-                  <Button size="sm" disabled={!canCashier2} onClick={handleCreateBudget}>
-                    Save Budget
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const result = sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment });
+                      setMessage(result.message);
+                      if (result.ok) {
+                        setMoveCashAmount(0);
+                        setMoveCashComment('');
+                      }
+                    }}
+                  >
+                    Send
                   </Button>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="allocation">
-              <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Request Event Allocation</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={allocationForm.budgetId}
-                      onChange={(event) => setAllocationForm((prev) => ({ ...prev, budgetId: event.target.value }))}
-                    >
-                      <option value="">Select Budget</option>
-                      {budgets.map((budget) => (
-                        <option key={budget.id} value={budget.id}>
-                          {budget.id} | {budget.bookingId} | TZS {budget.totalAmount.toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Requested Amount"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={allocationForm.requestedAmount || ''}
-                      onChange={(event) =>
-                        setAllocationForm((prev) => ({ ...prev, requestedAmount: Number(event.target.value) }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Purpose"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={allocationForm.purpose}
-                      onChange={(event) => setAllocationForm((prev) => ({ ...prev, purpose: event.target.value }))}
-                    />
-                    <Button size="sm" disabled={!canCashier2} onClick={handleRequestAllocation}>
-                      Submit
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Approval and Fund Release Queue</p>
-                  <div className="mt-3 space-y-3">
-                    {allocations.length === 0 ? (
-                      <p className="text-sm text-slate-600">No allocation requests yet.</p>
-                    ) : (
-                      allocations.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">{request.id}</p>
-                            <Badge className="bg-slate-200 text-slate-900">{label(request.status)}</Badge>
-                          </div>
-                          <p className="text-slate-600">
-                            Booking: {request.bookingId} | Requested: TZS {request.requestedAmount.toLocaleString()}
-                          </p>
-                          <p className="text-slate-500">Purpose: {request.purpose}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {canController && request.status === 'pending_controller' ? (
-                              <>
-                                <Button size="sm" onClick={() => setMessage(controllerDecision(request.id, 'approved', 'Approved by controller').message)}>
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setMessage(controllerDecision(request.id, 'rejected', 'Rejected by controller').message)}
-                                >
-                                  Reject
-                                </Button>
-                              </>
-                            ) : null}
-                            {canCashier1 && request.status === 'approved_controller' ? (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  placeholder="Release reference"
-                                  className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs"
-                                  value={releaseReference}
-                                  onChange={(event) => setReleaseReference(event.target.value)}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => setMessage(releaseFunds(request.id, releaseReference).message)}
-                                >
-                                  Release Funds
-                                </Button>
-                              </div>
-                            ) : null}
-                          </div>
+            <TabsContent value="requested-cash">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Requested Cash from Cashier 2</p>
+                <div className="mt-3 space-y-3">
+                  {pendingRequests.length === 0 ? (
+                    <p className="text-sm text-slate-600">No pending cash requests.</p>
+                  ) : (
+                    pendingRequests.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">{item.id}</p>
+                          <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="distribution">
-              <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Record Expense Distribution</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={distributionForm.allocationRequestId}
-                      onChange={(event) =>
-                        setDistributionForm((prev) => ({ ...prev, allocationRequestId: event.target.value }))
-                      }
-                    >
-                      <option value="">Select Released Allocation</option>
-                      {distributionReadyRequests.map((request) => (
-                        <option key={request.id} value={request.id}>
-                          {request.id} | {request.bookingId}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={distributionForm.category}
-                      onChange={(event) =>
-                        setDistributionForm((prev) => ({ ...prev, category: event.target.value as BudgetCategory }))
-                      }
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {label(category)}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Amount"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={distributionForm.amount || ''}
-                      onChange={(event) =>
-                        setDistributionForm((prev) => ({ ...prev, amount: Number(event.target.value) }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Description"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={distributionForm.description}
-                      onChange={(event) =>
-                        setDistributionForm((prev) => ({ ...prev, description: event.target.value }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Proof reference (optional)"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
-                      value={distributionForm.proofReference}
-                      onChange={(event) =>
-                        setDistributionForm((prev) => ({ ...prev, proofReference: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="mt-4">
-                    <Button size="sm" disabled={!canCashier2} onClick={handleAddDistribution}>
-                      Add Distribution
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Allocation Balances</p>
-                  <div className="mt-3 space-y-3">
-                    {distributionReadyRequests.length === 0 ? (
-                      <p className="text-sm text-slate-600">No released allocations yet.</p>
-                    ) : (
-                      distributionReadyRequests.map((request) => {
-                        const summary = getAllocationSummary(request.id);
-                        return (
-                          <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                            <p className="font-semibold text-slate-900">{request.id}</p>
-                            <p className="text-slate-600">
-                              Requested: TZS {summary.requested.toLocaleString()} | Distributed: TZS {summary.distributed.toLocaleString()} | Remaining: TZS {summary.remaining.toLocaleString()}
-                            </p>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                        <p className="text-slate-600">Requested: TZS {item.requestedAmount.toLocaleString()}</p>
+                        <p className="text-slate-500">Comment: {item.requestComment || '-'}</p>
+                        <p className="text-xs text-slate-500">{new Date(item.requestedAt).toLocaleString()}</p>
+                        <div className="mt-2 grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
+                          <input
+                            type="number"
+                            placeholder="Approved amount"
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            value={decisionAmount[item.id] || ''}
+                            onChange={(event) => setDecisionAmount((prev) => ({ ...prev, [item.id]: Number(event.target.value) }))}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Decision comment"
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            value={decisionComment[item.id] ?? ''}
+                            onChange={(event) => setDecisionComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const result = approveCashTransferRequest(item.id, decisionAmount[item.id] || 0, decisionComment[item.id] ?? '');
+                              setMessage(result.message);
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const result = declineCashTransferRequest(item.id, decisionComment[item.id] ?? '');
+                              setMessage(result.message);
+                            }}
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="history">
-              <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Event Expense History</p>
-                  <div className="mt-3 space-y-3">
-                    {allocations.length === 0 ? (
-                      <p className="text-sm text-slate-600">No expense history yet.</p>
-                    ) : (
-                      allocations.map((request) => (
-                        <div key={request.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">{request.id} | {request.bookingId}</p>
-                            <Badge className="bg-slate-200 text-slate-900">{label(request.status)}</Badge>
-                          </div>
-                          <p className="text-slate-600">Requested: TZS {request.requestedAmount.toLocaleString()} | Purpose: {request.purpose}</p>
-                          <div className="mt-2 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const sheet = generateExpenseSheet(request.id);
-                                setMessage(sheet.message);
-                                if (sheet.ok && sheet.sheet) {
-                                  setSheetPreview(sheet.sheet);
-                                }
-                              }}
-                            >
-                              Generate Expense Sheet
-                            </Button>
-                          </div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Cash Moved</p>
+                <div className="mt-3 space-y-3">
+                  {cashTransfers.length === 0 ? (
+                    <p className="text-sm text-slate-600">No cash movement records yet.</p>
+                  ) : (
+                    cashTransfers.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">{item.id}</p>
+                          {item.status === 'sent_to_cashier_2' ? (
+                            <Badge className="bg-amber-100 text-amber-800">Waiting</Badge>
+                          ) : item.status === 'received_by_cashier_2' ? (
+                            <Badge className="bg-emerald-100 text-emerald-700">Received</Badge>
+                          ) : item.status === 'declined_by_cashier_1' ? (
+                            <Badge className="bg-rose-100 text-rose-700">Declined</Badge>
+                          ) : (
+                            <Badge className="bg-slate-200 text-slate-900">{statusLabel(item.status)}</Badge>
+                          )}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Expense Sheet Preview</p>
-                  <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                    {sheetPreview || 'No sheet generated yet.'}
-                  </pre>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Event Finance Log</p>
-                  <div className="mt-3 space-y-2">
-                    {logs.length === 0 ? (
-                      <p className="text-sm text-slate-600">No log entries yet.</p>
-                    ) : (
-                      logs.slice(0, 30).map((entry) => (
-                        <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                          <p className="font-semibold text-slate-900">{entry.action}</p>
-                          <p>{new Date(entry.timestamp).toLocaleString()} | {entry.actorRole} | {entry.referenceId}</p>
-                          <p>{entry.detail}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="md-transfer">
-              <div className="space-y-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Distribute Funds to Managing Director</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={mdTransferForm.allocationRequestId}
-                      onChange={(event) =>
-                        setMdTransferForm((prev) => ({ ...prev, allocationRequestId: event.target.value }))
-                      }
-                    >
-                      <option value="">Select Released Allocation</option>
-                      {distributionReadyRequests.map((request) => (
-                        <option key={request.id} value={request.id}>
-                          {request.id} | {request.bookingId}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Transfer amount"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={mdTransferForm.amount || ''}
-                      onChange={(event) =>
-                        setMdTransferForm((prev) => ({ ...prev, amount: Number(event.target.value) }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Transfer reference"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={mdTransferForm.reference}
-                      onChange={(event) =>
-                        setMdTransferForm((prev) => ({ ...prev, reference: event.target.value }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Notes (optional)"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={mdTransferForm.notes}
-                      onChange={(event) =>
-                        setMdTransferForm((prev) => ({ ...prev, notes: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="mt-4">
-                    <Button size="sm" disabled={!canCashier2} onClick={handleMdTransfer}>
-                      Transfer to Managing Director
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Managing Director Transfer History</p>
-                  <div className="mt-3 space-y-3">
-                    {managingDirectorTransfers.length === 0 ? (
-                      <p className="text-sm text-slate-600">No transfers to Managing Director yet.</p>
-                    ) : (
-                      managingDirectorTransfers.slice(0, 20).map((item) => (
-                        <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">{item.bookingId}</p>
-                            <Badge className="bg-slate-200 text-slate-900">MD Transfer</Badge>
-                          </div>
-                          <p className="text-slate-600">
-                            Amount: TZS {item.amount.toLocaleString()} | Allocation: {item.allocationRequestId}
-                          </p>
-                          <p className="text-slate-500">{item.description.replace(MD_TRANSFER_TAG, '').trim()}</p>
-                          {item.proofReference ? <p className="text-slate-500">Reference: {item.proofReference}</p> : null}
-                        </div>
-                      ))
-                    )}
-                  </div>
+                        <p className="text-slate-600">Amount: TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>
+                        <p className="text-slate-500">Request comment: {item.requestComment || '-'}</p>
+                        <p className="text-slate-500">Decision comment: {item.decisionComment || '-'}</p>
+                        <p className="text-slate-500">Receive comment: {item.receiveComment || '-'}</p>
+                        <p className="text-xs text-slate-500">
+                          Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Received: {item.receivedAt ? new Date(item.receivedAt).toLocaleString() : '-'}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </TabsContent>

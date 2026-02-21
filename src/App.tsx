@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthorizationProvider } from "@/contexts/AuthorizationContext";
+import { MessageProvider } from "@/contexts/MessageContext";
 import { BookingProvider } from "@/contexts/BookingContext";
 import { PaymentProvider } from "@/contexts/PaymentContext";
 import { EventFinanceProvider } from "@/contexts/EventFinanceContext";
@@ -35,6 +36,9 @@ import Packages from "./pages/Packages";
 import Hall from "./pages/Hall";
 import AdminConsole from "./pages/AdminConsole";
 import ManagingDirectorDashboard from "./pages/ManagingDirectorDashboard";
+import Messages from "./pages/Messages";
+import ManagingDirectorTransfer from "./pages/ManagingDirectorTransfer";
+import Distribution from "./pages/Distribution";
 
 const queryClient = new QueryClient();
 const LIVE_DATA_RESET_MARKER = "kuringe_live_data_reset_v1";
@@ -68,15 +72,16 @@ const App = () => {
       <TooltipProvider>
         <AuthProvider>
           <AuthorizationProvider>
-            <BookingProvider>
-              <PaymentProvider>
-                <EventFinanceProvider>
-                  <InventoryProvider>
-                    <LanguageProvider>
-                      <Toaster />
-                      <Sonner />
-                      <BrowserRouter>
-                        <Routes>
+            <MessageProvider>
+              <BookingProvider>
+                <PaymentProvider>
+                  <EventFinanceProvider>
+                    <InventoryProvider>
+                      <LanguageProvider>
+                        <Toaster />
+                        <Sonner />
+                        <BrowserRouter>
+                          <Routes>
                           <Route path="/" element={<Home />} />
                           <Route path="/venues" element={<Venues />} />
                           <Route path="/pricing" element={<Pricing />} />
@@ -94,20 +99,24 @@ const App = () => {
                           <Route path="/rentals" element={<RouteGuard path="/rentals"><Rentals /></RouteGuard>} />
                           <Route path="/documents" element={<RouteGuard path="/documents"><Documents /></RouteGuard>} />
                           <Route path="/reports" element={<RouteGuard path="/reports"><Reports /></RouteGuard>} />
+                          <Route path="/md-transfer" element={<RouteGuard path="/md-transfer" transactional><ManagingDirectorTransfer /></RouteGuard>} />
+                          <Route path="/distribution" element={<RouteGuard path="/distribution" transactional><Distribution /></RouteGuard>} />
                           <Route path="/portal" element={<RouteGuard path="/portal"><Portal /></RouteGuard>} />
                           <Route path="/settings" element={<RouteGuard path="/settings"><Settings /></RouteGuard>} />
                           <Route path="/foods" element={<Foods />} />
                           <Route path="/halls/:hallId" element={<Hall />} />
                           <Route path="/admin" element={<RouteGuard path="/admin"><AdminConsole /></RouteGuard>} />
+                          <Route path="/messages" element={<RouteGuard path="/messages"><Messages /></RouteGuard>} />
                           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                           <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </BrowserRouter>
-                    </LanguageProvider>
-                  </InventoryProvider>
-                </EventFinanceProvider>
-              </PaymentProvider>
-            </BookingProvider>
+                          </Routes>
+                        </BrowserRouter>
+                      </LanguageProvider>
+                    </InventoryProvider>
+                  </EventFinanceProvider>
+                </PaymentProvider>
+              </BookingProvider>
+            </MessageProvider>
           </AuthorizationProvider>
         </AuthProvider>
       </TooltipProvider>

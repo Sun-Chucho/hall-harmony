@@ -30,6 +30,8 @@ export interface BookingRecord {
   createdByUserId: string;
   bookingStatus: BookingStatus;
   eventDetailStatus: EventDetailStatus;
+  assignedToRole?: 'cashier_1';
+  sentToCashier1At?: string;
   bookingApprovalId?: string;
   eventApprovalId?: string;
   eventFinalApprovalId?: string;

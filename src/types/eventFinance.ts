@@ -61,3 +61,58 @@ export interface EventFinanceLog {
   referenceId: string;
   detail: string;
 }
+
+export type CashTransferStatus =
+  | 'pending_cashier_1_approval'
+  | 'declined_by_cashier_1'
+  | 'sent_to_cashier_2'
+  | 'received_by_cashier_2';
+
+export interface CashTransfer {
+  id: string;
+  requestedAmount: number;
+  approvedAmount: number;
+  requestComment: string;
+  decisionComment: string;
+  receiveComment: string;
+  initiatedByUserId: string;
+  initiatedByRole: 'cashier_1' | 'cashier_2';
+  requestedAt: string;
+  decidedAt?: string;
+  decidedByUserId?: string;
+  sentAt?: string;
+  sentByUserId?: string;
+  receivedAt?: string;
+  receivedByUserId?: string;
+  status: CashTransferStatus;
+}
+
+export interface ManagingDirectorTransfer {
+  id: string;
+  amount: number;
+  reference: string;
+  notes: string;
+  transferredAt: string;
+  transferredByUserId: string;
+}
+
+export type CashDistributionCategory =
+  | 'cleaning'
+  | 'stationary'
+  | 'repairs_maintenance'
+  | 'electricity'
+  | 'petty_cash'
+  | 'fuel'
+  | 'logistics'
+  | 'decoration'
+  | 'cooling'
+  | 'drink';
+
+export interface CashDistributionRecord {
+  id: string;
+  category: CashDistributionCategory;
+  amount: number;
+  reason: string;
+  distributedAt: string;
+  distributedByUserId: string;
+}

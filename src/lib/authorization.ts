@@ -96,9 +96,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   assistant_hall_manager: [
     'booking.read',
     'booking.write',
-    'booking.approve',
-    'event.approve',
-    'approval.review.minor',
   ],
   cashier_1: [
     'payment.record',
@@ -159,16 +156,16 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
     'purchaser',
     'accountant',
   ],
-  '/bookings': ['manager', 'assistant_hall_manager', 'controller'],
-  '/customers': ['manager', 'assistant_hall_manager', 'controller'],
+  '/bookings': ['manager', 'assistant_hall_manager', 'controller', 'cashier_1'],
+  '/customers': ['manager', 'controller'],
   '/payments': ['cashier_1', 'controller', 'accountant', 'manager'],
   '/cash-movement': ['cashier_2', 'cashier_1', 'controller', 'accountant'],
-  '/services': ['manager', 'assistant_hall_manager', 'controller'],
-  '/rentals': ['manager', 'assistant_hall_manager', 'controller', 'cashier_2', 'store_keeper', 'purchaser'],
-  '/documents': ['manager', 'assistant_hall_manager', 'cashier_2', 'controller', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
-  '/reports': ['accountant', 'manager', 'controller'],
+  '/services': ['manager', 'controller'],
+  '/rentals': ['manager', 'assistant_hall_manager', 'controller', 'store_keeper', 'purchaser'],
+  '/documents': ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'store_keeper', 'purchaser'],
+  '/reports': ['accountant', 'manager', 'controller', 'cashier_1'],
   '/managing-director-dashboard': ['managing_director'],
-  '/portal': ['manager', 'assistant_hall_manager', 'controller'],
+  '/portal': ['manager', 'controller'],
   '/settings': [
     'manager',
     'managing_director',
@@ -181,6 +178,9 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
     'accountant',
   ],
   '/admin': ['controller'],
+  '/md-transfer': ['cashier_1', 'controller'],
+  '/distribution': ['cashier_2', 'controller'],
+  '/messages': ['manager', 'accountant', 'controller'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

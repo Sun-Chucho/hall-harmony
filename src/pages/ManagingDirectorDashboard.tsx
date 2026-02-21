@@ -6,8 +6,6 @@ import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { Banknote, Calendar, ReceiptText, Users } from 'lucide-react';
 
-const MD_TRANSFER_TAG = '[MD_TRANSFER]';
-
 function formatTZS(amount: number): string {
   return new Intl.NumberFormat('en-TZ', {
     style: 'currency',
@@ -20,12 +18,7 @@ function formatTZS(amount: number): string {
 export default function ManagingDirectorDashboard() {
   const { bookings } = useBookings();
   const { payments } = usePayments();
-  const { distributions } = useEventFinance();
-
-  const mdTransfers = useMemo(
-    () => distributions.filter((item) => item.description.includes(MD_TRANSFER_TAG)),
-    [distributions],
-  );
+  const { mdTransfers } = useEventFinance();
 
   const metrics = useMemo(() => {
     const approvedBookings = bookings.filter((item) => item.bookingStatus === 'approved').length;
@@ -111,12 +104,12 @@ export default function ManagingDirectorDashboard() {
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{item.bookingId}</p>
-                    <p className="text-xs text-slate-600">{item.description.replace(MD_TRANSFER_TAG, '').trim()}</p>
+                    <p className="text-sm font-semibold text-slate-900">{item.reference}</p>
+                    <p className="text-xs text-slate-600">{item.notes || 'Cashier transfer to managing director'}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-900">{formatTZS(item.amount)}</p>
-                    <p className="text-xs text-slate-500">{new Date(item.distributedAt).toLocaleString()}</p>
+                    <p className="text-xs text-slate-500">{new Date(item.transferredAt).toLocaleString()}</p>
                   </div>
                 </div>
               ))

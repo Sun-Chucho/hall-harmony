@@ -3,7 +3,8 @@ import { ManagementPageTemplate } from '@/components/management/ManagementPageTe
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { useMessages } from '@/contexts/MessageContext';
+import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 
@@ -34,8 +35,24 @@ interface FormSubmission {
   fields: Record<string, string>;
 }
 
+type CashRequestStatus = 'pending_controller' | 'approved_controller' | 'declined_controller';
+
+interface CashRequestWorkflow {
+  id: string;
+  submittedAt: string;
+  submittedBy: string;
+  submittedByRole: UserRole;
+  fields: Record<string, string>;
+  status: CashRequestStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewComment?: string;
+}
+
 const DOCUMENT_OUTPUTS_COLLECTION = 'document_form_outputs';
 const DOCUMENT_OUTPUTS_CACHE_KEY = 'kuringe_documents_form_outputs_v1';
+const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
+const CASH_REQUEST_WORKFLOW_CACHE_KEY = 'kuringe_cash_request_workflow_v1';
 
 const manualForms: ManualForm[] = [
   { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'controller'] },
@@ -43,10 +60,10 @@ const manualForms: ManualForm[] = [
   { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'controller'] },
   { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'controller'] },
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant', 'controller'] },
-  { id: 'payment_voucher', title: 'Payment Voucher', roles: ['cashier_1', 'accountant'] },
-  { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'controller', 'manager'] },
   { id: 'cash_request', title: 'Cash Request Form', roles: ['manager', 'assistant_hall_manager', 'cashier_2', 'store_keeper', 'purchaser', 'accountant', 'controller'] },
-  { id: 'hall_registration', title: 'Hall Registration Form', roles: ['assistant_hall_manager', 'cashier_2', 'manager'] },
+  { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
+  { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'controller', 'manager'] },
+  { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_2', 'manager'] },
 ];
 
 function inputClass(extra = '') {
@@ -64,10 +81,13 @@ function serialHeader(title: string) {
 
 export default function Documents() {
   const { user } = useAuth();
+  const { sendManagerAlert } = useMessages();
   const [outputs, setOutputs] = useState<FormSubmission[]>([]);
+  const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [outputFormFilter, setOutputFormFilter] = useState<'all' | FormId>('all');
   const [outputDateFrom, setOutputDateFrom] = useState('');
   const [outputDateTo, setOutputDateTo] = useState('');
+  const [controllerComment, setControllerComment] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
@@ -82,6 +102,20 @@ export default function Documents() {
   useEffect(() => {
     localStorage.setItem(DOCUMENT_OUTPUTS_CACHE_KEY, JSON.stringify(outputs));
   }, [outputs]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
+    if (!raw) return;
+    try {
+      setCashRequests(JSON.parse(raw) as CashRequestWorkflow[]);
+    } catch {
+      localStorage.removeItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(CASH_REQUEST_WORKFLOW_CACHE_KEY, JSON.stringify(cashRequests));
+  }, [cashRequests]);
 
   useEffect(() => {
     if (!user) {
@@ -116,6 +150,36 @@ export default function Documents() {
     return () => unsub();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setCashRequests([]);
+      return;
+    }
+
+    const q = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = snapshot.docs.map((item) => {
+          const data = item.data() as Omit<CashRequestWorkflow, 'id'>;
+          return { id: item.id, ...data } as CashRequestWorkflow;
+        });
+        setCashRequests(next);
+      },
+      () => {
+        const raw = localStorage.getItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
+        if (!raw) return;
+        try {
+          setCashRequests(JSON.parse(raw) as CashRequestWorkflow[]);
+        } catch {
+          localStorage.removeItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
+        }
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
+
   const allowedForms = useMemo(() => {
     if (!user) return [];
     return manualForms.filter((item) => item.roles.includes(user.role));
@@ -139,11 +203,17 @@ export default function Documents() {
     return true;
   });
 
+  const pendingForController = cashRequests.filter((entry) => entry.status === 'pending_controller');
+
   const stats = [
     { title: 'Fillable Forms', value: String(myForms), description: 'forms assigned to your role' },
     { title: 'All Form Types', value: String(manualForms.length), description: 'manual register list' },
     { title: 'Submitted Outputs', value: String(outputs.length), description: 'all saved form entries' },
-    { title: 'My Role', value: user ? ROLE_LABELS[user.role] : 'N/A', description: 'current user designation' },
+    {
+      title: user?.role === 'controller' ? 'Pending Cash Requests' : 'My Role',
+      value: user?.role === 'controller' ? String(pendingForController.length) : user ? ROLE_LABELS[user.role] : 'N/A',
+      description: user?.role === 'controller' ? 'awaiting your decision' : 'current user designation',
+    },
   ];
 
   const saveSubmission = async (formId: FormId, formTitle: string, event: FormEvent<HTMLFormElement>) => {
@@ -172,6 +242,43 @@ export default function Documents() {
       updatedAt: serverTimestamp(),
     };
 
+    if (formId === 'cash_request') {
+      const workflowPayload = {
+        submittedAt: new Date().toISOString(),
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields,
+        status: user.role === 'controller' ? 'approved_controller' : 'pending_controller',
+        reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
+        reviewedBy: user.role === 'controller' ? user.id : undefined,
+        reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
+        updatedAt: serverTimestamp(),
+      };
+      try {
+        await addDoc(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), workflowPayload);
+      } catch {
+        const localFallback: CashRequestWorkflow = {
+          id: `LOCAL-CR-${Date.now()}`,
+          submittedAt: new Date().toISOString(),
+          submittedBy: user.id,
+          submittedByRole: user.role,
+          fields,
+          status: user.role === 'controller' ? 'approved_controller' : 'pending_controller',
+          reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
+          reviewedBy: user.role === 'controller' ? user.id : undefined,
+          reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
+        };
+        setCashRequests((prev) => [localFallback, ...prev]);
+      }
+
+      if (user.role === 'controller') {
+        await sendManagerAlert({
+          title: 'Cash Request Approved by Controller',
+          body: `Controller submitted/approved a cash request: TZS ${fields.total_requested ?? '0'}. Please review.`,
+        });
+      }
+    }
+
     try {
       await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), payload);
       event.currentTarget.reset();
@@ -187,6 +294,44 @@ export default function Documents() {
       };
       setOutputs((prev) => [localFallback, ...prev]);
       event.currentTarget.reset();
+    }
+  };
+
+  const handleControllerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
+    if (!user || user.role !== 'controller') return;
+    const request = cashRequests.find((entry) => entry.id === requestId);
+    if (!request) return;
+    const comment = controllerComment[requestId]?.trim() ?? '';
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
+        status: decision === 'approve' ? 'approved_controller' : 'declined_controller',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: user.id,
+        reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setCashRequests((prev) =>
+        prev.map((entry) =>
+          entry.id === requestId
+            ? {
+                ...entry,
+                status: decision === 'approve' ? 'approved_controller' : 'declined_controller',
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.id,
+                reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
+              }
+            : entry,
+        ),
+      );
+    }
+
+    if (decision === 'approve') {
+      await sendManagerAlert({
+        title: 'Cash Request Approved by Controller',
+        body: `Cash request ${request.id} approved by controller. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
+      });
     }
   };
 
@@ -375,6 +520,9 @@ export default function Documents() {
                 <TabsContent value="cash_request" className="space-y-3">
                   {formShell('cash_request', 'Cash Request Form', (
                     <>
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                        Cash request submissions are routed to Controller first, then approved requests are forwarded to Hall Manager.
+                      </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4 grid gap-3 md:grid-cols-2">
                         <input name="pef_no" className={inputClass()} placeholder="PEF No" />
                         <input name="date" className={inputClass()} placeholder="Date" />
@@ -479,6 +627,45 @@ export default function Documents() {
                   ))}
                 </TabsContent>
               </Tabs>
+            </div>
+          ) : null}
+
+          {user?.role === 'controller' ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Controller Cash Request Queue</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Review cash request forms and forward approved requests to Hall Manager.
+              </p>
+              <div className="mt-3 space-y-3">
+                {pendingForController.length === 0 ? (
+                  <p className="text-sm text-slate-500">No pending cash request forms.</p>
+                ) : (
+                  pendingForController.map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <p className="font-semibold text-slate-900">
+                        {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                      </p>
+                      <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
+                      <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
+                      <p className="text-slate-500">Details: {entry.fields.requester_declaration ?? '-'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input
+                          className={inputClass('h-9 w-[320px]')}
+                          placeholder="Controller comment"
+                          value={controllerComment[entry.id] ?? ''}
+                          onChange={(event) => setControllerComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        />
+                        <Button size="sm" onClick={() => void handleControllerCashDecision(entry.id, 'approve')}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleControllerCashDecision(entry.id, 'decline')}>
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           ) : null}
 
