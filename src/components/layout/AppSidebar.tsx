@@ -65,13 +65,13 @@ const mainNavItems: NavItem[] = [
     title: 'Bookings',
     icon: Calendar,
     path: '/bookings',
-    roles: ['manager', 'assistant_hall_manager', 'controller', 'accountant'],
+    roles: ['manager', 'assistant_hall_manager', 'accountant'],
   },
   {
     title: 'Customers',
     icon: Users,
     path: '/customers',
-    roles: ['manager', 'assistant_hall_manager', 'controller'],
+    roles: ['manager', 'assistant_hall_manager'],
   },
 ];
 
@@ -80,13 +80,13 @@ const financeNavItems: NavItem[] = [
     title: 'Payments',
     icon: CreditCard,
     path: '/payments',
-    roles: ['cashier_1', 'controller', 'accountant'],
+    roles: ['cashier_1', 'accountant'],
   },
   {
     title: 'Cash Movement',
     icon: Banknote,
     path: '/cash-movement',
-    roles: ['cashier_2', 'cashier_1', 'controller', 'accountant'],
+    roles: ['cashier_2', 'cashier_1', 'accountant'],
   },
 ];
 
@@ -122,7 +122,7 @@ const adminNavItems: NavItem[] = [
     title: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    roles: ['manager', 'controller', 'accountant', 'managing_director'],
+    roles: ['manager', 'controller', 'accountant', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Messages',
@@ -171,6 +171,7 @@ export function AppSidebar() {
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Inventory', icon: Car, path: '/rentals' },
     { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
@@ -185,6 +186,7 @@ export function AppSidebar() {
   const cashier2NavItems: NavItem[] = [
     { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
     { title: 'Distributing Money', icon: Package, path: '/distribution' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
@@ -192,12 +194,14 @@ export function AppSidebar() {
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory', icon: Car, path: '/rentals' },
     { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   const accountantNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
