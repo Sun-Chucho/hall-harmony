@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   ApprovalLevel,
@@ -48,6 +48,7 @@ interface AuthorizationContextValue {
 const AuthorizationContext = createContext<AuthorizationContextValue | undefined>(undefined);
 const AUTHZ_STATE_REF = doc(db, 'system_state', 'authorization');
 const AUTHZ_CACHE_KEY = 'kuringe_authorization_state_cache_v1';
+const MANAGER_MESSAGES_COLLECTION = 'manager_messages';
 
 export function AuthorizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -157,6 +158,18 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       timestamp: new Date().toISOString(),
     };
     setAuditLog((prev) => [record, ...prev]);
+
+    // Mirror each audit event into Hall Manager messages for centralized oversight.
+    void addDoc(collection(db, MANAGER_MESSAGES_COLLECTION), {
+      title: `Audit: ${entry.action}`,
+      body: `${entry.module.toUpperCase()} | ${entry.detail}`,
+      fromUserId: entry.actorUserId,
+      fromRole: entry.actorRole,
+      toRole: 'manager',
+      read: false,
+      createdAt: record.timestamp,
+      updatedAt: serverTimestamp(),
+    });
   }, []);
 
   const can = useCallback((permission: Permission) => {

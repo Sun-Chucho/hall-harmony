@@ -39,6 +39,7 @@ export default function Bookings() {
   const {
     bookings,
     createBooking,
+    updateBooking,
     updateBookingStatus,
     updateEventDetailStatus,
     hasConflict,
@@ -48,6 +49,7 @@ export default function Bookings() {
   const [form, setForm] = useState<CreateBookingInput>(initialForm);
   const [message, setMessage] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentNotes, setPaymentNotes] = useState('');
 
@@ -81,11 +83,45 @@ export default function Bookings() {
   };
 
   const handleCreateBooking = async (assistantFlow = false) => {
-    const result = await createBooking(form);
-    setMessage(assistantFlow && result.ok ? 'Booked and sent to Cashier 1 dashboard.' : result.message);
-    if (result.ok) {
-      setForm(initialForm);
+    const editingId = editingBookingId;
+    const result = editingBookingId
+      ? await updateBooking(editingBookingId, form)
+      : await createBooking(form);
+    if (assistantFlow && result.ok && !editingBookingId) {
+      setMessage('Booked and sent to Cashier 1 dashboard.');
+    } else {
+      setMessage(result.message);
     }
+    if (result.ok) {
+      if (editingId) {
+        await sendManagerAlert({
+          bookingId: editingId,
+          title: 'Booking Updated by Assistant Hall',
+          body: `Booking ${editingId} updated: ${form.eventName} on ${form.date} ${form.startTime}-${form.endTime}.`,
+        });
+      }
+      setForm(initialForm);
+      setEditingBookingId(null);
+    }
+  };
+
+  const beginEditBooking = (bookingId: string) => {
+    const target = bookings.find((entry) => entry.id === bookingId);
+    if (!target) return;
+    setForm({
+      customerName: target.customerName,
+      customerPhone: target.customerPhone,
+      eventName: target.eventName,
+      eventType: target.eventType,
+      hall: target.hall,
+      date: target.date,
+      startTime: target.startTime,
+      endTime: target.endTime,
+      expectedGuests: target.expectedGuests,
+      quotedAmount: target.quotedAmount,
+      notes: target.notes,
+    });
+    setEditingBookingId(bookingId);
   };
 
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
@@ -194,7 +230,14 @@ export default function Bookings() {
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button size="sm" onClick={() => void handleCreateBooking(true)}>Book & Send to Cashier 1</Button>
+                    <Button size="sm" onClick={() => void handleCreateBooking(true)}>
+                      {editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
+                    </Button>
+                    {editingBookingId ? (
+                      <Button size="sm" variant="outline" onClick={() => { setEditingBookingId(null); setForm(initialForm); }}>
+                        Cancel Edit
+                      </Button>
+                    ) : null}
                     {conflict ? <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge> : <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>}
                     {message ? <span className="text-xs text-slate-600">{message}</span> : null}
                   </div>
@@ -212,13 +255,19 @@ export default function Bookings() {
                   ) : (
                     <div className="mt-3 space-y-3">
                       {assistantBookings.map((booking) => (
-                        <div key={booking.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                        <div key={booking.id} className={`rounded-2xl border p-4 text-sm ${booking.revision ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold text-slate-900">{booking.eventName}</p>
-                            <Badge className="bg-blue-100 text-blue-700">Sent to Cashier 1</Badge>
+                            <div className="flex items-center gap-2">
+                              {booking.revision ? <Badge className="bg-amber-100 text-amber-800">Updated x{booking.revision}</Badge> : null}
+                              <Badge className="bg-blue-100 text-blue-700">Sent to Cashier 1</Badge>
+                            </div>
                           </div>
                           <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                           <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
+                          <div className="mt-3">
+                            <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -283,8 +332,13 @@ export default function Bookings() {
 
             {selected ? (
               <>
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className={`rounded-3xl border bg-white p-5 shadow-sm ${selected.revision ? 'border-amber-300' : 'border-slate-200'}`}>
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Details (Read-only)</p>
+                  {selected.revision ? (
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                      Updated booking revision x{selected.revision}
+                    </p>
+                  ) : null}
                   <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
                     <p><span className="font-semibold">Booking:</span> {selected.id}</p>
                     <p><span className="font-semibold">Customer:</span> {selected.customerName}</p>
@@ -422,10 +476,11 @@ export default function Bookings() {
             ) : (
               <div className="mt-3 space-y-3">
                 {bookings.map((booking) => (
-                  <div key={booking.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                  <div key={booking.id} className={`rounded-2xl border p-4 text-sm ${booking.revision ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-semibold text-slate-900">{booking.eventName}</p>
                       <div className="flex gap-2">
+                        {booking.revision ? <Badge className="bg-amber-100 text-amber-800">Updated x{booking.revision}</Badge> : null}
                         <Badge className="bg-slate-200 text-slate-900">Booking: {toShortStatus(booking.bookingStatus)}</Badge>
                         <Badge className="bg-slate-200 text-slate-900">Event: {toShortStatus(booking.eventDetailStatus)}</Badge>
                       </div>

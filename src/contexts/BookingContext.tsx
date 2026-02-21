@@ -9,6 +9,7 @@ interface BookingContextValue {
   bookings: BookingRecord[];
   createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   createPublicBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  updateBooking: (bookingId: string, payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<{ ok: boolean; message: string }>;
   submitEventDetails: (
     bookingId: string,
@@ -57,6 +58,10 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
     bookingApprovalId: data.bookingApprovalId,
     eventApprovalId: data.eventApprovalId,
     eventFinalApprovalId: data.eventFinalApprovalId,
+    revision: Number(data.revision) || 0,
+    lastEditedAt: data.lastEditedAt,
+    lastEditedByUserId: data.lastEditedByUserId,
+    lastEditedByRole: data.lastEditedByRole,
   };
 }
 
@@ -243,6 +248,75 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'assistant_hall_manager') {
+      return { ok: false, message: 'Only Assistant Hall Manager can edit bookings in this flow.' };
+    }
+    const target = bookings.find((entry) => entry.id === bookingId);
+    if (!target) return { ok: false, message: 'Booking not found.' };
+    if (target.createdByUserId !== user.id) {
+      return { ok: false, message: 'You can only edit your own bookings.' };
+    }
+
+    if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
+      return { ok: false, message: 'Customer and event details are required.' };
+    }
+    if (!payload.hall || !payload.date || !payload.startTime || !payload.endTime) {
+      return { ok: false, message: 'Hall, date, and time window are required.' };
+    }
+    if (toMinutes(payload.endTime) <= toMinutes(payload.startTime)) {
+      return { ok: false, message: 'End time must be later than start time.' };
+    }
+    if (payload.expectedGuests <= 0) {
+      return { ok: false, message: 'Expected guests must be greater than zero.' };
+    }
+    if (payload.quotedAmount <= 0) {
+      return { ok: false, message: 'Quoted amount must be greater than zero.' };
+    }
+    if (hasConflict(payload, bookingId)) {
+      return { ok: false, message: 'Booking conflict detected for the selected hall and time.' };
+    }
+
+    const patch = {
+      customerName: payload.customerName.trim(),
+      customerPhone: payload.customerPhone.trim(),
+      eventName: payload.eventName.trim(),
+      eventType: payload.eventType.trim(),
+      hall: payload.hall.trim(),
+      date: payload.date,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      expectedGuests: payload.expectedGuests,
+      quotedAmount: payload.quotedAmount,
+      notes: payload.notes?.trim() ?? '',
+      lastEditedAt: new Date().toISOString(),
+      lastEditedByUserId: user.id,
+      lastEditedByRole: user.role,
+      revision: (target.revision ?? 0) + 1,
+    };
+
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+        ...patch,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Booking updated and highlighted across workflow.' };
+    } catch {
+      setBookings((prev) =>
+        prev.map((entry) =>
+          entry.id === bookingId
+            ? {
+                ...entry,
+                ...patch,
+              }
+            : entry,
+        ),
+      );
+      return { ok: true, message: 'Booking updated locally. Cloud sync pending.' };
+    }
+  }, [bookings, hasConflict, user]);
+
   const updateBookingStatus = useCallback(async (bookingId: string, status: BookingStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     const target = bookings.find((booking) => booking.id === bookingId);
@@ -377,11 +451,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     bookings,
     createBooking,
     createPublicBooking,
+    updateBooking,
     updateBookingStatus,
     submitEventDetails,
     updateEventDetailStatus,
     hasConflict,
-  }), [bookings, createBooking, createPublicBooking, hasConflict, submitEventDetails, updateBookingStatus, updateEventDetailStatus]);
+  }), [bookings, createBooking, createPublicBooking, hasConflict, submitEventDetails, updateBooking, updateBookingStatus, updateEventDetailStatus]);
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
 }

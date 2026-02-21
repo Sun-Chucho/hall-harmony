@@ -35,6 +35,10 @@ export interface BookingRecord {
   bookingApprovalId?: string;
   eventApprovalId?: string;
   eventFinalApprovalId?: string;
+  revision?: number;
+  lastEditedAt?: string;
+  lastEditedByUserId?: string;
+  lastEditedByRole?: string;
 }
 
 export interface CreateBookingInput {
