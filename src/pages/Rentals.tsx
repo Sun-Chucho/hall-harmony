@@ -63,6 +63,8 @@ export default function Rentals() {
   );
   const lowStock = items.filter((item) => item.currentQuantity <= item.reorderLevel);
   const openAllocations = allocations.filter((allocation) => allocation.status === 'allocated');
+  const stockInMovements = movements.filter((movement) => movement.type === 'stock_in');
+  const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
   const canManage = user?.role === 'store_keeper' || user?.role === 'controller';
 
   const stats = [
@@ -139,26 +141,37 @@ export default function Rentals() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Recent Inventory Movements</p>
-              <div className="mt-3 space-y-2">
-                {movements.length === 0 ? (
-                  <p className="text-sm text-slate-600">No movement records yet.</p>
-                ) : (
-                  movements.slice(0, 15).map((entry) => {
-                    const item = items.find((x) => x.id === entry.itemId);
-                    return (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        <div className="flex items-center justify-between">
-                          <span>{item?.name ?? 'Unknown item'}</span>
-                          <Badge className="bg-slate-200 text-slate-900">{entry.type}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          Qty: {entry.quantity} | Ref: {entry.reference} | {new Date(entry.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              {movements.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">No movement records yet.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-2 py-2">Date</th>
+                        <th className="px-2 py-2">Type</th>
+                        <th className="px-2 py-2">Item</th>
+                        <th className="px-2 py-2">Quantity</th>
+                        <th className="px-2 py-2">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movements.slice(0, 15).map((entry) => {
+                        const item = items.find((x) => x.id === entry.itemId);
+                        return (
+                          <tr key={entry.id} className="border-b border-slate-100">
+                            <td className="px-2 py-2 text-slate-700">{new Date(entry.createdAt).toLocaleString()}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.type}</td>
+                            <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.reference}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         }
@@ -219,44 +232,72 @@ export default function Rentals() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Stock In / Stock Out History</p>
-              <div className="mt-3 space-y-2">
-                {movements.length === 0 ? (
-                  <p className="text-sm text-slate-600">No movement records yet.</p>
-                ) : (
-                  movements.slice(0, 20).map((entry) => {
-                    const item = items.find((x) => x.id === entry.itemId);
-                    return (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        <div className="flex items-center justify-between">
-                          <span>{item?.name ?? 'Unknown item'}</span>
-                          <Badge className="bg-slate-200 text-slate-900">{entry.type}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          Qty: {entry.quantity} | Ref: {entry.reference} | {new Date(entry.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              {movements.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">No movement records yet.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-2 py-2">Date</th>
+                        <th className="px-2 py-2">Type</th>
+                        <th className="px-2 py-2">Item</th>
+                        <th className="px-2 py-2">Quantity</th>
+                        <th className="px-2 py-2">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movements.slice(0, 20).map((entry) => {
+                        const item = items.find((x) => x.id === entry.itemId);
+                        return (
+                          <tr key={entry.id} className="border-b border-slate-100">
+                            <td className="px-2 py-2 text-slate-700">{new Date(entry.createdAt).toLocaleString()}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.type}</td>
+                            <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.reference}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Damaged Items</p>
-              <div className="mt-3 space-y-2">
-                {damages.length === 0 ? (
-                  <p className="text-sm text-slate-600">No damaged records yet.</p>
-                ) : (
-                  damages.slice(0, 20).map((entry) => {
-                    const item = items.find((x) => x.id === entry.itemId);
-                    return (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        {item?.name ?? 'Unknown item'} - {entry.quantity} ({entry.reason})
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              {damages.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">No damaged records yet.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-2 py-2">Date</th>
+                        <th className="px-2 py-2">Item</th>
+                        <th className="px-2 py-2">Quantity</th>
+                        <th className="px-2 py-2">Reason</th>
+                        <th className="px-2 py-2">Event Ref</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {damages.slice(0, 20).map((entry) => {
+                        const item = items.find((x) => x.id === entry.itemId);
+                        return (
+                          <tr key={entry.id} className="border-b border-slate-100">
+                            <td className="px-2 py-2 text-slate-700">{new Date(entry.reportedAt).toLocaleString()}</td>
+                            <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.reason}</td>
+                            <td className="px-2 py-2 text-slate-700">{entry.eventBookingId ?? '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         }
@@ -456,64 +497,136 @@ export default function Rentals() {
                       </Button>
                     </div>
                   </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Stock In Records</p>
+                    {stockInMovements.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-600">No stock in records yet.</p>
+                    ) : (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-left text-sm">
+                          <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                            <tr className="border-b border-slate-200">
+                              <th className="px-2 py-2">Date</th>
+                              <th className="px-2 py-2">Item</th>
+                              <th className="px-2 py-2">Quantity</th>
+                              <th className="px-2 py-2">Reference</th>
+                              <th className="px-2 py-2">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stockInMovements.slice(0, 30).map((entry) => {
+                              const item = items.find((x) => x.id === entry.itemId);
+                              return (
+                                <tr key={entry.id} className="border-b border-slate-100">
+                                  <td className="px-2 py-2 text-slate-700">{new Date(entry.createdAt).toLocaleString()}</td>
+                                  <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.reference}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.notes || '-'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </TabsContent>
 
               <TabsContent value="stock-out">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Stock Out Entry</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-4">
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={stockOutForm.itemId}
-                      onChange={(event) => setStockOutForm((prev) => ({ ...prev, itemId: event.target.value }))}
-                    >
-                      <option value="">Select item</option>
-                      {items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({item.currentQuantity} {item.unit})
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Quantity"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={stockOutForm.quantity || ''}
-                      onChange={(event) => setStockOutForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Reference"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={stockOutForm.reference}
-                      onChange={(event) => setStockOutForm((prev) => ({ ...prev, reference: event.target.value }))}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Notes"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={stockOutForm.notes}
-                      onChange={(event) => setStockOutForm((prev) => ({ ...prev, notes: event.target.value }))}
-                    />
+                <div className="space-y-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Stock Out Entry</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-4">
+                      <select
+                        className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                        value={stockOutForm.itemId}
+                        onChange={(event) => setStockOutForm((prev) => ({ ...prev, itemId: event.target.value }))}
+                      >
+                        <option value="">Select item</option>
+                        {items.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} ({item.currentQuantity} {item.unit})
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Quantity"
+                        className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                        value={stockOutForm.quantity || ''}
+                        onChange={(event) => setStockOutForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reference"
+                        className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                        value={stockOutForm.reference}
+                        onChange={(event) => setStockOutForm((prev) => ({ ...prev, reference: event.target.value }))}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Notes"
+                        className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                        value={stockOutForm.notes}
+                        onChange={(event) => setStockOutForm((prev) => ({ ...prev, notes: event.target.value }))}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        size="sm"
+                        disabled={!canManage}
+                        onClick={() =>
+                          setMessage(
+                            stockOut(
+                              stockOutForm.itemId,
+                              stockOutForm.quantity,
+                              stockOutForm.reference,
+                              stockOutForm.notes,
+                            ).message,
+                          )
+                        }
+                      >
+                        Record Stock Out
+                      </Button>
+                    </div>
                   </div>
-                  <div className="mt-4">
-                    <Button
-                      size="sm"
-                      disabled={!canManage}
-                      onClick={() =>
-                        setMessage(
-                          stockOut(
-                            stockOutForm.itemId,
-                            stockOutForm.quantity,
-                            stockOutForm.reference,
-                            stockOutForm.notes,
-                          ).message,
-                        )
-                      }
-                    >
-                      Record Stock Out
-                    </Button>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Stock Out Records</p>
+                    {stockOutMovements.length === 0 ? (
+                      <p className="mt-3 text-sm text-slate-600">No stock out records yet.</p>
+                    ) : (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-left text-sm">
+                          <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                            <tr className="border-b border-slate-200">
+                              <th className="px-2 py-2">Date</th>
+                              <th className="px-2 py-2">Item</th>
+                              <th className="px-2 py-2">Quantity</th>
+                              <th className="px-2 py-2">Reference</th>
+                              <th className="px-2 py-2">Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stockOutMovements.slice(0, 30).map((entry) => {
+                              const item = items.find((x) => x.id === entry.itemId);
+                              return (
+                                <tr key={entry.id} className="border-b border-slate-100">
+                                  <td className="px-2 py-2 text-slate-700">{new Date(entry.createdAt).toLocaleString()}</td>
+                                  <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.reference}</td>
+                                  <td className="px-2 py-2 text-slate-700">{entry.notes || '-'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -580,20 +693,37 @@ export default function Rentals() {
                     </Button>
                   </div>
 
-                  <div className="mt-4 space-y-2">
-                    {damages.length === 0 ? (
-                      <p className="text-sm text-slate-600">No damaged records yet.</p>
-                    ) : (
-                      damages.slice(0, 20).map((entry) => {
-                        const item = items.find((x) => x.id === entry.itemId);
-                        return (
-                          <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                            {item?.name ?? 'Unknown item'} - {entry.quantity} ({entry.reason})
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                  {damages.length === 0 ? (
+                    <p className="mt-4 text-sm text-slate-600">No damaged records yet.</p>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-left text-sm">
+                        <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                          <tr className="border-b border-slate-200">
+                            <th className="px-2 py-2">Date</th>
+                            <th className="px-2 py-2">Item</th>
+                            <th className="px-2 py-2">Quantity</th>
+                            <th className="px-2 py-2">Reason</th>
+                            <th className="px-2 py-2">Event Ref</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {damages.slice(0, 30).map((entry) => {
+                            const item = items.find((x) => x.id === entry.itemId);
+                            return (
+                              <tr key={entry.id} className="border-b border-slate-100">
+                                <td className="px-2 py-2 text-slate-700">{new Date(entry.reportedAt).toLocaleString()}</td>
+                                <td className="px-2 py-2 text-slate-900">{item?.name ?? 'Unknown item'}</td>
+                                <td className="px-2 py-2 text-slate-700">{entry.quantity}</td>
+                                <td className="px-2 py-2 text-slate-700">{entry.reason}</td>
+                                <td className="px-2 py-2 text-slate-700">{entry.eventBookingId ?? '-'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
