@@ -22,6 +22,6 @@ export interface CreatePaymentInput {
   bookingId: string;
   amount: number;
   method: PaymentMethod;
-  referenceNumber: string;
+  referenceNumber?: string;
   notes?: string;
 }

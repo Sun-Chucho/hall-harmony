@@ -66,9 +66,11 @@ export default function Bookings() {
 
   const isAssistantHall = user?.role === 'assistant_hall_manager';
   const isCashier1 = user?.role === 'cashier_1';
+  const isManager = user?.role === 'manager';
   const canManageBookings = user?.role === 'controller';
   const canFinalizeEvent = user?.role === 'controller';
   const canAccountantReview = user?.role === 'accountant';
+  const canCreateBooking = user?.role === 'controller';
 
   const conflict = form.hall && form.date && form.startTime && form.endTime
     ? hasConflict(form)
@@ -146,23 +148,50 @@ export default function Bookings() {
               <TabsContent value="hall-registration">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Hall Registration Form</p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <input type="text" placeholder="Customer Name" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerName} onChange={(event) => onChange('customerName', event.target.value)} />
-                    <input type="text" placeholder="Customer Phone" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerPhone} onChange={(event) => onChange('customerPhone', event.target.value)} />
-                    <input type="text" placeholder="Event Name" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventName} onChange={(event) => onChange('eventName', event.target.value)} />
-                    <input type="text" placeholder="Event Type" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventType} onChange={(event) => onChange('eventType', event.target.value)} />
-                    <select className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.hall} onChange={(event) => onChange('hall', event.target.value)}>
-                      <option value="">Select Hall</option>
-                      {halls.map((hall) => (
-                        <option key={hall} value={hall}>{hall}</option>
-                      ))}
-                    </select>
-                    <input type="date" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.date} onChange={(event) => onChange('date', event.target.value)} />
-                    <input type="time" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.startTime} onChange={(event) => onChange('startTime', event.target.value)} />
-                    <input type="time" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.endTime} onChange={(event) => onChange('endTime', event.target.value)} />
-                    <input type="number" placeholder="Expected Guests" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.expectedGuests || ''} onChange={(event) => onChange('expectedGuests', Number(event.target.value))} />
-                    <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
-                    <input type="text" placeholder="Notes" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Date</p>
+                      <input
+                        type="date"
+                        className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        value={form.date}
+                        onChange={(event) => onChange('date', event.target.value)}
+                      />
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">A. Client Information</p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-2">
+                        <input type="text" placeholder="Full Name / Jina Kamili" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerName} onChange={(event) => onChange('customerName', event.target.value)} />
+                        <input type="text" placeholder="Phone No. / Simu" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerPhone} onChange={(event) => onChange('customerPhone', event.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">B. Event Details</p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-2">
+                        <input type="text" placeholder="Event Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventName} onChange={(event) => onChange('eventName', event.target.value)} />
+                        <input type="text" placeholder="Event Type" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventType} onChange={(event) => onChange('eventType', event.target.value)} />
+                        <input type="number" placeholder="No. of Guests / Idadi ya Wageni" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.expectedGuests || ''} onChange={(event) => onChange('expectedGuests', Number(event.target.value))} />
+                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.hall} onChange={(event) => onChange('hall', event.target.value)}>
+                          <option value="">Select Hall</option>
+                          {halls.map((hall) => (
+                            <option key={hall} value={hall}>{hall}</option>
+                          ))}
+                        </select>
+                        <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.startTime} onChange={(event) => onChange('startTime', event.target.value)} />
+                        <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.endTime} onChange={(event) => onChange('endTime', event.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-500">C. Payment Details</p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-2">
+                        <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
+                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.quotedAmount) || 0} readOnly />
+                        <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
+                      </div>
+                    </div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Button size="sm" onClick={() => void handleCreateBooking(true)}>Book & Send to Cashier 1</Button>
@@ -294,7 +323,6 @@ export default function Bookings() {
                           bookingId: selected.id,
                           amount: paidAmount,
                           method: 'cash',
-                          referenceNumber: `BOOKPAY-${Date.now()}`,
                           notes: paymentNotes,
                         });
                         setMessage(result.message);
@@ -341,7 +369,7 @@ export default function Bookings() {
   return (
     <ManagementPageTemplate
       pageTitle="Bookings"
-      subtitle="Booking and event approval workflow with conflict checks and status controls."
+      subtitle={isManager ? 'Hall Manager oversight of booking records and statuses.' : 'Booking and event approval workflow with conflict checks and status controls.'}
       stats={stats}
       sections={[
         {
@@ -355,7 +383,7 @@ export default function Bookings() {
       ]}
       action={
         <div className="space-y-6">
-          {canAccountantReview ? null : (
+          {canCreateBooking ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Create Booking Request</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -382,7 +410,7 @@ export default function Bookings() {
                 {message ? <span className="text-xs text-slate-600">{message}</span> : null}
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">

@@ -35,7 +35,12 @@ interface FormSubmission {
   fields: Record<string, string>;
 }
 
-type CashRequestStatus = 'pending_controller' | 'approved_controller' | 'declined_controller';
+type CashRequestStatus =
+  | 'pending_controller'
+  | 'declined_controller'
+  | 'pending_manager'
+  | 'approved_manager'
+  | 'declined_manager';
 
 interface CashRequestWorkflow {
   id: string;
@@ -60,7 +65,7 @@ const manualForms: ManualForm[] = [
   { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'controller'] },
   { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'controller'] },
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant', 'controller'] },
-  { id: 'cash_request', title: 'Cash Request Form', roles: ['manager', 'assistant_hall_manager', 'cashier_2', 'store_keeper', 'purchaser', 'accountant', 'controller'] },
+  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_2', 'store_keeper', 'purchaser', 'accountant', 'controller'] },
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
   { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'controller', 'manager'] },
   { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_2', 'manager'] },
@@ -88,6 +93,7 @@ export default function Documents() {
   const [outputDateFrom, setOutputDateFrom] = useState('');
   const [outputDateTo, setOutputDateTo] = useState('');
   const [controllerComment, setControllerComment] = useState<Record<string, string>>({});
+  const [managerComment, setManagerComment] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
@@ -182,6 +188,7 @@ export default function Documents() {
 
   const allowedForms = useMemo(() => {
     if (!user) return [];
+    if (user.role === 'manager') return [];
     return manualForms.filter((item) => item.roles.includes(user.role));
   }, [user]);
 
@@ -204,15 +211,28 @@ export default function Documents() {
   });
 
   const pendingForController = cashRequests.filter((entry) => entry.status === 'pending_controller');
+  const pendingForManager = cashRequests.filter((entry) => entry.status === 'pending_manager');
 
   const stats = [
     { title: 'Fillable Forms', value: String(myForms), description: 'forms assigned to your role' },
     { title: 'All Form Types', value: String(manualForms.length), description: 'manual register list' },
     { title: 'Submitted Outputs', value: String(outputs.length), description: 'all saved form entries' },
     {
-      title: user?.role === 'controller' ? 'Pending Cash Requests' : 'My Role',
-      value: user?.role === 'controller' ? String(pendingForController.length) : user ? ROLE_LABELS[user.role] : 'N/A',
-      description: user?.role === 'controller' ? 'awaiting your decision' : 'current user designation',
+      title: user?.role === 'controller' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Manager Queue' : 'My Role',
+      value:
+        user?.role === 'controller'
+          ? String(pendingForController.length)
+          : user?.role === 'manager'
+            ? String(pendingForManager.length)
+            : user
+              ? ROLE_LABELS[user.role]
+              : 'N/A',
+      description:
+        user?.role === 'controller'
+          ? 'awaiting controller decision'
+          : user?.role === 'manager'
+            ? 'awaiting hall manager decision'
+            : 'current user designation',
     },
   ];
 
@@ -248,7 +268,7 @@ export default function Documents() {
         submittedBy: user.id,
         submittedByRole: user.role,
         fields,
-        status: user.role === 'controller' ? 'approved_controller' : 'pending_controller',
+        status: user.role === 'controller' ? 'pending_manager' : 'pending_controller',
         reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
         reviewedBy: user.role === 'controller' ? user.id : undefined,
         reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
@@ -263,7 +283,7 @@ export default function Documents() {
           submittedBy: user.id,
           submittedByRole: user.role,
           fields,
-          status: user.role === 'controller' ? 'approved_controller' : 'pending_controller',
+          status: user.role === 'controller' ? 'pending_manager' : 'pending_controller',
           reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
           reviewedBy: user.role === 'controller' ? user.id : undefined,
           reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
@@ -273,8 +293,8 @@ export default function Documents() {
 
       if (user.role === 'controller') {
         await sendManagerAlert({
-          title: 'Cash Request Approved by Controller',
-          body: `Controller submitted/approved a cash request: TZS ${fields.total_requested ?? '0'}. Please review.`,
+          title: 'Cash Request Pending Hall Manager',
+          body: `Controller submitted/validated a cash request: TZS ${fields.total_requested ?? '0'}. Awaiting Hall Manager decision.`,
         });
       }
     }
@@ -305,7 +325,7 @@ export default function Documents() {
 
     try {
       await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: decision === 'approve' ? 'approved_controller' : 'declined_controller',
+        status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
         reviewedAt: new Date().toISOString(),
         reviewedBy: user.id,
         reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
@@ -317,7 +337,7 @@ export default function Documents() {
           entry.id === requestId
             ? {
                 ...entry,
-                status: decision === 'approve' ? 'approved_controller' : 'declined_controller',
+                status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
                 reviewedAt: new Date().toISOString(),
                 reviewedBy: user.id,
                 reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
@@ -329,9 +349,41 @@ export default function Documents() {
 
     if (decision === 'approve') {
       await sendManagerAlert({
-        title: 'Cash Request Approved by Controller',
-        body: `Cash request ${request.id} approved by controller. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
+        title: 'Cash Request Pending Hall Manager',
+        body: `Cash request ${request.id} approved by controller and forwarded to Hall Manager. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
       });
+    }
+  };
+
+  const handleManagerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
+    if (!user || user.role !== 'manager') return;
+    const request = cashRequests.find((entry) => entry.id === requestId);
+    if (!request) return;
+    const comment = managerComment[requestId]?.trim() ?? '';
+    if (!comment) return;
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
+        status: decision === 'approve' ? 'approved_manager' : 'declined_manager',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: user.id,
+        reviewComment: comment,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setCashRequests((prev) =>
+        prev.map((entry) =>
+          entry.id === requestId
+            ? {
+                ...entry,
+                status: decision === 'approve' ? 'approved_manager' : 'declined_manager',
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.id,
+                reviewComment: comment,
+              }
+            : entry,
+        ),
+      );
     }
   };
 
@@ -669,7 +721,47 @@ export default function Documents() {
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {user?.role === 'manager' ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Hall Manager Cash Request Decisions</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Review controller-forwarded cash requests and approve or decline with reason.
+              </p>
+              <div className="mt-3 space-y-3">
+                {pendingForManager.length === 0 ? (
+                  <p className="text-sm text-slate-500">No cash requests waiting for Hall Manager.</p>
+                ) : (
+                  pendingForManager.map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <p className="font-semibold text-slate-900">
+                        {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                      </p>
+                      <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
+                      <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
+                      <p className="text-slate-500">Controller note: {entry.reviewComment ?? '-'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input
+                          className={inputClass('h-9 w-[320px]')}
+                          placeholder="Reason (required)"
+                          value={managerComment[entry.id] ?? ''}
+                          onChange={(event) => setManagerComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        />
+                        <Button size="sm" onClick={() => void handleManagerCashDecision(entry.id, 'approve')}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleManagerCashDecision(entry.id, 'decline')}>
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {user?.role === 'manager' ? null : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Live Output (Read-only)</p>
             <p className="mt-1 text-sm text-slate-600">
               You only see completed outputs from other roles here. Editing is not available.
@@ -717,7 +809,8 @@ export default function Documents() {
                 ))
               )}
             </div>
-          </div>
+            </div>
+          )}
 
           {myRole ? null : (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">

@@ -80,7 +80,7 @@ const financeNavItems: NavItem[] = [
     title: 'Payments',
     icon: CreditCard,
     path: '/payments',
-    roles: ['manager', 'cashier_1', 'controller', 'accountant'],
+    roles: ['cashier_1', 'controller', 'accountant'],
   },
   {
     title: 'Cash Movement',
@@ -134,7 +134,7 @@ const adminNavItems: NavItem[] = [
     title: 'Web Portal',
     icon: Globe,
     path: '/portal',
-    roles: ['manager', 'assistant_hall_manager', 'controller'],
+    roles: ['assistant_hall_manager', 'controller'],
   },
   {
     title: 'Settings',

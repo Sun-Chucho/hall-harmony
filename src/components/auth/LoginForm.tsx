@@ -24,7 +24,7 @@ const ROLE_ORDER: UserRole[] = [
 const SHORT_ROLE_LABELS: Record<UserRole, string> = {
   manager: 'Hall Manager',
   managing_director: 'Managing Director',
-  assistant_hall_manager: 'Assistant Hall Manager',
+  assistant_hall_manager: 'Assistant Hall Manager & Receptionist',
   cashier_1: 'Cashier 1',
   cashier_2: 'Cashier 2',
   controller: 'Controller',

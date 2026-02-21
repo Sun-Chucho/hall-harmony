@@ -166,6 +166,104 @@ export default function Rentals() {
     );
   }
 
+  if (user?.role === 'manager') {
+    return (
+      <ManagementPageTemplate
+        pageTitle="Inventory"
+        subtitle="Hall Manager inventory oversight (view-only)."
+        stats={stats}
+        sections={[
+          {
+            title: 'Inventory Oversight',
+            bullets: [
+              'View stock table, stock in/out history, and damaged items.',
+              'No inventory edits are allowed for Hall Manager.',
+            ],
+          },
+        ]}
+        action={
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Inventory Table</p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                    <tr className="border-b border-slate-200">
+                      <th className="px-2 py-2">Item</th>
+                      <th className="px-2 py-2">Unit</th>
+                      <th className="px-2 py-2">Current Qty</th>
+                      <th className="px-2 py-2">Reorder Level</th>
+                      <th className="px-2 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.id} className="border-b border-slate-100">
+                        <td className="px-2 py-2 text-slate-900">{item.name}</td>
+                        <td className="px-2 py-2 text-slate-700">{item.unit}</td>
+                        <td className="px-2 py-2 text-slate-700">{item.currentQuantity}</td>
+                        <td className="px-2 py-2 text-slate-700">{item.reorderLevel}</td>
+                        <td className="px-2 py-2">
+                          {item.currentQuantity <= item.reorderLevel ? (
+                            <Badge className="bg-amber-100 text-amber-800">Low Stock</Badge>
+                          ) : (
+                            <Badge className="bg-emerald-100 text-emerald-700">OK</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Stock In / Stock Out History</p>
+              <div className="mt-3 space-y-2">
+                {movements.length === 0 ? (
+                  <p className="text-sm text-slate-600">No movement records yet.</p>
+                ) : (
+                  movements.slice(0, 20).map((entry) => {
+                    const item = items.find((x) => x.id === entry.itemId);
+                    return (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span>{item?.name ?? 'Unknown item'}</span>
+                          <Badge className="bg-slate-200 text-slate-900">{entry.type}</Badge>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Qty: {entry.quantity} | Ref: {entry.reference} | {new Date(entry.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Damaged Items</p>
+              <div className="mt-3 space-y-2">
+                {damages.length === 0 ? (
+                  <p className="text-sm text-slate-600">No damaged records yet.</p>
+                ) : (
+                  damages.slice(0, 20).map((entry) => {
+                    const item = items.find((x) => x.id === entry.itemId);
+                    return (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        {item?.name ?? 'Unknown item'} - {entry.quantity} ({entry.reason})
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        }
+      />
+    );
+  }
+
   if (user?.role === 'purchaser') {
     return (
       <ManagementPageTemplate

@@ -36,6 +36,10 @@ const InventoryContext = createContext<InventoryContextValue | undefined>(undefi
 const INVENTORY_STATE_REF = doc(db, 'system_state', 'inventory');
 const INVENTORY_CACHE_KEY = 'kuringe_inventory_cache_v1';
 
+function generateReference(prefix: string) {
+  return `${prefix}-${Date.now()}`;
+}
+
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { policy } = useAuthorization();
@@ -213,10 +217,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     if (!items.some((item) => item.id === itemId)) return { ok: false, message: 'Item not found.' };
     if (quantity <= 0) return { ok: false, message: 'Stock in quantity must be greater than zero.' };
-    if (!reference.trim()) return { ok: false, message: 'Reference is required.' };
+    const movementReference = reference.trim() || generateReference('STKIN');
 
     updateItemQuantity(itemId, quantity);
-    addMovement(itemId, 'stock_in', quantity, reference, notes);
+    addMovement(itemId, 'stock_in', quantity, movementReference, notes);
     return { ok: true, message: 'Stock in recorded.' };
   }, [addMovement, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
 
@@ -230,10 +234,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     if (!item) return { ok: false, message: 'Item not found.' };
     if (quantity <= 0) return { ok: false, message: 'Stock out quantity must be greater than zero.' };
     if (item.currentQuantity < quantity) return { ok: false, message: 'Insufficient stock quantity.' };
-    if (!reference.trim()) return { ok: false, message: 'Reference is required.' };
+    const movementReference = reference.trim() || generateReference('STKOUT');
 
     updateItemQuantity(itemId, -quantity);
-    addMovement(itemId, 'stock_out', quantity, reference, notes);
+    addMovement(itemId, 'stock_out', quantity, movementReference, notes);
     return { ok: true, message: 'Stock out recorded.' };
   }, [addMovement, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
 

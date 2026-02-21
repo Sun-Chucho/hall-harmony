@@ -7,7 +7,6 @@ import { useEventFinance } from '@/contexts/EventFinanceContext';
 export default function ManagingDirectorTransfer() {
   const { mdTransfers, recordManagingDirectorTransfer } = useEventFinance();
   const [amount, setAmount] = useState(0);
-  const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState('');
 
@@ -33,20 +32,13 @@ export default function ManagingDirectorTransfer() {
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Record Transfer</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
               <input
                 type="number"
                 placeholder="Amount (TZS)"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                 value={amount || ''}
                 onChange={(event) => setAmount(Number(event.target.value))}
-              />
-              <input
-                type="text"
-                placeholder="Reference"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
               />
               <input
                 type="text"
@@ -60,11 +52,10 @@ export default function ManagingDirectorTransfer() {
               <Button
                 size="sm"
                 onClick={() => {
-                  const result = recordManagingDirectorTransfer({ amount, reference, notes });
+                  const result = recordManagingDirectorTransfer({ amount, notes });
                   setMessage(result.message);
                   if (result.ok) {
                     setAmount(0);
-                    setReference('');
                     setNotes('');
                   }
                 }}

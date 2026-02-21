@@ -65,7 +65,7 @@ interface EventFinanceContextValue {
   confirmCashTransferReceived: (transferId: string, receiveComment: string) => { ok: boolean; message: string };
   recordManagingDirectorTransfer: (input: {
     amount: number;
-    reference: string;
+    reference?: string;
     notes?: string;
   }) => { ok: boolean; message: string; transferId?: string };
   recordCashDistribution: (input: {
@@ -83,6 +83,10 @@ const EVENT_FINANCE_CACHE_KEY = 'kuringe_event_finance_cache_v1';
 
 function sumBudget(categories: Record<BudgetCategory, number>): number {
   return Object.values(categories).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+}
+
+function generateReference(prefix: string) {
+  return `${prefix}-${Date.now()}`;
 }
 
 export function EventFinanceProvider({ children }: { children: React.ReactNode }) {
@@ -595,18 +599,18 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     return { ok: true, message: 'Cash receipt confirmed.' };
   }, [appendLog, cashTransfers, user]);
 
-  const recordManagingDirectorTransfer = useCallback((input: { amount: number; reference: string; notes?: string }) => {
+  const recordManagingDirectorTransfer = useCallback((input: { amount: number; reference?: string; notes?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can record MD transfers.' };
     }
     if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
-    if (!input.reference.trim()) return { ok: false, message: 'Reference is required.' };
+    const reference = input.reference?.trim() || generateReference('MDTRF');
 
     const transfer: ManagingDirectorTransfer = {
-      id: `MD-TRANSFER-${Date.now()}`,
+      id: generateReference('MD-TRANSFER'),
       amount: input.amount,
-      reference: input.reference.trim(),
+      reference,
       notes: input.notes?.trim() ?? '',
       transferredAt: new Date().toISOString(),
       transferredByUserId: user.id,

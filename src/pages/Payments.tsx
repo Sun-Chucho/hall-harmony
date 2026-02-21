@@ -11,7 +11,6 @@ const initialForm: CreatePaymentInput = {
   bookingId: '',
   amount: 0,
   method: 'cash',
-  referenceNumber: '',
   notes: '',
 };
 
@@ -74,7 +73,7 @@ export default function Payments() {
     {
       title: 'Cashier 1 Controls',
       bullets: [
-        'Record payment method, reference number, and amount for each booking.',
+        'Record payment method and amount for each booking.',
         'Mark booking payment status: pending, deposit paid, partial, or fully paid.',
         'Generate receipt text with updated booking balance after each payment.',
       ],
@@ -149,15 +148,8 @@ export default function Payments() {
               </select>
               <input
                 type="text"
-                placeholder="Reference Number"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                value={form.referenceNumber}
-                onChange={(event) => setForm((prev) => ({ ...prev, referenceNumber: event.target.value }))}
-              />
-              <input
-                type="text"
                 placeholder="Notes (optional)"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                 value={form.notes}
                 onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
               />

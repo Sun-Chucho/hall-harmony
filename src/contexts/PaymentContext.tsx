@@ -25,6 +25,11 @@ const DEPOSIT_RATIO = 0.3;
 const PAYMENT_STATE_REF = doc(db, 'system_state', 'payments');
 const PAYMENT_CACHE_KEY = 'kuringe_payments_cache_v1';
 
+function generateReference(prefix: string) {
+  const stamp = Date.now().toString();
+  return `${prefix}-${stamp}`;
+}
+
 const PaymentContext = createContext<PaymentContextValue | undefined>(undefined);
 
 export function PaymentProvider({ children }: { children: React.ReactNode }) {
@@ -158,17 +163,16 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     const booking = bookings.find((item) => item.id === input.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
     if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
-    if (!input.referenceNumber.trim()) return { ok: false, message: 'Reference number is required.' };
-
-    const paymentId = `PAY-${Date.now()}`;
-    const receiptNumber = `RCT-${Date.now()}`;
+    const paymentId = generateReference('PAY');
+    const receiptNumber = generateReference('RCT');
+    const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
 
     const record: PaymentRecord = {
       id: paymentId,
       bookingId: input.bookingId,
       amount: input.amount,
       method: input.method,
-      referenceNumber: input.referenceNumber.trim(),
+      referenceNumber,
       receivedAt: new Date().toISOString(),
       receivedByUserId: user.id,
       receiptNumber,
