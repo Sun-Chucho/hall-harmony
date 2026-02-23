@@ -13,17 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingContext';
 import { CreateBookingInput } from '@/types/booking';
-import {
-  beverageList,
-  beverageNotes,
-  cakeOptions,
-  conferencePackages,
-  decorationPackages,
-  externalServices,
-  hallCatalog,
-  muhimuNotes,
-  taratibuChecklist,
-} from '@/lib/landingData';
+import { hallCatalog } from '@/lib/landingData';
 
 const HALL_OPTIONS = [
   { id: 'witness', label: 'Witness Hall (Pax 500-700)', name: 'Witness Hall', capacityMax: 700 },
@@ -41,6 +31,228 @@ const IMAGES: Record<string, string> = {
   kilimanjaro: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=80',
   'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1600&q=80',
 };
+
+const RENTAL_RATE_CARDS = [
+  {
+    hall: 'BEI YA KUKODI UKUMBI (WITNESS HALL PAX 500-700)',
+    rates: [
+      { day: 'JUMAMOSI', priceLabel: 'TSH 3835,000/=' },
+      { day: 'JUMATATU NA JUMANNE', priceLabel: 'TSH 1,534,000/=' },
+      { day: 'J,TANO, ALHAMISI, IJUMAA NA JPL', priceLabel: 'TSH 2,301,000/=' },
+    ],
+  },
+  {
+    hall: 'BEI YA KUKODI UKUMBI WA KILIMANJARO HALL (HALL B 200-300 & GARDEN 300-400)',
+    rates: [
+      { day: 'JUMAMOSI', priceLabel: 'TSH 2,301,000/=' },
+      { day: 'JUMATATU NA JUMANNE', priceLabel: 'TSH 1,227,000/=' },
+      { day: 'J,TANO, ALHAMISI, IJUMAA NA JPL', priceLabel: 'TSH 1,534,000/=' },
+    ],
+  },
+  {
+    hall: 'BEI YA KUKODI UKUMBI (HALL D CAPACITY 30-60 PEOPLE)',
+    rates: [
+      { day: 'JUMATATU NA JUMANNE', priceLabel: 'TSH 177,000/=' },
+      { day: 'J,TANO, ALH, IJUM, JMOS, JPL', priceLabel: 'TSH 236,000/=' },
+    ],
+  },
+];
+
+const TARATIBU_PRIMARY = [
+  'MEZA NA VITI VITATOLEWA KULINGANA NA IDADI YA WATU WALIOLIPWA CHAKULA.',
+  'UKUMBI UNA PARKING YA KUTOSHA NA ULINZI WA UHAKIKA.',
+  'BOOKING INAKAMILIKA PALE TU MALIPO YA AWALI YANAPOFANYIKA NUSU AU MALIPO YOTE YA KUKODI UKUMBI.',
+  'STANDBY GENERATOR IPO ENDAPO UMEME UTAKATIKA.',
+  'SHEREHE MWISHO SAA SITA (00:00PM) KWA MUJIBU WA SHERIA, MC AZINGATIE MUDA.',
+  'MALIPO YA MWISHO YAFANYIKE WIKI MOJA KABLA YA TAREHE YA SHEREHE (WASILIANA NA OFISI KWA MWONGOZO WA MALIPO).',
+  'KUNA CHUMBA MAALUM CHA MAHARUSI (WAITING ROOM) CHA KUSUBIRI MUDA WA KUINGIA UKUMBINI.',
+];
+
+const MUHIMU_PRIMARY = [
+  'SHEREHE ISIPOFANYIKA ADA YA UKUMBI HAITARUDISHWA HADI PALE ATAKAPOPATIKANA MTEJA MWINGINE KWA TAREHE HIYO NDIPO UTAREJESHEWA 70% YA KIASI KILICHOLIPWA NA ENDAPO MTEJA MWINGINE HATAPATIKANA KWA TAREHE HIYO BASI HAKUTAKUWA NA UREJESHAJI WOWOTE.',
+  'VINYWAJI VYAKO VIKIBAKI UTAVICHUKUA KWA KULETA CHUPA TUPU (EMPTY) KULINGANA NA VINYWAJI ULIVYOBAKISHA (VIFATWE NDANI YA SIKU TATU TOKA ULIVYOANDIKISHA).',
+  'HATURUHUSU SHEREHE MBILI KWA WAKATI MMOJA (TWO IN ONE).',
+  'OUTCATERING NI MAKUBALIANO NA OFISI JUU YA GHARAMA ZA UENDESHAJI HUDUMA.',
+  'GHARAMA ZOTE ZILIPWE V.A.T 18%.',
+  'MTEJA ANATAKIWA KWENDA KULIPIA KIBALI CHA SHEREHE MANISPAA (OFISI YA UTAMADUNI).',
+  'AC ZINAWASHWA UKUMBINI SAA 17:30PM.',
+];
+
+const DECLARATION_LINES = [
+  'MIMI .................................. NIMESOMA NA KUKUBALIANA NA MIONGOZO YOTE HAPO JUU NA NITAFUATA YOTE YALIYOELEKEZWA HAPO.',
+  'SAINI ................................................ TAREHE ................................................',
+];
+
+const KEKI_ITEMS = [
+  'TUNACHOMA KEKI YA ASILI (NDAFU) KWA GHARAMA ZIFUATAZO:',
+  'MBUZI AKILETWA NA MTEJA ATAOKWA KWA GHARAMA YA TSHS: 100,000/=',
+  'NDAFU KAMILI (MBUZI NA KUMUOKA) TSHS 350,000/= HADI TSH: 400,000/=',
+  'NB: MTEJA ANARUHUSIWA KULETA NDAFU UKUMBINI; TOROLI LA NDAFU ATAKODISHWA KWA TSHS 20,000/=',
+];
+
+const DRINK_ITEMS = [
+  ['FLYING FISH & KILIMANJARO LITE', 'TSH @3000/='],
+  ['LOCAL BEER', 'TSH @2500/='],
+  ['IMPORTED BEER', 'TSH @4000/='],
+  ['SODA', 'TSH @1000/='],
+  ['AZAM JUICE', 'TSH @4000/='],
+  ['MAJI KILI 1/2LT (0.5LT)', 'TSH @1000/='],
+  ['MALTA', 'TSH @3000/='],
+  ['BALTIKA', 'TSH @5000/='],
+  ['BAVARIA', 'TSH @3500/='],
+  ['SAVANNA', 'TSH @5000/='],
+  ['CERES JUICE', 'TSH @6000/='],
+  ['KONYAGI & K VANT', 'TSH @15000/='],
+  ['WINE (5LTRS)', 'TSH @120,000/='],
+] as const;
+
+const DRINK_NOTES = [
+  'BEI ZITAKAPOBADILIKA MTAJULISHWA PALE TU MAKAMPUNI HUSIKA YAKIPANDISHA BEI.',
+  'UNARUHUSIWA KULETA POMBE KALI NA CHAMPION TU.',
+  'NB: GHARAMA ZA KUINGIZA COCTAIL UKUMBINI NI 150,000/=.',
+];
+
+const EXTERNAL_SERVICES_PRIMARY = [
+  'KUKODISHA MAGARI',
+  'OUT CATERING',
+  'BEVARAGE SERVICE',
+  'DECORATION SERVICE',
+  'EVENT RENTAL SERVICE',
+  'PLACES FOR HOLDING VARIOUS MEETINGS',
+];
+
+const DECORATION_PACKAGES_PRIMARY = [
+  {
+    title: 'STANDARD',
+    priceLabel: '2000,000/=',
+    features: [
+      "STAGE'S DECORATION",
+      'PHOTOBOOTH BANNER 3METRE',
+      'WELCOME NOTE BOARD',
+      'FIRE WALKS 2',
+      'ENTRANCE DECOR',
+      'FLOWERS (ARTIFICIAL AND NATURAL)',
+      'DANCING FLOOR STICKER + PRINTED NAMES',
+      'LIGHT (FRYLIGHTS)',
+      "TABLE'S DECORATION",
+      'TABLE COVER',
+      'FLOWERS VASE (IRONIC GOLD)',
+      'CHARGER PLATE @TABLE',
+      'MAPKINS 4 @TABLE',
+      'CHAMPION GLASS 4',
+    ],
+  },
+  {
+    title: 'V.I.P',
+    priceLabel: '5000,000/=',
+    features: [
+      'STAGE DECORATION',
+      'CROME CHAIR 400 (GOLD + SILVER + BLACK)',
+      'WALKING WAY STICKER',
+      'ENTRANCE DECOR',
+      'FLOWERS (ARTIFICIAL AND NATURAL)',
+      'FOG MACHINE 1',
+      'MOVING HEAD 2',
+      'DANCING FLOOR STICKER + PRINTED NAMES',
+      'TABLE DECORATION',
+      'VASE CANDLES 20 (IRONIC GOLD)',
+      'NAPKIN 10 @TABLE',
+      'CHARGER PLATE 10 @TABLE',
+      'GLASS WATER 10',
+      'GLASS WINES 10',
+    ],
+  },
+  {
+    title: 'EXECUTIVE',
+    priceLabel: '8,000,000/=',
+    features: [
+      'L.E.D ON STAGE',
+      'LIZER MACHINE ON FIRST DANCE',
+      '8 CHANDELIER',
+      'TRUSS (8M*10M) + DECORATION + PRINTED BANNER',
+      'SCARTED STAND FLOWER',
+      'MOVING HEAD 4',
+      'PRINTED STICKER WALKING WAY',
+      'TABLE DECORATION',
+      'TABLE COVER',
+      'WATER GLASS CRYSTAL 10 @TABLE',
+      'WINE GLASS CRYSTAL 10 @TABLE',
+      'TABLE NUMBER',
+      "CANDLE'S VASE CLEAR OR BLACK",
+    ],
+  },
+  {
+    title: 'V.V.I.P',
+    priceLabel: '15,000,000/=',
+    features: [
+      'A LOT OF FLOWERS',
+      'TRUSS (12M*12M) + L.E.D SCREEN + DECORATIONS AND 10 CHANDELIER',
+      'THEMES SET UP WHOLE HALL',
+      'FOG MACHINE 2',
+      'TABLE LAMP 10',
+      '3PC CANDLES EACH TABLE',
+      'FIRE WALKS 6 SET',
+      'LIZER MACHINE',
+    ],
+  },
+  {
+    title: 'ROYAL',
+    priceLabel: '20,000,000/=',
+    features: [
+      'A LOT OF FLOWERS',
+      'TRUSS (12M*12M) + L.E.D SCREEN - DECORATIONS + 15 CHANDELIER',
+      'THEMES SETUP WHOLE HALL',
+      'FOG MACHINE 4',
+      'TABLE LAMP 20',
+      '4PCS CANDLE EACH TABLE',
+      'FIRE WALKS 8 SET',
+      'LIZER MACHINE',
+    ],
+  }
+];
+
+const FOOD_MENUS = [
+  {
+    title: 'MENU (13,000/=)',
+    starter: ['Mtori', 'Samosa'],
+    buffet: ['Kuku choma 1/6', 'Rojo nyama', 'Wali maua', 'Pilau', 'Chips', 'Salad', 'Pilipili', 'Tunda'],
+  },
+  {
+    title: 'MENU (15,000/=)',
+    starter: ['Mtori / supu / mbogamboga', 'Samosa', 'Bagia'],
+    buffet: ['Kuku choma 1/4', 'Rojo nyama', 'Wali', 'Tambi za mbogamboga', 'Ndizi nyama', 'Tunda', 'Pilipili', 'Salad'],
+  },
+];
+
+const CONFERENCE_PACKAGES_PRIMARY = [
+  {
+    attendees: 'WATU 30-50',
+    tiers: [
+      { price: '@TSH 55,000/=', items: ['HALL', 'SETUP', 'BREAKFAST', 'LUNCH', 'SOFT DRINKS', 'STATIONARY', 'P.A'] },
+      { price: '@TSH 35,000/=', items: ['HALL', 'SETUP', 'P.A'] },
+      { price: '@TSH 20,000/=', items: ['HALL', 'SETUP'] },
+      { price: 'LIPA UKUMBI', items: [] },
+    ],
+  },
+  {
+    attendees: 'WATU 100-200',
+    tiers: [
+      { price: '@TSHS 50,000/=', items: ['HALL', 'SETUP', 'BREAKFAST', 'LUNCH', 'STATIONARY', 'P.A', 'SOFT DRINKS', 'PROJECTOR'] },
+      { price: '@TSHS 40,000/=', items: ['HALL', 'SETUP', 'STATIONARY', 'P.A', 'PROJECTOR'] },
+      { price: '@TSHS 30,000/=', items: ['HALL', 'SETUP', 'P.A', 'PROJECTOR'] },
+      { price: 'LIPA UKUMBI', items: [] },
+    ],
+  },
+  {
+    attendees: 'WATU 300-500',
+    tiers: [
+      { price: '@TSHS 45,000/=', items: ['HALL', 'SETUP', 'BREAKFAST', 'LUNCH', 'STATIONARY', 'P.A', 'SOFT DRINKS', 'EVENING TEA', 'PROJECTOR'] },
+      { price: '@TSH 40,000/=', items: ['HALL', 'SETUP', 'PROJECTOR', 'P.A', 'SOFT DRINKS', 'BREAKFAST'] },
+      { price: '@35,000/=', items: ['HALL', 'SETUP', 'P.A', 'PROJECTOR'] },
+      { price: 'LIPA UKUMBI', items: [] },
+    ],
+  },
+];
 
 const INITIAL_BOOKING: CreateBookingInput = {
   customerName: '',
@@ -148,7 +360,7 @@ export default function Index() {
 
           <form id="book-now" onSubmit={onSubmit} className="rounded-[22px] border border-white/45 bg-white/82 p-6 shadow-[0_20px_65px_-30px_rgba(0,0,0,0.6)] backdrop-blur-xl">
             <div className="flex items-center justify-between">
-              <p className="text-2xl font-bold" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Reserve Your Date</p>
+              <p className="text-2xl font-bold text-black" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Reserve Your Date</p>
               <CalendarDays className="h-5 w-5 text-[#6B1E2D]" />
             </div>
             <div className="mt-4 grid grid-cols-4 gap-2">{STEPS.map((s, i) => <button key={s} type="button" onClick={() => i <= step && setStep(i)} className={`rounded-xl px-1 py-2 text-xs font-semibold ${i <= step ? 'bg-[#6B1E2D] text-white' : 'bg-[#f2ebe1] text-[#7c6e56]'}`}>{s}</button>)}</div>
@@ -203,9 +415,28 @@ export default function Index() {
                 </div>
                 <div className="p-5 text-sm">
                   <p className="text-[#5d5d5d]">{hall.description}</p>
-                  <a href="#book-now" className="mt-4 inline-flex items-center gap-2 font-semibold text-[#6B1E2D]">View Details <ArrowRight className="h-4 w-4" /></a>
+                  <Link to={`/halls/${hall.id}`} className="mt-4 inline-flex items-center gap-2 font-semibold text-[#6B1E2D]">View Hall <ArrowRight className="h-4 w-4" /></Link>
                 </div>
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#d8c8aa] bg-white p-6 md:p-8">
+          <h2 className="text-center text-3xl font-bold md:text-4xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Hall Rental Rates</h2>
+          <div className="mt-6 grid gap-5 lg:grid-cols-3">
+            {RENTAL_RATE_CARDS.map((hall) => (
+              <div key={hall.hall} className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+                <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#6B1E2D]">{hall.hall}</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  {hall.rates.map((rate) => (
+                    <p key={rate.day} className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
+                      <span>{rate.day}</span>
+                      <span className="font-semibold text-[#6B1E2D]">{rate.priceLabel}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </section>
@@ -218,21 +449,111 @@ export default function Index() {
 
         <section className="rounded-[24px] bg-white p-6 md:p-8" id="details">
           <div className="mb-5 flex flex-wrap gap-2">{TABS.map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-full px-5 py-2 text-sm font-semibold ${tab === item ? 'bg-[#6B1E2D] text-white' : 'bg-[#efe5d8] text-[#6b5a3d]'}`}>{item}</button>)}</div>
-          {tab === 'Packages' && <div className="grid gap-5 md:grid-cols-2 text-sm">
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{decorationPackages.slice(0, 4).map((p) => <p key={p.title} className="mb-2 flex items-center justify-between rounded-lg bg-white px-3 py-2"><span>{p.title.split('-')[0].trim()}</span><span className="font-semibold text-[#6B1E2D]">{formatTZS(p.price)}</span></p>)}</div>
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{conferencePackages.map((p) => <p key={p.attendees} className="mb-2 rounded-lg bg-white px-3 py-2"><span className="font-semibold">{p.attendees}</span><br /><span className="text-xs text-[#6B1E2D]">{p.pricePoint}</span></p>)}</div>
+          {tab === 'Packages' && <div className="space-y-5 text-sm">
+            <div className="rounded-xl border border-[#d8c8aa] bg-white p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#8b7a5e]">Gharama Za Mapambo</p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                {DECORATION_PACKAGES_PRIMARY.map((tier) => (
+                  <div key={tier.title} className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+                    <p className="flex items-center justify-between text-sm font-semibold text-[#2B2B2B]">
+                      <span>{tier.title}</span>
+                      <span className="text-[#6B1E2D]">{tier.priceLabel}</span>
+                    </p>
+                    <ul className="mt-3 space-y-1 text-[#4f4f4f]">
+                      {tier.features.map((item) => (
+                        <li key={`${tier.title}-${item}`} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#c6a75e]" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#d8c8aa] bg-[#fffaf3] p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#8b7a5e]">Conference Package</p>
+              <div className="mt-4 space-y-4">
+                {CONFERENCE_PACKAGES_PRIMARY.map((pkg) => (
+                  <div key={pkg.attendees} className="rounded-xl border border-[#e8dcc9] bg-white p-4">
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#6B1E2D]">{pkg.attendees}</p>
+                    <div className="mt-3 grid gap-3 lg:grid-cols-4">
+                      {pkg.tiers.map((tier) => (
+                        <div key={`${pkg.attendees}-${tier.price}`} className="rounded-lg bg-[#fffdf9] p-3">
+                          <p className="text-xs font-semibold text-[#6B1E2D]">{tier.price}</p>
+                          <ul className="mt-2 space-y-1 text-xs text-[#4f4f4f]">
+                            {tier.items.length === 0 ? <li>-</li> : tier.items.map((item) => <li key={`${pkg.attendees}-${tier.price}-${item}`}>{item}</li>)}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>}
           {tab === 'Catering' && <div className="grid gap-5 md:grid-cols-2 text-sm">
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{cakeOptions.map((i) => <p key={i.title} className="mb-2 flex justify-between rounded-lg bg-white px-3 py-2"><span>{i.title}</span><span className="font-semibold text-[#6B1E2D]">{i.pricePoint}</span></p>)}</div>
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{externalServices.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}</div>
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#8b7a5e]">Keki</p>
+              {KEKI_ITEMS.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}
+            </div>
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#8b7a5e]">Huduma Nyingine Nje Ya Ukumbi</p>
+              {EXTERNAL_SERVICES_PRIMARY.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}
+            </div>
+            <div className="rounded-xl border border-[#d8c8aa] bg-[#fffaf3] p-5 md:col-span-2">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#8b7a5e]">Menu Za Chakula</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {FOOD_MENUS.map((menu) => (
+                  <div key={menu.title} className="rounded-xl border border-[#e8dcc9] bg-white p-4">
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#6B1E2D]">{menu.title}</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b7a5e]">Starter</p>
+                        <ul className="mt-2 space-y-1 text-[#4f4f4f]">
+                          {menu.starter.map((item) => (
+                            <li key={`${menu.title}-starter-${item}`} className="rounded-md bg-[#fffdf9] px-2 py-1">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b7a5e]">Buffee</p>
+                        <ul className="mt-2 space-y-1 text-[#4f4f4f]">
+                          {menu.buffet.map((item) => (
+                            <li key={`${menu.title}-buffet-${item}`} className="rounded-md bg-[#fffdf9] px-2 py-1">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>}
           {tab === 'Drinks' && <div className="grid gap-5 md:grid-cols-2 text-sm">
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{beverageList.slice(0, 10).map((i) => <p key={i.name} className="mb-2 flex justify-between rounded-lg bg-white px-3 py-2"><span>{i.name}</span><span className="font-semibold text-[#6B1E2D]">{formatTZS(i.price)}</span></p>)}</div>
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{beverageNotes.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}</div>
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{DRINK_ITEMS.map((i) => <p key={i[0]} className="mb-2 flex justify-between rounded-lg bg-white px-3 py-2"><span>{i[0]}</span><span className="font-semibold text-[#6B1E2D]">{i[1]}</span></p>)}</div>
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{DRINK_NOTES.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}</div>
           </div>}
-          {tab === 'Policies' && <div className="grid gap-5 md:grid-cols-2 text-sm">
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{taratibuChecklist.slice(0, 5).map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}</div>
-            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">{muhimuNotes.slice(0, 5).map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}</div>
+          {tab === 'Policies' && <div className="space-y-5 text-sm">
+            <div className="rounded-xl border border-[#d8c8aa] bg-[#fffaf3] p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-[#8b7a5e]">Taratibu Za Ukumbi</p>
+              <div className="mt-4 grid gap-2">
+                {TARATIBU_PRIMARY.map((item) => (
+                  <p key={item} className="rounded-lg bg-white px-3 py-2">{item}</p>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[#8b7a5e]">Muhimu</p>
+              {MUHIMU_PRIMARY.map((i) => <p key={i} className="mb-2 rounded-lg bg-white px-3 py-2">{i}</p>)}
+            </div>
+
+            <div className="rounded-xl border border-[#e8dcc9] bg-[#fffdf9] p-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-[#8b7a5e]">Client Declaration</p>
+              {DECLARATION_LINES.map((line) => <p key={line} className="mt-2 rounded-lg bg-white px-3 py-2">{line}</p>)}
+            </div>
           </div>}
         </section>
 
