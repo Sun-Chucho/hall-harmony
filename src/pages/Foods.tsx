@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const menuCategories = [
   {
@@ -21,6 +22,8 @@ const menuCategories = [
 const Foods = () => {
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <PublicNavbar />
+
       <div className="border-b border-slate-200 bg-white/70 p-6 shadow-sm">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -28,7 +31,7 @@ const Foods = () => {
             <h1 className="text-3xl font-bold text-slate-900">Food, beverage, and sensory experiences</h1>
           </div>
           <Link
-            to="/#book-now"
+            to="/booking"
             className="rounded-full border border-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 transition hover:bg-slate-900 hover:text-white"
           >
             Plan an event
@@ -60,13 +63,13 @@ const Foods = () => {
             <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Tasting suite</p>
             <p className="mt-2 text-lg font-semibold text-slate-900">Private culinary preview</p>
             <p className="mt-3 text-sm text-slate-600">
-              Book a tasting with our chefs to pair food & beverages, finalize plating, and lock your décor palette.
+              Book a tasting with our chefs to pair food and beverages, finalize plating, and lock your decor palette.
             </p>
             <Link
-              to="/#book-now"
+              to="/booking"
               className="mt-6 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-red-600"
             >
-              Schedule a tasting →
+              Schedule a tasting
             </Link>
           </div>
         </section>
@@ -94,7 +97,7 @@ const Foods = () => {
               <p className="text-2xl font-bold">Signature drinks for every toast.</p>
             </div>
             <Link
-              to="/#book-now"
+              to="/booking"
               className="rounded-full border border-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white hover:text-slate-900"
             >
               Reserve a tasting

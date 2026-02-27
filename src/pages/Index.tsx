@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingContext';
 import { CreateBookingInput } from '@/types/booking';
 import { hallCatalog } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const HALL_OPTIONS = [
   { id: 'witness', label: 'Witness Hall (Pax 500-700)', name: 'Witness Hall', capacityMax: 700 },
@@ -147,13 +148,6 @@ const CONFERENCE_PACKAGES = [
   },
 ];
 
-const LANDING_SECTION_LINKS = [
-  { label: 'Packages', href: '#packages' },
-  { label: 'Catering', href: '#catering' },
-  { label: 'Drinks', href: '#drinks' },
-  { label: 'Policies', href: '#policies' },
-];
-
 const PACKAGES_PREVIEW = [
   { name: 'Standard', price: 2000000, note: 'Elegant essentials for intimate events.' },
   { name: 'VIP', price: 5000000, note: 'Premium setup with upgraded visuals.' },
@@ -212,14 +206,6 @@ export default function Index() {
   const [conferenceTab, setConferenceTab] = useState<ConferenceTabKey>('30-50');
 
   useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap';
-    document.head.appendChild(link);
-    return () => document.head.removeChild(link);
-  }, []);
-
-  useEffect(() => {
     const selected = HALL_OPTIONS.find((item) => item.name === form.hall);
     if (!selected || !form.date) return;
     setForm((prev) => ({ ...prev, quotedAmount: hallPrice(selected.id, form.date) }));
@@ -275,27 +261,8 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F7] text-[#1B1B1B]" style={{ fontFamily: '"Manrope", "Segoe UI", sans-serif' }}>
-      <header className="sticky top-0 z-40 border-b border-[#e8e4dc] bg-[#faf9f7f2] backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <Link to="/" className="text-2xl font-black" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>
-            Kuringe <span className="text-[#C6A75E]">Halls</span>
-          </Link>
-          <div className="hidden items-center gap-5 md:flex">
-            {LANDING_SECTION_LINKS.map((item) => (
-              <a key={item.label} href={item.href} className="text-sm font-medium text-[#444444] transition hover:text-[#111111]">
-                {item.label}
-              </a>
-            ))}
-            <a href="#book-now">
-              <Button size="sm" className="rounded-full bg-[#1F1F1F] px-5 text-white hover:bg-[#313131]">Book Your Date</Button>
-            </a>
-          </div>
-          <a href="#book-now" className="md:hidden">
-            <Button size="sm" className="rounded-full bg-[#1F1F1F] px-5 text-white hover:bg-[#313131]">Book</Button>
-          </a>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#FAF9F7] text-[#1B1B1B]">
+      <PublicNavbar ctaLabel="Book Your Date" />
 
       <section className="relative isolate overflow-hidden px-4 py-24 md:py-32">
         <img src={IMAGES.hero} alt="Luxury wedding setup" className="absolute inset-0 -z-20 h-full w-full object-cover" />
@@ -303,21 +270,21 @@ export default function Index() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="self-center text-white">
             <p className="text-xs uppercase tracking-[0.35em] text-white/75">Kuringe Halls, Moshi</p>
-            <h1 className="mt-4 text-5xl font-extrabold leading-tight md:text-6xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>
+            <h1 className="mt-4 text-5xl font-extrabold leading-tight md:text-6xl">
               Celebrate Your Forever
               <br />
               In Timeless Elegance
             </h1>
             <p className="mt-6 max-w-2xl text-lg text-white/85">A refined venue experience built for weddings, conferences, and milestone events.</p>
             <div className="mt-8 flex gap-3">
-              <a href="#book-now"><Button className="rounded-full bg-[#C6A75E] px-7 py-6 uppercase tracking-[0.15em] text-black hover:bg-[#d3b673]">Book Your Date</Button></a>
+              <Link to="/booking"><Button className="rounded-full bg-white px-7 py-6 uppercase tracking-[0.15em] text-black hover:bg-[#f3f3f3]">Reserve Your Date</Button></Link>
               <a href="#halls"><Button variant="outline" className="rounded-full border-white/40 bg-white/10 px-7 py-6 text-white hover:bg-white/20">Explore Halls</Button></a>
             </div>
           </div>
 
           <form id="book-now" onSubmit={onSubmit} className="rounded-2xl border border-white/45 bg-white/88 p-8 shadow-sm backdrop-blur-xl">
             <div className="flex items-center justify-between">
-              <p className="text-2xl font-bold text-[#111111]" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Reserve Your Date</p>
+              <p className="text-2xl font-bold text-[#111111]">Reserve Your Date</p>
               <CalendarDays className="h-5 w-5 text-[#C6A75E]" />
             </div>
             <div className="mt-4 grid grid-cols-4 gap-2">
@@ -377,7 +344,7 @@ export default function Index() {
 
       <main className="mx-auto max-w-7xl px-4 pb-24">
         <section id="halls" className="reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Featured Halls</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Featured Halls</h2>
           <p className="mt-3 text-center text-sm text-[#7b7b7b]">Explore venue styles before selecting your package and schedule.</p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {hallCatalog.map((hall) => (
@@ -387,7 +354,7 @@ export default function Index() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
                   <div className="absolute bottom-4 left-4 right-4 text-white">
                     <p className="text-xs tracking-[0.2em] text-white/75">{hall.capacity}</p>
-                    <h3 className="mt-1 text-2xl font-semibold" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>{hall.name}</h3>
+                    <h3 className="mt-1 text-2xl font-semibold">{hall.name}</h3>
                   </div>
                 </div>
                 <div className="p-6 text-sm">
@@ -400,7 +367,7 @@ export default function Index() {
         </section>
 
         <section className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Hall Rental Rates</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Hall Rental Rates</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Clear venue pricing by day, structured for quick comparison.</p>
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             {HALL_RENTAL_RATES.map((hall) => (
@@ -422,7 +389,7 @@ export default function Index() {
         </section>
 
         <section className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Wedding Decoration Packages</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Wedding Decoration Packages</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Choose a package tier with organized features and transparent pricing.</p>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {DECORATION_PACKAGES.map((pkg) => {
@@ -452,7 +419,7 @@ export default function Index() {
         </section>
 
         <section className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Conference Packages</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Conference Packages</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Select a guest range to compare package options side by side.</p>
 
           <div className="mx-auto mb-10 flex max-w-3xl justify-center gap-2 border-b border-[#ededed]">
@@ -488,7 +455,7 @@ export default function Index() {
         </section>
 
         <section id="packages" className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Packages</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Packages</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Decoration tiers available in full detail on the Packages page.</p>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             {PACKAGES_PREVIEW.map((pkg) => (
@@ -507,7 +474,7 @@ export default function Index() {
         </section>
 
         <section id="catering" className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Catering</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Catering</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Food service options for weddings, conferences, and private functions.</p>
           <div className="rounded-2xl border border-[#EEEEEE] bg-white p-8">
             <ul className="space-y-3">
@@ -527,7 +494,7 @@ export default function Index() {
         </section>
 
         <section id="drinks" className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Drinks</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Drinks</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Popular beverage rates shown below. Full menu available in pricing details.</p>
           <div className="rounded-2xl border border-[#EEEEEE] bg-white p-8">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -547,7 +514,7 @@ export default function Index() {
         </section>
 
         <section id="policies" className="mt-32 reveal-on-scroll">
-          <h2 className="text-center text-4xl font-bold md:text-5xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Policies</h2>
+          <h2 className="text-center text-4xl font-bold md:text-5xl">Policies</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Key booking rules and compliance guidance before event confirmation.</p>
           <div className="rounded-2xl border border-[#EEEEEE] bg-white p-8">
             <ul className="space-y-3">
@@ -570,7 +537,7 @@ export default function Index() {
         </section>
 
         <section className="mt-32 rounded-2xl bg-[#f4f0e8] p-8 reveal-on-scroll">
-          <h2 className="text-center text-3xl font-bold md:text-4xl" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Trusted by 500+ Events Since 2018</h2>
+          <h2 className="text-center text-3xl font-bold md:text-4xl">Trusted by 500+ Events Since 2018</h2>
           <p className="mb-12 mt-3 text-center text-sm text-[#7b7b7b]">Consistent service quality for families, companies, and institutions.</p>
           <div className="grid gap-4 md:grid-cols-3">
             {['Amina & Baraka', 'Neema & Collins', 'Mariam & Kelvin'].map((name) => (
@@ -587,12 +554,12 @@ export default function Index() {
       <footer className="bg-[#191919] px-4 py-10 text-white">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <p className="text-2xl font-bold" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>Kuringe Halls</p>
+            <p className="text-2xl font-bold">Kuringe Halls</p>
             <p className="text-sm text-white/75">Luxury Wedding & Event Venue</p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm text-white/85">
             <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-[#C6A75E]" /> +255 717 000 000</span>
-            <a href="#book-now" className="inline-flex items-center gap-2 font-semibold text-[#C6A75E]">Reserve Now <ArrowRight className="h-4 w-4" /></a>
+            <Link to="/booking" className="inline-flex items-center gap-2 font-semibold text-[#C6A75E]">Reserve Now <ArrowRight className="h-4 w-4" /></Link>
           </div>
         </div>
       </footer>

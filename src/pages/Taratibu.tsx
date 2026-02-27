@@ -1,28 +1,13 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Shield } from 'lucide-react';
+import { CheckCircle2, AlertCircle, FileText, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { taratibuChecklist } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const Taratibu = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Home</span>
-          </Link>
-          <Link to="/" className="text-2xl font-bold text-foreground">
-            Kuringe<span className="text-primary">Halls</span>
-          </Link>
-          <Link to="/#book-now">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Book Now
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
@@ -136,12 +121,12 @@ const Taratibu = () => {
             Once you've reviewed all the rules, you can proceed to book your preferred venue.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Link to="/#halls">
-              <Button size="lg" variant="outline" className="border-background/30 text-background hover:bg-background/10 px-8 py-6 text-lg">
+            <Link to="/venues">
+              <Button size="lg" variant="outline" className="border-white bg-white text-black hover:bg-white/90 px-8 py-6 text-lg">
                 View Venues
               </Button>
             </Link>
-            <Link to="/#book-now">
+            <Link to="/booking">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
                 Start Booking
               </Button>

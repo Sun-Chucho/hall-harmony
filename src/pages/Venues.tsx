@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Users, MapPin, Star, Calendar, Check } from 'lucide-react';
+import { Users, MapPin, Star, Calendar, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { hallCatalog, HallCatalogEntry } from '@/lib/landingData';
 import VenueDetailModal from '@/components/landing/VenueDetailModal';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -24,23 +25,7 @@ const Venues = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Home</span>
-          </Link>
-          <Link to="/" className="text-2xl font-bold text-foreground">
-            Kuringe<span className="text-primary">Halls</span>
-          </Link>
-          <Link to="/#book-now">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Book Now
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
@@ -145,7 +130,7 @@ const Venues = () => {
                     >
                       View Details
                     </Button>
-                    <Link to="/#book-now">
+                    <Link to="/booking">
                       <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 px-8">
                         <Calendar className="w-4 h-4 mr-2" />
                         Book This Venue
@@ -168,7 +153,7 @@ const Venues = () => {
           <p className="text-lg text-background/70 mb-8">
             Contact us today to discuss your requirements and secure your preferred date.
           </p>
-          <Link to="/#book-now">
+          <Link to="/booking">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
               Start Booking Process
             </Button>

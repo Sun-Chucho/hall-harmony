@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingContext';
 import { CreateBookingInput } from '@/types/booking';
 import { hallCatalog } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const hallImages: Record<string, string> = {
   witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
@@ -152,6 +153,7 @@ const Hall = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <PublicNavbar />
       <div className="relative isolate">
         <div
           className="h-72 w-full bg-cover bg-center"
@@ -254,7 +256,7 @@ const Hall = () => {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="text-xl font-semibold text-slate-900">Schedule a Tasting</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Submit details and we will open Gmail draft to Moshi branch:
+              Complete the form below to draft a professional tasting request email to our Moshi team:
               <span className="ml-1 font-medium text-slate-900">Kuringenexus.moshi@gmail.com</span>
             </p>
 

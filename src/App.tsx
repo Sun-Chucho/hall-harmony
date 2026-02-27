@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthorizationProvider } from "@/contexts/AuthorizationContext";
 import { MessageProvider } from "@/contexts/MessageContext";
@@ -33,6 +33,7 @@ import Taratibu from "./pages/Taratibu";
 import Muhimu from "./pages/Muhimu";
 import Packages from "./pages/Packages";
 import Hall from "./pages/Hall";
+import PublicBooking from "./pages/PublicBooking";
 import AdminConsole from "./pages/AdminConsole";
 import ManagingDirectorDashboard from "./pages/ManagingDirectorDashboard";
 import Messages from "./pages/Messages";
@@ -58,6 +59,14 @@ const LEGACY_LOCAL_KEYS = [
   "kuringe_authorization_audit_v1",
 ];
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+  return null;
+};
+
 const App = () => {
   useEffect(() => {
     const hasReset = localStorage.getItem(LIVE_DATA_RESET_MARKER) === "done";
@@ -80,9 +89,11 @@ const App = () => {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter>
+                          <ScrollToTop />
                           <Routes>
                           <Route path="/" element={<Home />} />
                           <Route path="/venues" element={<Home />} />
+                          <Route path="/booking" element={<PublicBooking />} />
                           <Route path="/pricing" element={<Pricing />} />
                           <Route path="/taratibu" element={<Taratibu />} />
                           <Route path="/muhimu" element={<Muhimu />} />

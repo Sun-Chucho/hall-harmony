@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, Info, CheckCircle, Heart, Clock, Phone } from 'lucide-react';
+import { AlertTriangle, Info, CheckCircle, Heart, Clock, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { muhimuNotes } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const importantCategories = [
   {
@@ -24,23 +25,7 @@ const importantCategories = [
 const Muhimu = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Home</span>
-          </Link>
-          <Link to="/" className="text-2xl font-bold text-foreground">
-            Kuringe<span className="text-primary">Halls</span>
-          </Link>
-          <Link to="/#book-now">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Book Now
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
@@ -154,7 +139,7 @@ const Muhimu = () => {
                 View Rules
               </Button>
             </Link>
-            <Link to="/#book-now">
+            <Link to="/booking">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
                 Contact Us
               </Button>

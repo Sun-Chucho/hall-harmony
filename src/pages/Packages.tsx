@@ -1,7 +1,8 @@
 ﻿import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Star, Crown, Diamond, Sparkles, Gift } from 'lucide-react';
+import { Check, Cuboid, Crown, Diamond, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { decorationPackages } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -12,8 +13,8 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 const getPackageIcon = (index: number) => {
-  const icons = [Star, Star, Crown, Diamond, Crown, Sparkles];
-  const Icon = icons[index] || Star;
+  const icons = [Cuboid, Cuboid, Crown, Diamond, Crown, Sparkles];
+  const Icon = icons[index] || Cuboid;
   return Icon;
 };
 
@@ -32,29 +33,13 @@ const getPackageColor = (index: number) => {
 const Packages = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Home</span>
-          </Link>
-          <Link to="/" className="text-2xl font-bold text-foreground">
-            Kuringe<span className="text-primary">Halls</span>
-          </Link>
-          <Link to="/#book-now">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Book Now
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
         <div className="mx-auto max-w-7xl px-6 text-center">
           <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <Gift className="w-10 h-10 text-primary" />
+            <Cuboid className="w-10 h-10 text-primary" />
           </div>
           <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
             Decoration Packages
@@ -122,7 +107,7 @@ const Packages = () => {
                       ))}
                     </ul>
 
-                    <Link to="/#book-now">
+                    <Link to={`/booking?package=${encodeURIComponent(pkg.title.split(' - ')[0].trim())}`}>
                       <Button className={`w-full py-6 text-lg ${
                         isFeatured 
                           ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
@@ -183,11 +168,11 @@ const Packages = () => {
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link to="/pricing">
-              <Button size="lg" variant="outline" className="border-background/30 text-background hover:bg-background/10 px-8 py-6 text-lg">
+              <Button size="lg" variant="outline" className="border-background/30 text-black hover:bg-background/10 px-8 py-6 text-lg">
                 View All Pricing
               </Button>
             </Link>
-            <Link to="/#book-now">
+            <Link to="/booking">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
                 Request Custom Quote
               </Button>

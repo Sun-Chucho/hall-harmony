@@ -1,7 +1,8 @@
 ﻿import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Sparkles, Crown, Diamond, Star } from 'lucide-react';
+import { Check, Sparkles, Crown, Diamond, Cuboid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { decorationPackages, beverageList, conferencePackages } from '@/lib/landingData';
+import PublicNavbar from '@/components/landing/PublicNavbar';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -12,31 +13,15 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 const getPackageIcon = (index: number) => {
-  const icons = [Star, Star, Crown, Diamond, Crown, Sparkles];
-  const Icon = icons[index] || Star;
+  const icons = [Cuboid, Cuboid, Crown, Diamond, Crown, Sparkles];
+  const Icon = icons[index] || Cuboid;
   return <Icon className="w-6 h-6" />;
 };
 
 const Pricing = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">Back to Home</span>
-          </Link>
-          <Link to="/" className="text-2xl font-bold text-foreground">
-            Kuringe<span className="text-primary">Halls</span>
-          </Link>
-          <Link to="/#book-now">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              Book Now
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavbar />
 
       {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
@@ -113,7 +98,7 @@ const Pricing = () => {
                     ))}
                   </ul>
 
-                  <Link to="/#book-now">
+                  <Link to={`/booking?package=${encodeURIComponent(pkg.title.split(' - ')[0].trim())}`}>
                     <Button className={`w-full py-5 ${
                       isFeatured 
                         ? 'bg-background text-foreground hover:bg-background/90' 
@@ -203,7 +188,7 @@ const Pricing = () => {
           <p className="text-lg text-background/70 mb-8">
             Contact us for tailored solutions that match your specific requirements and budget.
           </p>
-          <Link to="/#book-now">
+          <Link to="/booking">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
               Get Custom Quote
             </Button>
