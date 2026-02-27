@@ -136,7 +136,7 @@ const Taratibu = () => {
             Once you've reviewed all the rules, you can proceed to book your preferred venue.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Link to="/venues">
+            <Link to="/#halls">
               <Button size="lg" variant="outline" className="border-background/30 text-background hover:bg-background/10 px-8 py-6 text-lg">
                 View Venues
               </Button>

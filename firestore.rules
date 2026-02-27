@@ -43,6 +43,12 @@ service cloud.firestore {
       allow update, delete: if isControllerOrManager();
     }
 
+    // Accountant/Controller alerts to Hall Manager.
+    match /manager_messages/{messageId} {
+      allow create, read: if isSignedIn();
+      allow update, delete: if isSignedIn();
+    }
+
     // Shared app state docs synced by authenticated staff.
     match /system_state/{stateId} {
       allow create, read, update: if isSignedIn();

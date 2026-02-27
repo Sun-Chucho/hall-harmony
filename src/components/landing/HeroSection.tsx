@@ -27,7 +27,7 @@ const HeroSection = () => {
           <div className="space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-900/5 border border-blue-900/10">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-blue-900">Premium Event Venues in Dar es Salaam</span>
+              <span className="text-sm font-medium text-blue-900">Premium Event Venues in Moshi</span>
             </div>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-blue-950 leading-[1.1]">
@@ -38,7 +38,7 @@ const HeroSection = () => {
             </h1>
 
             <p className="text-xl text-blue-900/70 max-w-xl leading-relaxed">
-              Discover Kuringe Halls — Dar es Salaam's premier destination for weddings, 
+              Discover Kuringe Halls — Moshi's premier destination for weddings, 
               conferences, and celebrations. World-class venues designed for unforgettable moments.
             </p>
 

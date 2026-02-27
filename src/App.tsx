@@ -28,7 +28,6 @@ import Settings from "./pages/Settings";
 import Foods from "./pages/Foods";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
-import Venues from "./pages/Venues";
 import Pricing from "./pages/Pricing";
 import Taratibu from "./pages/Taratibu";
 import Muhimu from "./pages/Muhimu";
@@ -83,7 +82,7 @@ const App = () => {
                         <BrowserRouter>
                           <Routes>
                           <Route path="/" element={<Home />} />
-                          <Route path="/venues" element={<Venues />} />
+                          <Route path="/venues" element={<Home />} />
                           <Route path="/pricing" element={<Pricing />} />
                           <Route path="/taratibu" element={<Taratibu />} />
                           <Route path="/muhimu" element={<Muhimu />} />

@@ -243,8 +243,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       });
       return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
     } catch {
-      setBookings((prev) => [record, ...prev]);
-      return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
+      return { ok: false, message: 'Unable to submit booking to backend right now. Please check connection and try again.' };
     }
   }, []);
 
