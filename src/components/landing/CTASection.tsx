@@ -48,7 +48,7 @@ const CTASection = () => {
               <Mail className="w-7 h-7 text-primary" />
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Email Us</h3>
-            <p className="text-white/70">bookings@kuringehalls.co.tz</p>
+            <p className="text-white/70">kuringenexus.moshi@gmail.com</p>
             <p className="text-white/50 text-sm">Response within 24hrs</p>
           </div>
 
@@ -67,3 +67,4 @@ const CTASection = () => {
 };
 
 export default CTASection;
+

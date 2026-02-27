@@ -42,7 +42,7 @@ const Footer = () => {
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-3 text-sm text-white/60">
               <li>+255 717 000 000</li>
-              <li>bookings@kuringehalls.co.tz</li>
+              <li>kuringenexus.moshi@gmail.com</li>
               <li>Kuringe Complex, Dar es Salaam</li>
             </ul>
           </div>
@@ -64,3 +64,4 @@ const Footer = () => {
 };
 
 export default Footer;
+

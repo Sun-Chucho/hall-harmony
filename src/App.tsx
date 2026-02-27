@@ -28,6 +28,8 @@ import Settings from "./pages/Settings";
 import Foods from "./pages/Foods";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
+import Venues from "./pages/Venues";
+import Stories from "./pages/Stories";
 import Pricing from "./pages/Pricing";
 import Taratibu from "./pages/Taratibu";
 import Muhimu from "./pages/Muhimu";
@@ -92,7 +94,8 @@ const App = () => {
                           <ScrollToTop />
                           <Routes>
                           <Route path="/" element={<Home />} />
-                          <Route path="/venues" element={<Home />} />
+                          <Route path="/venues" element={<Venues />} />
+                          <Route path="/stories" element={<Stories />} />
                           <Route path="/booking" element={<PublicBooking />} />
                           <Route path="/pricing" element={<Pricing />} />
                           <Route path="/taratibu" element={<Taratibu />} />

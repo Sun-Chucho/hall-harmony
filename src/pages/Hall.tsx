@@ -101,7 +101,7 @@ const Hall = () => {
     ].join('\n');
 
     const gmailComposeUrl =
-      `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent('Kuringenexus.moshi@gmail.com')}` +
+      `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent('kuringenexus.moshi@gmail.com')}` +
       `&su=${encodeURIComponent(subject)}` +
       `&body=${encodeURIComponent(body)}`;
 
@@ -257,7 +257,7 @@ const Hall = () => {
             <h3 className="text-xl font-semibold text-slate-900">Schedule a Tasting</h3>
             <p className="mt-2 text-sm text-slate-600">
               Complete the form below to draft a professional tasting request email to our Moshi team:
-              <span className="ml-1 font-medium text-slate-900">Kuringenexus.moshi@gmail.com</span>
+              <span className="ml-1 font-medium text-slate-900">kuringenexus.moshi@gmail.com</span>
             </p>
 
             <form className="mt-5 space-y-3" onSubmit={handleScheduleSubmit}>
@@ -420,3 +420,4 @@ const Hall = () => {
 };
 
 export default Hall;
+
