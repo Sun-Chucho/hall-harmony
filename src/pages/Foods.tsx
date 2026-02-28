@@ -1,120 +1,96 @@
 import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import PublicNavbar from '@/components/landing/PublicNavbar';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { foodMenus } from '@/lib/destinationProfiles';
 
-const menuCategories = [
-  {
-    title: 'Signature starters',
-    description: 'Aromatic bites that awaken the table.',
-    items: ['Coastal ceviche cups', 'Kahawa infused chicken skewers', 'Plantain crop salad'],
-  },
-  {
-    title: 'Main spectacles',
-    description: 'Hearty, layered plates that fuel the celebration.',
-    items: ['Charcoal grilled wagyu', 'Madras coconut seafood stew', 'Tuscan vegetable mosaic'],
-  },
-  {
-    title: 'Dessert finale',
-    description: 'Sweet chapters with tropical fruit and burnt caramel.',
-    items: ['Mango pavlova slices', 'Rosewater panna cotta', 'Espresso chili chocolate'],
-  },
-];
+export default function Foods() {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
 
-const Foods = () => {
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <PublicNavbar />
 
-      <div className="border-b border-slate-200 bg-white/70 p-6 shadow-sm">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Culinary artistry</p>
-            <h1 className="text-3xl font-bold text-slate-900">Food, beverage, and sensory experiences</h1>
-          </div>
-          <Link
-            to="/booking"
-            className="rounded-full border border-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 transition hover:bg-slate-900 hover:text-white"
-          >
-            Plan an event
-          </Link>
+      <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
+        <div className="mx-auto max-w-7xl px-6 text-center">
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">{isSw ? 'Upishi' : 'Catering'}</p>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
+            {isSw ? 'Culinary Direction ya Kiwango cha Juu' : 'World-Class Culinary Direction'}
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-4xl mx-auto">
+            {isSw
+              ? 'Menyu zimepangwa ili ziwe rahisi kwa harusi, gala dinner, conference, na matukio ya taasisi. Kila menu inaweza kubadilishwa kulingana na idadi ya wageni na mtiririko wa tukio.'
+              : 'Menus are structured for weddings, gala dinners, conferences, and institutional events. Every menu can be tuned to guest volume and service pacing.'}
+          </p>
         </div>
-      </div>
+      </section>
 
-      <main className="space-y-12 px-6 py-12">
-        <section className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Inspired kitchen</p>
-            <p className="text-2xl font-semibold text-slate-900">
-              Our chefs blend East African techniques with coastal and global accents to keep every event memorable.
+      <main className="mx-auto max-w-7xl px-6 py-14 space-y-10">
+        <section className="grid gap-8 lg:grid-cols-2">
+          <article className="border border-black/10 bg-white p-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{isSw ? 'Msimamo wa Jikoni' : 'Kitchen Standard'}</p>
+            <h2 className="mt-3 text-3xl font-semibold">
+              {isSw ? 'Ladha, Mwonekano, na Muda wa Huduma' : 'Flavor, Presentation, and Service Timing'}
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-700">
+              {isSw
+                ? 'Timu ya jikoni inaendesha mfumo wa prep-to-service unaolenga ubora wa ladha, usafi wa uwasilishaji, na utoaji wa chakula kwa muda stahiki.'
+                : 'Our kitchen runs a prep-to-service system focused on flavor quality, clean presentation, and precise plate timing across all event formats.'}
             </p>
-            <p className="text-sm text-slate-600">
-              Customized tasting menus are available for sit-down dinners, buffets, and plated gala evenings. Every service
-              includes beverage pairings, crew support, and logistics management.
-            </p>
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Chef notes</p>
-              <ul className="list-disc space-y-1 pl-4 text-sm text-slate-600">
-                <li>Seasonal produce sourced from Tanzanian farms.</li>
-                <li>Dietary menus for vegetarian, halal, and allergen-aware plans.</li>
-                <li>Pastry labs craft desserts and custom cakes on-site.</li>
-              </ul>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link to="/booking">
+                <Button className="rounded-none bg-black text-white hover:bg-black/90">
+                  {isSw ? 'Panga Tasting' : 'Schedule Tasting'}
+                </Button>
+              </Link>
+              <Link to="/drinks">
+                <Button variant="outline" className="rounded-none border-black/20">
+                  {isSw ? 'Linganishа na Vinywaji' : 'Pair with Drinks'}
+                </Button>
+              </Link>
             </div>
-          </div>
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Tasting suite</p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">Private culinary preview</p>
-            <p className="mt-3 text-sm text-slate-600">
-              Book a tasting with our chefs to pair food and beverages, finalize plating, and lock your decor palette.
-            </p>
-            <Link
-              to="/booking"
-              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.3em] text-red-600"
-            >
-              Schedule a tasting
-            </Link>
-          </div>
+          </article>
+          <article className="relative overflow-hidden border border-black/10 min-h-[320px]">
+            <img
+              src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1800&q=80"
+              alt="Catering service"
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+              <p className="text-xs uppercase tracking-[0.22em] text-white/80">{isSw ? 'Catering Program' : 'Catering Program'}</p>
+              <p className="mt-2 text-2xl font-semibold">{isSw ? 'Kutoka Starter hadi Buffet, yote yameratibiwa' : 'From Starter to Buffet, fully coordinated'}</p>
+            </div>
+          </article>
         </section>
 
-        <section className="mx-auto max-w-6xl space-y-6">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {menuCategories.map((category) => (
-              <div key={category.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.4em] text-slate-400">{category.title}</p>
-                <h2 className="mt-3 text-xl font-semibold text-slate-900">{category.description}</h2>
-                <ul className="mt-4 list-disc space-y-2 pl-4 text-sm text-slate-600">
-                  {category.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
+        <section className="grid gap-6 lg:grid-cols-2">
+          {foodMenus.map((menu) => (
+            <article key={menu.title} className="border border-black/10 bg-white p-6">
+              <h3 className="text-2xl font-semibold">{menu.title}</h3>
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Starter</p>
+                  <ul className="mt-2 space-y-1 text-sm leading-7">
+                    {menu.starter.map((item) => (
+                      <li key={item}>- {item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Buffet</p>
+                  <ul className="mt-2 space-y-1 text-sm leading-7">
+                    {menu.buffet.map((item) => (
+                      <li key={item}>- {item}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-6xl space-y-4">
-          <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-900 p-8 text-white md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-blue-200">Beverage partners</p>
-              <p className="text-2xl font-bold">Signature drinks for every toast.</p>
-            </div>
-            <Link
-              to="/booking"
-              className="rounded-full border border-white px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-white hover:text-slate-900"
-            >
-              Reserve a tasting
-            </Link>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {['Sparkling', 'Cocktails', 'Mocktails', 'Wine'].map((section) => (
-              <div key={section} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{section}</p>
-                <p className="text-lg font-semibold text-slate-900">Curated selection</p>
-              </div>
-            ))}
-          </div>
+            </article>
+          ))}
         </section>
       </main>
     </div>
   );
-};
-
-export default Foods;
+}

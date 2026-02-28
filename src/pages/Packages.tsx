@@ -1,10 +1,9 @@
-﻿import { Link } from 'react-router-dom';
-import { Check, Cuboid, Crown, Diamond, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { decorationPackages } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
-import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { conferencePackages } from '@/lib/landingData';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -14,13 +13,100 @@ const formatTZS = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const getPackageIcon = (index: number) => {
-  const icons = [Cuboid, Cuboid, Crown, Diamond, Crown, Sparkles];
-  const Icon = icons[index] || Cuboid;
-  return Icon;
-};
+const weddingPackages = [
+  {
+    title: 'Wedding Essential',
+    price: 2000000,
+    highlights: ['Stage decoration', 'Entrance decor', 'Photobooth banner 3 metre', 'Red carpet flow setup', 'Dancing floor sticker + printed names'],
+  },
+  {
+    title: 'Wedding Premium',
+    price: 5000000,
+    highlights: ['Chrome chairs mix (gold/silver/black)', 'Fog machine + moving heads', 'Enhanced floral setup', 'Walking way sticker', 'Table styling with charger plates'],
+  },
+  {
+    title: 'Wedding Royal',
+    price: 8000000,
+    highlights: ['LED stage feature', 'Truss + printed banner', '8 chandeliers', 'Laser machine first dance', 'Crystal table glassware set'],
+  },
+];
 
-const Packages = () => {
+const galaPackages = [
+  {
+    title: 'Gala Signature',
+    price: 1000000,
+    highlights: ['Formal red carpet entrance', 'Reception stage styling', 'Coordinated table mood lighting', 'Premium ushering flow', 'Brand-ready photo points'],
+  },
+  {
+    title: 'Gala Prestige',
+    price: 1500000,
+    highlights: ['Expanded floral and stage layering', 'Enhanced VIP seating zones', 'Lighting choreography for arrivals', 'Premium dining table curation', 'Media-friendly backdrops'],
+  },
+  {
+    title: 'Gala Imperial',
+    price: 2500000,
+    highlights: ['High-impact arrival reveal', 'Cinematic hall atmosphere design', 'Executive protocol seating map', 'Live stage visual control', 'Luxury grand finale setup'],
+  },
+];
+
+const studentPackages = [
+  {
+    title: 'Campus Social',
+    price: 500000,
+    highlights: ['Set up table', 'Stage decor', 'Theme setup', 'LED light', 'Group photo corner'],
+  },
+  {
+    title: 'Campus Festival',
+    price: 800000,
+    highlights: ['Expanded capacity decor', 'Flowers and charger plates', 'Stage decor + LED light', 'Theme and table styling', 'Audience movement zoning'],
+  },
+  {
+    title: 'Campus Graduation Plus',
+    price: 1000000,
+    highlights: ['Photo booth feature', 'Red carpet line', 'Napkin + table styling', 'High-capacity decor finish', 'Celebration reveal moments'],
+  },
+];
+
+const sectionTheme = [
+  {
+    key: 'wedding',
+    title: 'Wedding Packages',
+    subtitle: 'Designed for vows, elegance, and unforgettable first moments.',
+    card: 'bg-gradient-to-br from-rose-50 to-pink-50 border-rose-200',
+    button: 'bg-rose-700 text-white hover:bg-rose-800',
+    data: weddingPackages,
+  },
+  {
+    key: 'gala',
+    title: 'Gala Packages',
+    subtitle: 'Built for grand hosting, executive flow, and statement impact.',
+    card: 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200',
+    button: 'bg-amber-700 text-white hover:bg-amber-800',
+    data: galaPackages,
+  },
+  {
+    key: 'conference',
+    title: 'Conference Packages',
+    subtitle: 'Structured for clarity, delivery speed, and attendee comfort.',
+    card: 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200',
+    button: 'bg-blue-700 text-white hover:bg-blue-800',
+    data: conferencePackages.map((pkg, index) => ({
+      title: `Conference Tier ${index + 1} (${pkg.attendees})`,
+      price: Number(pkg.pricePoint.match(/\d[\d,]*/)?.[0]?.replace(/,/g, '') ?? '0'),
+      highlights: pkg.amenities,
+    })),
+  },
+  {
+    key: 'students',
+    title: 'Student Packages',
+    subtitle: 'Affordable, vibrant, and optimized for school and campus events.',
+    card: 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200',
+    button: 'bg-emerald-700 text-white hover:bg-emerald-800',
+    data: studentPackages,
+  },
+];
+
+export default function Packages() {
   const { language } = useLanguage();
   const isSw = language === 'sw';
 
@@ -28,177 +114,58 @@ const Packages = () => {
     <div className="min-h-screen bg-white">
       <PublicNavbar />
 
-      {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
         <div className="mx-auto max-w-7xl px-6 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <Cuboid className="w-10 h-10 text-primary" />
-          </div>
           <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-            {isSw ? 'Vifurushi vya Mapambo' : 'Decoration Packages'}
+            {isSw ? 'Vifurushi vya Matukio' : 'Event Packages'}
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            {isSw ? 'Badilisha Muonekano wa Ukumbi Wako' : 'Transform Your Venue'}
+            {isSw ? 'Wedding, Gala, Conference na Students' : 'Wedding, Gala, Conference, and Students'}
           </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-4xl mx-auto">
             {isSw
-              ? 'Chagua kifurushi sahihi cha mapambo ili kuunda mandhari bora kwa siku yako maalum. Kuanzia Standard hadi Royal.'
-              : 'Choose from our curated decoration packages to create the perfect ambiance for your special day. From Standard to Royal.'}
+              ? 'Tuligawanya vifurushi kwa aina ya tukio ili maamuzi yawe rahisi, bei ziwe wazi, na utekelezaji uwe wa kiwango cha kimataifa.'
+              : 'We grouped packages by event class so decision-making is faster, pricing is clearer, and execution remains world-class.'}
           </p>
         </div>
       </section>
 
-      {/* Packages Grid */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {decorationPackages.map((pkg, index) => {
-              const Icon = getPackageIcon(index);
-              const style = getDecorationPackageVisual(index);
-              const isFeatured = style.featured;
-              
-              return (
-                <div 
-                  key={pkg.title}
-                  className={`relative rounded-3xl overflow-hidden border transition-all duration-300 ${
-                    isFeatured 
-                      ? `${style.cardClass} xl:-translate-y-3 scale-[1.02]`
-                      : `${style.cardClass} hover:-translate-y-2 hover:shadow-xl`
-                  }`}
-                >
-                  {/* Gradient Header */}
-                  <div className={`h-32 flex items-center justify-center relative ${style.badgeClass}`}>
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${style.iconWrapClass}`}>
-                      <Icon className="w-8 h-8" />
-                    </div>
-                    {isFeatured && (
-                      <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-yellow-500 text-amber-950 text-xs font-semibold">
-                        {style.featuredLabel}
-                      </div>
-                    )}
-                  </div>
+      <main className="mx-auto max-w-7xl px-6 py-16 space-y-16">
+        {sectionTheme.map((section) => (
+          <section key={section.key}>
+            <div className="mb-7">
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground">{section.title}</h2>
+              <p className="mt-2 text-muted-foreground">{section.subtitle}</p>
+            </div>
 
-                  <div className="p-6">
-                    <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${style.badgeClass} inline-flex rounded-full px-2.5 py-1`}>
-                      {style.tier}
-                    </p>
-                    <h3 className="text-xl font-bold mb-1">
-                      {getDecorationPackageName(pkg.title)}
-                    </h3>
-                    <p className="text-sm mb-4 opacity-75">
-                      {pkg.title.includes(' - ') ? pkg.title.split(' - ')[1].trim() : 'Complete Setup'}
-                    </p>
-                    
-                    <p className="text-3xl font-bold mb-6">
-                      {formatTZS(pkg.price)}
-                    </p>
-
-                    <ul className="space-y-3 mb-6">
-                      {pkg.highlights.map((highlight) => (
-                        <li 
-                          key={highlight} 
-                          className="flex items-start gap-3 text-sm opacity-85"
-                        >
-                          <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${style.checkClass}`} />
-                          <span>{highlight}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Link to={`/booking?package=${encodeURIComponent(getDecorationPackageName(pkg.title))}`}>
-                      <Button className={`w-full py-6 text-lg ${style.buttonClass}`}>
-                        {isSw ? 'Chagua Kifurushi' : 'Select Package'}
+            <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+              {section.data.slice(0, 3).map((pkg) => (
+                <article key={`${section.key}-${pkg.title}`} className={`rounded-3xl border p-7 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl ${section.card} min-h-[560px]`}>
+                  <h3 className="text-2xl font-bold text-foreground">{pkg.title}</h3>
+                  <p className="mt-3 text-3xl font-extrabold text-foreground">
+                    {pkg.price > 0 ? formatTZS(pkg.price) : 'LIPA UKUMBI'}
+                  </p>
+                  <ul className="mt-6 space-y-3">
+                    {pkg.highlights.slice(0, 8).map((item) => (
+                      <li key={item} className="flex items-start gap-3 text-sm text-foreground/85">
+                        <Check className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-8">
+                    <Link to={`/booking?package=${encodeURIComponent(pkg.title)}`}>
+                      <Button className={`w-full py-6 text-base ${section.button}`}>
+                        {isSw ? 'Chagua Kifurushi Hiki' : 'Select This Package'}
                       </Button>
                     </Link>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* What's Included */}
-      <section className="py-16 bg-secondary">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              {isSw ? 'Yaliyomo Kila Kifurushi' : "What's Always Included"}
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              {isSw
-                ? 'Kila kifurushi kinajumuisha vipengele hivi vya msingi kuhakikisha tukio lako linaenda vizuri.'
-                : 'Every package comes with these standard features to ensure your event runs smoothly.'}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                title: isSw ? 'Ufungaji na Uondoaji' : 'Setup & Teardown',
-                desc: isSw ? 'Ufungaji na uondoaji kamili' : 'Complete installation and removal',
-              },
-              {
-                title: isSw ? 'Mratibu Maalum' : 'Dedicated Coordinator',
-                desc: isSw ? 'Msimamizi binafsi wa tukio' : 'Personal event manager',
-              },
-              {
-                title: isSw ? 'Vifaa Bora' : 'Quality Materials',
-                desc: isSw ? 'Mapambo na vitambaa vya ubora wa juu' : 'Premium decorations and fabrics',
-              },
-              {
-                title: isSw ? 'Muda Unaobadilika' : 'Flexible Timing',
-                desc: isSw ? 'Ratiba inayolingana na muda wako' : 'Work around your schedule',
-              },
-            ].map((item) => (
-              <div key={item.title} className="text-center p-6 rounded-2xl bg-white border border-border">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-6 h-6 text-primary" />
-                </div>
-                <h4 className="font-bold text-foreground mb-1">{item.title}</h4>
-                <p className="text-sm text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Custom Package CTA */}
-      <section className="py-20 bg-foreground text-background">
-        <div className="mx-auto max-w-4xl px-6 text-center">
-          <Sparkles className="w-12 h-12 text-primary mx-auto mb-6" />
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            {isSw ? 'Unahitaji Kifurushi Maalum?' : 'Need Something Special?'}
-          </h2>
-          <p className="text-lg text-background/70 mb-8">
-            {isSw
-              ? 'Tunaweza kutengeneza kifurushi maalum cha mapambo kulingana na maono na bajeti yako. Wasiliana nasi kujadili mahitaji yako.'
-              : 'We can create custom decoration packages tailored to your unique vision and budget. Contact us to discuss your requirements.'}
-          </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link to="/pricing">
-              <Button size="lg" variant="outline" className="border-background/30 text-black hover:bg-background/10 px-8 py-6 text-lg">
-                {isSw ? 'Tazama Bei Zote' : 'View All Pricing'}
-              </Button>
-            </Link>
-            <Link to="/booking">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-                {isSw ? 'Omba Bei Maalum' : 'Request Custom Quote'}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 border-t border-border">
-        <div className="mx-auto max-w-7xl px-6 text-center text-muted-foreground">
-          <p>{isSw ? '\u00A9 2024 Kuringe Halls. Haki zote zimehifadhiwa.' : '\u00A9 2024 Kuringe Halls. All rights reserved.'}</p>
-        </div>
-      </footer>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </main>
     </div>
   );
-};
-
-export default Packages;
-
+}

@@ -4,10 +4,9 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 const links = [
   { labelKey: 'nav.packages', to: '/packages' },
-  { labelKey: 'nav.catering', to: '/pricing' },
-  { labelKey: 'nav.drinks', to: '/pricing' },
+  { labelKey: 'nav.catering', to: '/catering' },
+  { labelKey: 'nav.drinks', to: '/drinks' },
   { labelKey: 'nav.policies', to: '/taratibu' },
-  { labelKey: 'nav.staffLogin', to: '/login' },
 ];
 
 type PublicNavbarProps = {
@@ -63,11 +62,6 @@ const PublicNavbar = ({ ctaLabel = 'Book Now', ctaTo = '/booking' }: PublicNavba
           </button>
           <Link to={ctaTo}>
             <Button size="sm" className="rounded-full bg-[#1F1F1F] px-5 text-white hover:bg-[#313131]">{t('nav.book')}</Button>
-          </Link>
-          <Link to="/login">
-            <Button size="sm" variant="outline" className="rounded-full border-[#d8d3ca] px-4 text-[#444444]">
-              {t('nav.signIn')}
-            </Button>
           </Link>
         </div>
       </div>

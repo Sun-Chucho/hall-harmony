@@ -26,6 +26,7 @@ import Reports from "./pages/Reports";
 import Portal from "./pages/Portal";
 import Settings from "./pages/Settings";
 import Foods from "./pages/Foods";
+import Drinks from "./pages/Drinks";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
 import Venues from "./pages/Venues";
@@ -94,14 +95,18 @@ const App = () => {
                           <ScrollToTop />
                           <Routes>
                           <Route path="/" element={<Home />} />
+                          <Route path="/home" element={<Home />} />
                           <Route path="/venues" element={<Venues />} />
                           <Route path="/stories" element={<Stories />} />
                           <Route path="/booking" element={<PublicBooking />} />
                           <Route path="/pricing" element={<Pricing />} />
+                          <Route path="/drinks" element={<Drinks />} />
+                          <Route path="/catering" element={<Foods />} />
                           <Route path="/taratibu" element={<Taratibu />} />
                           <Route path="/muhimu" element={<Muhimu />} />
                           <Route path="/packages" element={<Packages />} />
                           <Route path="/login" element={<Login />} />
+                          <Route path="/staff" element={<Login />} />
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
                           <Route path="/managing-director-dashboard" element={<RouteGuard path="/managing-director-dashboard"><ManagingDirectorDashboard /></RouteGuard>} />
                           <Route path="/bookings" element={<RouteGuard path="/bookings" transactional><Bookings /></RouteGuard>} />

@@ -249,9 +249,9 @@ export default function Index() {
                 <Link to="/packages">
                   <Button className="rounded-full bg-white px-6 text-[#111111] hover:bg-white/90">{isSw ? 'Tazama Vifurushi' : 'View Packages'}</Button>
                 </Link>
-                <Link to="/pricing">
+                <Link to="/catering">
                   <Button variant="outline" className="rounded-full border-white/40 bg-transparent px-6 text-white hover:bg-white/15">
-                    {isSw ? 'Linganisha Bei' : 'Compare Pricing'}
+                    {isSw ? 'Tazama Catering' : 'View Catering'}
                   </Button>
                 </Link>
               </div>
@@ -352,7 +352,8 @@ export default function Index() {
             <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Chunguza' : 'Explore'}</p>
             <ul className="mt-4 space-y-2 text-sm text-white/85">
               <li><Link to="/packages">{isSw ? 'Vifurushi' : 'Packages'}</Link></li>
-              <li><Link to="/pricing">{isSw ? 'Upishi na Vinywaji' : 'Catering and Drinks'}</Link></li>
+              <li><Link to="/catering">{isSw ? 'Upishi' : 'Catering'}</Link></li>
+              <li><Link to="/drinks">{isSw ? 'Vinywaji' : 'Drinks'}</Link></li>
               <li><Link to="/stories">{isSw ? 'Hadithi' : 'Stories'}</Link></li>
             </ul>
           </div>
