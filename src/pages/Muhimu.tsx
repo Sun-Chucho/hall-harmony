@@ -3,26 +3,35 @@ import { AlertTriangle, Info, CheckCircle, Heart, Clock, Phone } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { muhimuNotes } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
-
-const importantCategories = [
-  {
-    icon: Clock,
-    title: 'Timing & Schedule',
-    description: 'All events must follow the agreed timeline. Late arrivals may affect your event flow.',
-  },
-  {
-    icon: Heart,
-    title: 'Care & Responsibility',
-    description: 'Treat our venues with care. Any damages will be charged to your account.',
-  },
-  {
-    icon: Phone,
-    title: '24/7 Support',
-    description: 'Our team is always available to assist you before, during, and after your event.',
-  },
-];
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const Muhimu = () => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
+  const importantCategories = [
+    {
+      icon: Clock,
+      title: isSw ? 'Muda na Ratiba' : 'Timing & Schedule',
+      description: isSw
+        ? 'Matukio yote lazima yafuate ratiba iliyokubaliwa. Kuchelewa kunaweza kuathiri mtiririko wa tukio.'
+        : 'All events must follow the agreed timeline. Late arrivals may affect your event flow.',
+    },
+    {
+      icon: Heart,
+      title: isSw ? 'Utunzaji na Wajibu' : 'Care & Responsibility',
+      description: isSw
+        ? 'Tunza kumbi zetu kwa uangalifu. Uharibifu wowote utagharamiwa na mteja.'
+        : 'Treat our venues with care. Any damages will be charged to your account.',
+    },
+    {
+      icon: Phone,
+      title: isSw ? 'Huduma Saa Zote' : '24/7 Support',
+      description: isSw
+        ? 'Timu yetu ipo tayari kukusaidia kabla, wakati, na baada ya tukio.'
+        : 'Our team is always available to assist you before, during, and after your event.',
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-white">
       <PublicNavbar />
@@ -37,11 +46,12 @@ const Muhimu = () => {
             Muhimu
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Important Information
+            {isSw ? 'Taarifa Muhimu' : 'Important Information'}
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Key commitments and important notices that every client should know 
-            before booking with Kuringe Halls.
+            {isSw
+              ? 'Ahadi na taarifa muhimu ambazo kila mteja anapaswa kujua kabla ya kufanya uhifadhi Kuringe Halls.'
+              : 'Key commitments and important notices that every client should know before booking with Kuringe Halls.'}
           </p>
         </div>
       </section>
@@ -71,10 +81,10 @@ const Muhimu = () => {
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-              Essential Notices
+              {isSw ? 'Taarifa Muhimu' : 'Essential Notices'}
             </p>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Important Commitments
+              {isSw ? 'Ahadi Muhimu' : 'Important Commitments'}
             </h2>
           </div>
 
@@ -100,24 +110,25 @@ const Muhimu = () => {
           <div className="bg-foreground rounded-3xl p-8 md:p-12 text-background text-center">
             <CheckCircle className="w-16 h-16 text-primary mx-auto mb-6" />
             <h3 className="text-2xl md:text-3xl font-bold mb-4">
-              Our Commitment to You
+              {isSw ? 'Ahadi Yetu Kwako' : 'Our Commitment to You'}
             </h3>
             <p className="text-lg text-background/80 mb-8 max-w-2xl mx-auto">
-              We are dedicated to making your event a success. From the moment you book 
-              with us until the last guest leaves, our team ensures everything runs smoothly.
+              {isSw
+                ? 'Tumejitoa kuhakikisha tukio lako linafanikiwa. Kuanzia unapohifadhi hadi mgeni wa mwisho kuondoka, timu yetu huhakikisha kila kitu kinaenda vizuri.'
+                : 'We are dedicated to making your event a success. From the moment you book with us until the last guest leaves, our team ensures everything runs smoothly.'}
             </p>
             <div className="grid md:grid-cols-3 gap-6 text-left">
               <div className="bg-background/10 rounded-2xl p-6">
                 <p className="text-3xl font-bold text-primary mb-2">500+</p>
-                <p className="text-background/70">Events Successfully Hosted</p>
+                <p className="text-background/70">{isSw ? 'Matukio Yaliyoendeshwa kwa Mafanikio' : 'Events Successfully Hosted'}</p>
               </div>
               <div className="bg-background/10 rounded-2xl p-6">
                 <p className="text-3xl font-bold text-primary mb-2">98%</p>
-                <p className="text-background/70">Client Satisfaction Rate</p>
+                <p className="text-background/70">{isSw ? 'Kiwango cha Kuridhika kwa Wateja' : 'Client Satisfaction Rate'}</p>
               </div>
               <div className="bg-background/10 rounded-2xl p-6">
                 <p className="text-3xl font-bold text-primary mb-2">10+</p>
-                <p className="text-background/70">Years of Experience</p>
+                <p className="text-background/70">{isSw ? 'Miaka ya Uzoefu' : 'Years of Experience'}</p>
               </div>
             </div>
           </div>
@@ -128,20 +139,20 @@ const Muhimu = () => {
       <section className="py-16 bg-secondary">
         <div className="mx-auto max-w-4xl px-6 text-center">
           <h2 className="text-3xl font-bold text-foreground mb-4">
-            Have Questions?
+            {isSw ? 'Una Maswali?' : 'Have Questions?'}
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Our team is here to help. Reach out to us for any clarifications.
+            {isSw ? 'Timu yetu ipo kukusaidia. Wasiliana nasi kwa ufafanuzi wowote.' : 'Our team is here to help. Reach out to us for any clarifications.'}
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link to="/taratibu">
               <Button variant="outline" size="lg" className="px-8 py-6 text-lg">
-                View Rules
+                {isSw ? 'Tazama Taratibu' : 'View Rules'}
               </Button>
             </Link>
             <Link to="/booking">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-                Contact Us
+                {isSw ? 'Wasiliana Nasi' : 'Contact Us'}
               </Button>
             </Link>
           </div>
@@ -151,7 +162,7 @@ const Muhimu = () => {
       {/* Footer */}
       <footer className="py-8 border-t border-border">
         <div className="mx-auto max-w-7xl px-6 text-center text-muted-foreground">
-          <p>&copy; 2024 Kuringe Halls. All rights reserved.</p>
+          <p>{isSw ? '\u00A9 2024 Kuringe Halls. Haki zote zimehifadhiwa.' : '\u00A9 2024 Kuringe Halls. All rights reserved.'}</p>
         </div>
       </footer>
     </div>

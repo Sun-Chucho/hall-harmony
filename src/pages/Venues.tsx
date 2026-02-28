@@ -1,10 +1,9 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, Star, Calendar, Check } from 'lucide-react';
+import { ArrowRight, Calendar, Check, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { hallCatalog, HallCatalogEntry } from '@/lib/landingData';
-import VenueDetailModal from '@/components/landing/VenueDetailModal';
 import PublicNavbar from '@/components/landing/PublicNavbar';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { destinationProfiles } from '@/lib/destinationProfiles';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -15,165 +14,118 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 const hallImages: Record<string, string> = {
-  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
-  kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
-  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1200&q=80',
+  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=2000&q=80',
+  kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=2000&q=80',
+  'kilimanjaro-garden': 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=2000&q=80',
+  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=2000&q=80',
 };
 
-const Venues = () => {
-  const [selectedHall, setSelectedHall] = useState<HallCatalogEntry | null>(null);
+export default function Venues() {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
 
   return (
     <div className="min-h-screen bg-white">
       <PublicNavbar />
 
-      {/* Hero */}
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
         <div className="mx-auto max-w-7xl px-6 text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-            Our Venues
+            {isSw ? 'Kumbi Zetu' : 'Our Destinations'}
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Discover Premium Event Spaces
+            {isSw ? 'Chagua Jukwaa la Tukio Lako Kuu' : 'Choose the Stage for Your Signature Event'}
           </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Three exceptional venues designed to bring your vision to life. 
-            Each space offers unique character and amenities for unforgettable events.
+          <p className="text-xl text-muted-foreground max-w-4xl mx-auto">
+            {isSw
+              ? 'Kutoka ukumbi wa kifahari wa wageni wengi hadi mazingira ya karibu ya kiwango cha juu, kila destination imeandaliwa kwa mwonekano wa kuvutia na uendeshaji wa uhakika.'
+              : 'From large-scale ballroom drama to intimate premium settings, each destination is engineered for visual impact, operational precision, and unforgettable guest experience.'}
           </p>
         </div>
       </section>
 
-      {/* Venues Grid */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="space-y-16">
-            {hallCatalog.map((hall, index) => (
-              <div 
-                key={hall.id}
-                className={`grid lg:grid-cols-2 gap-10 items-center ${
-                  index % 2 === 1 ? 'lg:grid-flow-col-dense' : ''
-                }`}
-              >
-                {/* Image */}
-                <div 
-                  className={`relative h-[400px] md:h-[500px] rounded-3xl overflow-hidden group cursor-pointer ${
-                    index % 2 === 1 ? 'lg:col-start-2' : ''
-                  }`}
-                  onClick={() => setSelectedHall(hall)}
-                >
-                  <img 
-                    src={hallImages[hall.id]}
-                    alt={hall.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  
-                  {/* Featured Badge */}
-                  {index === 0 && (
-                    <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                      <Star className="w-4 h-4 fill-current" />
-                      Featured Venue
-                    </div>
-                  )}
-
-                  {/* Capacity Badge */}
-                  <div className="absolute bottom-6 left-6 flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm text-white">
-                    <Users className="w-4 h-4" />
-                    <span className="font-medium">{hall.capacity}</span>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-2">
-                      {hall.alias}
-                    </p>
-                    <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-                      {hall.name}
-                    </h2>
-                    <p className="text-lg text-muted-foreground leading-relaxed">
-                      {hall.description}
-                    </p>
-                  </div>
-
-                  {/* Features */}
-                  <div className="flex flex-wrap gap-3">
-                    {['Sound System', 'Generator Backup', 'Parking', 'Security'].slice(0, 4).map((feature) => (
-                      <div key={feature} className="flex items-center gap-2 px-3 py-2 rounded-full bg-secondary text-foreground text-sm">
-                        <Check className="w-4 h-4 text-primary" />
-                        {feature}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Pricing */}
-                  <div className="bg-secondary rounded-2xl p-6 space-y-4">
-                    <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Pricing Options
-                    </p>
-                    <div className="space-y-3">
-                      {hall.rates.map((rate) => (
-                        <div key={rate.label} className="flex items-center justify-between">
-                          <span className="text-foreground">{rate.label}</span>
-                          <span className="text-xl font-bold text-foreground">{formatTZS(rate.price)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* CTA */}
-                  <div className="flex flex-wrap gap-4">
-                    <Button 
-                      onClick={() => setSelectedHall(hall)}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
-                    >
-                      View Details
-                    </Button>
-                    <Link to="/booking">
-                      <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 px-8">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Book This Venue
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
+      <main className="mx-auto max-w-7xl px-6 py-14 space-y-14">
+        {destinationProfiles.map((destination, index) => (
+          <section
+            key={destination.id}
+            className={`grid gap-10 items-center lg:grid-cols-2 ${index % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''}`}
+          >
+            <div className="relative overflow-hidden border border-black/10">
+              <img
+                src={hallImages[destination.id]}
+                alt={destination.name}
+                className="h-[380px] w-full object-cover md:h-[460px]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                <p className="text-xs uppercase tracking-[0.22em] text-white/80">{destination.alias}</p>
+                <h2 className="mt-2 text-3xl font-semibold">{destination.name}</h2>
+                <p className="mt-2 text-sm text-white/85">{destination.capacity} {isSw ? 'wageni' : 'guests'}</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              {index === 0 ? (
+                <div className="absolute top-5 left-5 inline-flex items-center gap-2 bg-[#111111]/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                  <Star className="h-4 w-4 fill-current text-[#e9c36a]" />
+                  {isSw ? 'Kiwango cha Juu' : 'Signature Tier'}
+                </div>
+              ) : null}
+            </div>
 
-      {/* CTA Section */}
+            <article className="border border-black/10 bg-white p-7">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{isSw ? 'Mstari wa Uuzaji' : 'Marketing Hook'}</p>
+              <h3 className="mt-3 text-2xl font-semibold leading-tight">{destination.marketingLine}</h3>
+              <p className="mt-4 text-sm leading-7 text-slate-700">{destination.shortDescription}</p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {destination.signatureHighlights.slice(0, 4).map((line) => (
+                  <div key={line} className="flex items-start gap-2 border border-black/10 bg-[#faf9f6] px-3 py-3 text-sm text-slate-700">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#a80c10]" />
+                    <span>{line}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 border-t border-black/10 pt-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{isSw ? 'Bei ya Kuanzia' : 'Starting Price'}</p>
+                <p className="mt-2 text-2xl font-bold text-[#111111]">
+                  {formatTZS(Math.min(...destination.standardRentalRates.map((row) => row.price)))}
+                </p>
+              </div>
+
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link to={`/halls/${destination.id}`}>
+                  <Button className="rounded-none bg-black text-white hover:bg-black/90">
+                    {isSw ? 'Fungua Maelezo Kamili' : 'Open Full Destination'} <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link to="/booking">
+                  <Button variant="outline" className="rounded-none border-black/20">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {isSw ? 'Anza Uhifadhi' : 'Start Booking'}
+                  </Button>
+                </Link>
+              </div>
+            </article>
+          </section>
+        ))}
+      </main>
+
       <section className="py-20 bg-foreground text-background">
         <div className="mx-auto max-w-4xl px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Book Your Event?
+            {isSw ? 'Uko Tayari Kuweka Tarehe Yako?' : 'Ready to Lock Your Date?'}
           </h2>
           <p className="text-lg text-background/70 mb-8">
-            Contact us today to discuss your requirements and secure your preferred date.
+            {isSw
+              ? 'Timu yetu itakusaidia kuchagua destination sahihi, kifurushi, na mpangilio wa huduma kulingana na ukubwa na hadhi ya tukio lako.'
+              : 'Our team will help you match the right destination, package tier, and service flow to your event scale and vision.'}
           </p>
           <Link to="/booking">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-              Start Booking Process
+              {isSw ? 'Wasilisha Ombi la Uhifadhi' : 'Submit Booking Request'}
             </Button>
           </Link>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="py-8 border-t border-border">
-        <div className="mx-auto max-w-7xl px-6 text-center text-muted-foreground">
-          <p>&copy; 2024 Kuringe Halls. All rights reserved.</p>
-        </div>
-      </footer>
-
-      <VenueDetailModal 
-        hall={selectedHall} 
-        onClose={() => setSelectedHall(null)} 
-      />
     </div>
   );
-};
-
-export default Venues;
+}

@@ -72,8 +72,10 @@ export const taratibuChecklist: string[] = [
   'Ukumbi una parking ya kutosha na ulinzi wa uhakika.',
   'Booking inakamilika pale tu malipo ya awali yanapofanyika nusu au malipo yote ya kukodi ukumbi.',
   'Standby generator ipo endapo umeme utakatika.',
+  'Kila huduma itatoka hapa kwetu kama huduma ya chakula, vinywaji, mapambo, pamoja na ukodishaji wa magari.',
   'Sherehe mwisho saa sita usiku (00:00) kwa mujibu wa sheria, MC azingatie muda.',
   'Malipo ya mwisho yafanyike wiki moja kabla ya tarehe ya sherehe (wasiliana na ofisi kwa mwongozo wa malipo).',
+  'Malipo yote yalipwe kupitia account tajwa: CRDB 0150005526600 (Kuringe Real Estate) au NMB 40310046818 (Kuringe Real Estate).',
   'Kuna chumba maalum cha maharusi (waiting room) cha kusubiri muda wa kuingia ukumbini.',
 ];
 
@@ -85,6 +87,7 @@ export const muhimuNotes: string[] = [
   'Gharama zote zilipwe VAT 18%.',
   'Mteja anatakiwa kwenda kulipia kibali cha sherehe Manispaa (ofisi ya utamaduni).',
   'AC zinawashwa ukumbini saa 17:30.',
+  'Kwa mawasiliano zaidi wasiliana nasi kwa namba 0652199985.',
 ];
 
 export const decorationPackages: PackageFeature[] = [

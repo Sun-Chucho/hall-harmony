@@ -1,146 +1,89 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, FileText, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { taratibuChecklist } from '@/lib/landingData';
+import { clientDeclaration, taratibuChecklist } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const Taratibu = () => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f3f2ef]">
       <PublicNavbar />
 
-      {/* Hero */}
-      <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
-        <div className="mx-auto max-w-7xl px-6 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <Shield className="w-10 h-10 text-primary" />
-          </div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-            Taratibu za Ukumbi
-          </p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Rules & Procedures
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            We operate with discipline and transparency. Follow these rules to secure your booking 
-            and enjoy seamless service from the Kuringe team.
-          </p>
-        </div>
-      </section>
+      <main className="mx-auto max-w-5xl px-4 py-10 md:py-14">
+        <article className="mx-auto max-w-4xl border border-black/10 bg-white p-6 shadow-sm md:p-10">
+          <header className="border-b border-black/10 pb-6">
+            <p className="text-xs uppercase tracking-[0.28em] text-[#6c6c6c]">Kuringe Halls</p>
+            <h1 className="mt-3 text-3xl font-semibold text-[#181818] md:text-4xl">
+              {isSw ? 'Sera na Taratibu' : 'Policies and Procedures'}
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#4d4d4d]">
+              {isSw
+                ? 'Hati hii inaeleza kanuni za uendeshaji wa uhifadhi na matukio katika Kuringe Halls. Wateja wote wanatakiwa kusoma, kuelewa, na kuzingatia masharti kabla ya kuthibitisha uhifadhi.'
+                : 'This document outlines the operational rules for bookings and events at Kuringe Halls. All clients are required to read, understand, and comply before confirming a reservation.'}
+            </p>
+          </header>
 
-      {/* Rules Grid */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            {taratibuChecklist.map((item, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-4 p-6 rounded-2xl bg-white border border-border shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Rule {index + 1}</p>
-                  <p className="text-foreground leading-relaxed">{item}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Important Notice */}
-      <section className="py-16 bg-secondary">
-        <div className="mx-auto max-w-4xl px-6">
-          <div className="bg-white rounded-3xl p-8 shadow-lg border border-border">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-accent flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-foreground mb-2">Important Notice</h3>
-                <p className="text-muted-foreground">
-                  All clients must read and agree to these terms before booking any venue. 
-                  Failure to comply may result in cancellation without refund.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-accent/50 rounded-2xl p-6 border border-primary/20">
-              <div className="flex items-start gap-3">
-                <FileText className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                <div>
-                  <p className="font-semibold text-foreground mb-2">
-                    Mimi ........................ Nimesoma na kukubaliana na miongozo yote hapo juu na nitafuata yote.
+          <section className="pt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6c6c6c]">
+              {isSw ? 'Vipengele vya Sera' : 'Policy Clauses'}
+            </h2>
+            <ol className="mt-5 space-y-4">
+              {taratibuChecklist.map((item, index) => (
+                <li key={item} className="border-l-2 border-[#d8d8d8] pl-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#777777]">
+                    {isSw ? `Kipengele ${index + 1}` : `Clause ${index + 1}`}
                   </p>
-                  <div className="flex flex-wrap gap-8 text-sm text-muted-foreground mt-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Saini:</span>
-                      <span className="border-b border-border w-32 inline-block">&nbsp;</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Tarehe:</span>
-                      <span className="border-b border-border w-32 inline-block">&nbsp;</span>
-                    </div>
-                  </div>
-                </div>
+                  <p className="mt-1 text-[15px] leading-7 text-[#1f1f1f]">{item}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="mt-10 border-t border-black/10 pt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6c6c6c]">
+              {isSw ? 'Tamko la Mteja' : 'Client Declaration'}
+            </h2>
+            <p className="mt-4 text-[15px] leading-7 text-[#1f1f1f]">{clientDeclaration}</p>
+
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="border border-black/15 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-[#6c6c6c]">
+                  {isSw ? 'Jina la Mteja na Sahihi' : 'Client Name and Signature'}
+                </p>
+                <div className="mt-10 border-b border-black/30" />
+              </div>
+              <div className="border border-black/15 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-[#6c6c6c]">{isSw ? 'Tarehe' : 'Date'}</p>
+                <div className="mt-10 border-b border-black/30" />
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {/* Summary Stats */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="text-center p-8 rounded-3xl bg-white border border-border">
-              <p className="text-4xl font-bold text-primary mb-2">{taratibuChecklist.length}</p>
-              <p className="text-muted-foreground">Essential Rules</p>
-            </div>
-            <div className="text-center p-8 rounded-3xl bg-white border border-border">
-              <p className="text-4xl font-bold text-foreground mb-2">100%</p>
-              <p className="text-muted-foreground">Compliance Required</p>
-            </div>
-            <div className="text-center p-8 rounded-3xl bg-white border border-border">
-              <p className="text-4xl font-bold text-foreground mb-2">24/7</p>
-              <p className="text-muted-foreground">Security Coverage</p>
-            </div>
-          </div>
-        </div>
-      </section>
+          <section className="mt-10 border-t border-black/10 pt-6">
+            <p className="text-xs leading-6 text-[#666666]">
+              {isSw
+                ? 'Kuzingatia sera hizi ni lazima. Kutokuzingatia kunaweza kusababisha kuwekewa vikwazo vya huduma, kusitishwa kwa uhifadhi, au kufutwa kwa uhifadhi kulingana na tathmini ya usimamizi.'
+                : 'Compliance with these policies is mandatory. Non-compliance may result in service limitations, booking suspension, or cancellation based on management review.'}
+            </p>
+          </section>
+        </article>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-foreground text-background">
-        <div className="mx-auto max-w-4xl px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Proceed?
-          </h2>
-          <p className="text-lg text-background/70 mb-8">
-            Once you've reviewed all the rules, you can proceed to book your preferred venue.
-          </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Link to="/venues">
-              <Button size="lg" variant="outline" className="border-white bg-white text-black hover:bg-white/90 px-8 py-6 text-lg">
-                View Venues
-              </Button>
-            </Link>
-            <Link to="/booking">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-                Start Booking
-              </Button>
-            </Link>
-          </div>
+        <div className="mx-auto mt-8 flex max-w-4xl flex-wrap justify-center gap-3">
+          <Link to="/venues">
+            <Button variant="outline" className="rounded-none border-black/25 px-6">
+              {isSw ? 'Tazama Kumbi' : 'View Venues'}
+            </Button>
+          </Link>
+          <Link to="/booking">
+            <Button className="rounded-none bg-[#121212] px-7 text-white hover:bg-[#222222]">
+              {isSw ? 'Endelea na Uhifadhi' : 'Proceed to Booking'}
+            </Button>
+          </Link>
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 border-t border-border">
-        <div className="mx-auto max-w-7xl px-6 text-center text-muted-foreground">
-          <p>&copy; 2024 Kuringe Halls. All rights reserved.</p>
-        </div>
-      </footer>
+      </main>
     </div>
   );
 };

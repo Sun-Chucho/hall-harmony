@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Language = 'en' | 'sw';
 
@@ -14,10 +14,17 @@ const translations: Translations = {
   'nav.venues': { en: 'Venues', sw: 'Kumbi' },
   'nav.packages': { en: 'Packages', sw: 'Vifurushi' },
   'nav.pricing': { en: 'Pricing', sw: 'Bei' },
+  'nav.catering': { en: 'Catering', sw: 'Upishi' },
+  'nav.drinks': { en: 'Drinks', sw: 'Vinywaji' },
+  'nav.policies': { en: 'Policies', sw: 'Sera' },
   'nav.taratibu': { en: 'Taratibu', sw: 'Taratibu' },
   'nav.muhimu': { en: 'Muhimu', sw: 'Muhimu' },
   'nav.signIn': { en: 'Sign In', sw: 'Ingia' },
+  'nav.staffLogin': { en: 'Staff Login', sw: 'Ingia Wafanyakazi' },
   'nav.bookNow': { en: 'Book Now', sw: 'Hifadhi Sasa' },
+  'nav.book': { en: 'Book', sw: 'Hifadhi' },
+  'lang.en': { en: 'EN', sw: 'EN' },
+  'lang.sw': { en: 'SW', sw: 'SW' },
   
   // Hero Section
   'hero.location': { en: 'Dar es Salaam, Tanzania', sw: 'Dar es Salaam, Tanzania' },
@@ -89,7 +96,14 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem('kuringe_language_v1');
+    return saved === 'sw' ? 'sw' : 'en';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('kuringe_language_v1', language);
+  }, [language]);
 
   const t = (key: string): string => {
     const translation = translations[key];

@@ -3,6 +3,8 @@ import { Check, Sparkles, Crown, Diamond, Cuboid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { decorationPackages, beverageList, conferencePackages } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
+import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -19,6 +21,9 @@ const getPackageIcon = (index: number) => {
 };
 
 const Pricing = () => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
+
   return (
     <div className="min-h-screen bg-white">
       <PublicNavbar />
@@ -27,14 +32,15 @@ const Pricing = () => {
       <section className="relative py-20 bg-gradient-to-b from-secondary to-white">
         <div className="mx-auto max-w-7xl px-6 text-center">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-            Transparent Pricing
+            {isSw ? 'Bei Wazi' : 'Transparent Pricing'}
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Services & Pricing
+            {isSw ? 'Huduma na Bei' : 'Services & Pricing'}
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Comprehensive pricing for all our services. Choose from decoration packages, 
-            beverages, conference setups, and more.
+            {isSw
+              ? 'Orodha kamili ya bei za huduma zetu. Chagua vifurushi vya mapambo, vinywaji, vifurushi vya mikutano, na zaidi.'
+              : 'Comprehensive pricing for all our services. Choose from decoration packages, beverages, conference setups, and more.'}
           </p>
         </div>
       </section>
@@ -44,45 +50,48 @@ const Pricing = () => {
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-              Transform Your Venue
+              {isSw ? 'Badilisha Muonekano wa Ukumbi' : 'Transform Your Venue'}
             </p>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Decoration Packages
+              {isSw ? 'Vifurushi vya Mapambo' : 'Decoration Packages'}
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {decorationPackages.map((pkg, index) => {
-              const isFeatured = index === 2;
+              const style = getDecorationPackageVisual(index);
+              const isFeatured = style.featured;
               
               return (
                 <div 
                   key={pkg.title}
-                  className={`relative rounded-3xl p-6 transition-all duration-300 hover:-translate-y-1 ${
+                  className={`relative rounded-3xl border p-6 transition-all duration-300 ${
                     isFeatured 
-                      ? 'bg-foreground text-background shadow-2xl scale-105' 
-                      : 'bg-white border border-border shadow-lg hover:shadow-xl'
+                      ? `${style.cardClass} xl:-translate-y-3 scale-[1.02]`
+                      : `${style.cardClass} hover:-translate-y-1 hover:shadow-xl`
                   }`}
                 >
                   {isFeatured && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-                      Most Popular
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-yellow-500 text-amber-950 text-xs font-semibold">
+                      {style.featuredLabel}
                     </div>
                   )}
 
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 ${
-                    isFeatured ? 'bg-primary' : 'bg-foreground'
-                  }`}>
-                    <div className="text-background">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 ${style.iconWrapClass}`}>
+                    <div>
                       {getPackageIcon(index)}
                     </div>
                   </div>
 
-                  <h3 className={`text-xl font-bold mb-2 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
-                    {pkg.title.split(' - ')[0].trim()}
+                  <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${style.badgeClass} inline-flex rounded-full px-2.5 py-1`}>
+                    {style.tier}
+                  </p>
+
+                  <h3 className="text-xl font-bold mb-2">
+                    {getDecorationPackageName(pkg.title)}
                   </h3>
                   
-                  <p className={`text-3xl font-bold mb-4 ${isFeatured ? 'text-background' : 'text-foreground'}`}>
+                  <p className="text-3xl font-bold mb-4">
                     {formatTZS(pkg.price)}
                   </p>
 
@@ -90,21 +99,17 @@ const Pricing = () => {
                     {pkg.highlights.map((highlight) => (
                       <li 
                         key={highlight} 
-                        className={`flex items-start gap-2 text-sm ${isFeatured ? 'text-background/80' : 'text-muted-foreground'}`}
+                        className="flex items-start gap-2 text-sm opacity-85"
                       >
-                        <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isFeatured ? 'text-primary' : 'text-primary'}`} />
+                        <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${style.checkClass}`} />
                         <span>{highlight}</span>
                       </li>
                     ))}
                   </ul>
 
-                  <Link to={`/booking?package=${encodeURIComponent(pkg.title.split(' - ')[0].trim())}`}>
-                    <Button className={`w-full py-5 ${
-                      isFeatured 
-                        ? 'bg-background text-foreground hover:bg-background/90' 
-                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    }`}>
-                      Select Package
+                  <Link to={`/booking?package=${encodeURIComponent(getDecorationPackageName(pkg.title))}`}>
+                    <Button className={`w-full py-5 ${style.buttonClass}`}>
+                      {isSw ? 'Chagua Kifurushi' : 'Select Package'}
                     </Button>
                   </Link>
                 </div>
@@ -119,10 +124,10 @@ const Pricing = () => {
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-              Refreshments
+              {isSw ? 'Viburudisho' : 'Refreshments'}
             </p>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Beverage Menu
+              {isSw ? 'Menyu ya Vinywaji' : 'Beverage Menu'}
             </h2>
           </div>
 
@@ -139,7 +144,9 @@ const Pricing = () => {
               ))}
             </div>
             <p className="mt-6 text-sm text-muted-foreground text-center">
-              All prices include 18% VAT. Cocktail service requires an additional setup fee of TZS 150,000.
+              {isSw
+                ? 'Bei zote zinajumuisha VAT ya 18%. Huduma ya cocktail ina gharama ya ziada ya maandalizi ya TZS 150,000.'
+                : 'All prices include 18% VAT. Cocktail service requires an additional setup fee of TZS 150,000.'}
             </p>
           </div>
         </div>
@@ -150,10 +157,10 @@ const Pricing = () => {
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center mb-12">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-              Corporate Events
+              {isSw ? 'Matukio ya Kampuni' : 'Corporate Events'}
             </p>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Conference Packages
+              {isSw ? 'Vifurushi vya Mikutano' : 'Conference Packages'}
             </h2>
           </div>
 
@@ -183,14 +190,16 @@ const Pricing = () => {
       <section className="py-20 bg-foreground text-background">
         <div className="mx-auto max-w-4xl px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Need a Custom Package?
+            {isSw ? 'Unahitaji Kifurushi Maalum?' : 'Need a Custom Package?'}
           </h2>
           <p className="text-lg text-background/70 mb-8">
-            Contact us for tailored solutions that match your specific requirements and budget.
+            {isSw
+              ? 'Wasiliana nasi kwa suluhisho maalum yanayolingana na mahitaji na bajeti yako.'
+              : 'Contact us for tailored solutions that match your specific requirements and budget.'}
           </p>
           <Link to="/booking">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-6 text-lg">
-              Get Custom Quote
+              {isSw ? 'Pata Bei Maalum' : 'Get Custom Quote'}
             </Button>
           </Link>
         </div>
@@ -199,7 +208,7 @@ const Pricing = () => {
       {/* Footer */}
       <footer className="py-8 border-t border-border">
         <div className="mx-auto max-w-7xl px-6 text-center text-muted-foreground">
-          <p>&copy; 2024 Kuringe Halls. All rights reserved.</p>
+          <p>{isSw ? '\u00A9 2024 Kuringe Halls. Haki zote zimehifadhiwa.' : '\u00A9 2024 Kuringe Halls. All rights reserved.'}</p>
         </div>
       </footer>
     </div>

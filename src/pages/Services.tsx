@@ -8,6 +8,7 @@ import {
   externalServices,
   hallCatalog,
 } from '@/lib/landingData';
+import { getDecorationPackageVisual } from '@/lib/packageStyles';
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -110,16 +111,21 @@ export default function Services() {
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Decoration Packages</p>
             <div className="mt-3 grid gap-3 lg:grid-cols-2 text-sm">
-              {decorationPackages.map((pkg) => (
-                <div key={pkg.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="font-semibold text-slate-900">{pkg.title}</p>
-                  <ul className="mt-2 space-y-1 text-slate-700">
+              {decorationPackages.map((pkg, index) => {
+                const style = getDecorationPackageVisual(index);
+                return (
+                <div key={pkg.title} className={`rounded-2xl border p-3 ${style.cardClass}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.2em] inline-flex rounded-full px-2 py-1 ${style.badgeClass}`}>
+                    {style.tier}
+                  </p>
+                  <p className="font-semibold">{pkg.title}</p>
+                  <ul className="mt-2 space-y-1 opacity-85">
                     {pkg.highlights.map((highlight) => (
                       <li key={highlight}>- {highlight}</li>
                     ))}
                   </ul>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 

@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Phone, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { hallCatalog } from '@/lib/landingData';
+import { decorationPackages } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
+import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { destinationProfiles } from '@/lib/destinationProfiles';
 
 const CONTACT_EMAIL = 'kuringenexus.moshi@gmail.com';
 
@@ -16,33 +19,6 @@ const IMAGES = {
   story: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2200&q=80',
   suite: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2200&q=80',
 };
-
-const DESTINATIONS = [
-  {
-    id: 'witness',
-    name: 'Witness Hall',
-    capacity: '500 - 700 guests',
-    description: 'Grand ballroom atmosphere with premium stage and chandelier profile.',
-  },
-  {
-    id: 'kilimanjaro',
-    name: 'Kilimanjaro Hall',
-    capacity: '200 - 300 guests',
-    description: 'Balanced indoor setting for weddings, corporate functions, and receptions.',
-  },
-  {
-    id: 'kilimanjaro-garden',
-    name: 'Kilimanjaro Garden',
-    capacity: '300 - 400 guests',
-    description: 'Open-air destination for ceremonies, cocktails, and stylish arrivals.',
-  },
-  {
-    id: 'hall-d',
-    name: 'Hall D',
-    capacity: '30 - 60 guests',
-    description: 'Boutique space for intimate events, board meetings, and private dinners.',
-  },
-] as const;
 
 const STORY_CARDS = [
   {
@@ -68,12 +44,6 @@ const STORY_CARDS = [
   },
 ];
 
-const PACKAGES = [
-  { name: 'Standard', price: 2000000, summary: 'Elegant essentials for intimate events.' },
-  { name: 'VIP', price: 5000000, summary: 'Premium decor and upgraded visual moments.' },
-  { name: 'Executive', price: 8000000, summary: 'High-impact production for flagship weddings.' },
-];
-
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
     style: 'currency',
@@ -83,6 +53,8 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 export default function Index() {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
   const [showSupportDialog, setShowSupportDialog] = useState(false);
   const [supportName, setSupportName] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
@@ -106,12 +78,12 @@ export default function Index() {
   }, []);
 
   const openSupportEmail = () => {
-    const subject = 'Live Local Support Request';
+    const subject = isSw ? 'Ombi la Msaada wa Moja kwa Moja' : 'Live Local Support Request';
     const body = [
-      `Name: ${supportName || 'Not provided'}`,
+      `${isSw ? 'Jina' : 'Name'}: ${supportName || (isSw ? 'Halijajazwa' : 'Not provided')}`,
       '',
-      'How can we help:',
-      supportMessage || 'Please share your request.',
+      `${isSw ? 'Tunakusaidiaje' : 'How can we help'}:`,
+      supportMessage || (isSw ? 'Tafadhali eleza ombi lako.' : 'Please share your request.'),
     ].join('\n');
 
     const gmailComposeUrl =
@@ -127,7 +99,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-[#F8F7F3] text-[#161616]">
-      <PublicNavbar ctaLabel="Book Your Date" />
+      <PublicNavbar ctaLabel={isSw ? 'Hifadhi Tarehe Yako' : 'Book Your Date'} />
 
       <section className="relative isolate h-[82vh] min-h-[560px] overflow-hidden px-4">
         <img src={IMAGES.hero} alt="Kuringe wedding arrival" className="absolute inset-0 -z-20 h-full w-full object-cover" />
@@ -135,17 +107,21 @@ export default function Index() {
         <div className="mx-auto flex h-full max-w-7xl items-center justify-center text-center">
           <div className="max-w-3xl text-white reveal-on-scroll">
             <p className="text-xs uppercase tracking-[0.42em] text-white/75">Kuringe Halls, Moshi</p>
-            <h1 className="mt-6 text-4xl font-semibold leading-tight md:text-6xl">Crafted Spaces for Weddings, Conferences, and Milestone Events</h1>
+            <h1 className="mt-6 text-4xl font-semibold leading-tight md:text-6xl">
+              {isSw ? 'Nafasi Maalum kwa Harusi, Mikutano, na Matukio Muhimu' : 'Crafted Spaces for Weddings, Conferences, and Milestone Events'}
+            </h1>
             <p className="mx-auto mt-5 max-w-2xl text-sm text-white/85 md:text-base">
-              Keep your event elegant from first arrival to final toast with coordinated halls, decor, and service planning.
+              {isSw
+                ? 'Fanya tukio lako liwe la kifahari kuanzia mapokezi hadi mwisho kwa uratibu wa ukumbi, mapambo, na huduma.'
+                : 'Keep your event elegant from first arrival to final toast with coordinated halls, decor, and service planning.'}
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link to="/booking">
-                <Button className="rounded-full bg-[#C6A75E] px-7 text-[#121212] hover:bg-[#d4b56b]">Reserve A Date</Button>
+                <Button className="rounded-full bg-[#C6A75E] px-7 text-[#121212] hover:bg-[#d4b56b]">{isSw ? 'Hifadhi Tarehe' : 'Reserve A Date'}</Button>
               </Link>
               <a href="#destinations">
                 <Button variant="outline" className="rounded-full border-white/45 bg-white/10 px-7 text-white hover:bg-white/20">
-                  Explore Destinations
+                  {isSw ? 'Chunguza Kumbi' : 'Explore Destinations'}
                 </Button>
               </a>
             </div>
@@ -156,13 +132,15 @@ export default function Index() {
       <main className="mx-auto max-w-7xl px-4 pb-20">
         <section id="destinations" className="reveal-on-scroll py-20">
           <div className="text-center">
-            <h2 className="text-4xl font-semibold md:text-5xl">Destinations</h2>
-            <p className="mt-3 text-sm text-[#6f6f6f]">Select the right atmosphere for your guest count and event mood.</p>
+            <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Kumbi' : 'Destinations'}</h2>
+            <p className="mt-3 text-sm text-[#6f6f6f]">
+              {isSw ? 'Chagua mazingira sahihi kulingana na idadi ya wageni na aina ya tukio.' : 'Select the right atmosphere for your guest count and event mood.'}
+            </p>
           </div>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {DESTINATIONS.map((destination) => (
-              <article key={destination.id} className="group relative h-[380px] overflow-hidden border border-black/10 bg-black">
+            {destinationProfiles.map((destination) => (
+              <Link key={destination.id} to={`/halls/${destination.id}`} className="group relative h-[380px] overflow-hidden border border-black/10 bg-black block">
                 <img
                   src={IMAGES[destination.id as keyof typeof IMAGES]}
                   alt={destination.name}
@@ -170,28 +148,29 @@ export default function Index() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                  <p className="text-xs uppercase tracking-[0.24em] text-white/70">{destination.capacity}</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/70">{destination.capacity} guests</p>
                   <h3 className="mt-2 text-2xl">{destination.name}</h3>
-                  <p className="mt-2 text-sm text-white/80">{destination.description}</p>
+                  <p className="mt-2 text-sm font-semibold text-white/90">{destination.marketingLine}</p>
+                  <p className="mt-1 text-xs text-white/75">{destination.shortDescription}</p>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </section>
 
         <section className="reveal-on-scroll py-10">
           <div className="text-center">
-            <h2 className="text-4xl font-semibold md:text-5xl">Hall Rental Rates</h2>
-            <p className="mt-3 text-sm text-[#6f6f6f]">All halls with their official day-based pricing.</p>
+            <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Bei za Kukodi Kumbi' : 'Hall Rental Rates'}</h2>
+            <p className="mt-3 text-sm text-[#6f6f6f]">{isSw ? 'Kumbi zote na bei rasmi kulingana na siku.' : 'All halls with their official day-based pricing.'}</p>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {hallCatalog.map((hall) => (
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {destinationProfiles.map((hall) => (
               <article key={hall.id} className="border border-black/10 bg-white p-6">
                 <h3 className="text-xl font-semibold">{hall.name}</h3>
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[#7b7b7b]">{hall.capacity}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[#7b7b7b]">{hall.capacity} guests</p>
                 <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
-                  {hall.rates.map((rate) => (
+                  {hall.standardRentalRates.map((rate) => (
                     <div key={`${hall.id}-${rate.label}`} className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-[#4a4a4a]">{rate.label}</span>
                       <span className="font-semibold text-[#161616]">{formatTZS(rate.price)}</span>
@@ -199,7 +178,7 @@ export default function Index() {
                   ))}
                 </div>
                 <Link to={`/halls/${hall.id}`} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
-                  View hall details <ArrowRight className="h-4 w-4" />
+                  {isSw ? 'Tazama maelezo ya ukumbi' : 'View hall details'} <ArrowRight className="h-4 w-4" />
                 </Link>
               </article>
             ))}
@@ -221,12 +200,14 @@ export default function Index() {
             <div className="relative flex min-h-[420px] items-center p-8 md:p-14">
               <div className="max-w-xl text-white">
                 <p className="text-xs uppercase tracking-[0.3em] text-white/80">Featured Experience</p>
-                <h3 className="mt-4 text-3xl leading-tight md:text-4xl">A Palace Feeling for Your Guests</h3>
+                <h3 className="mt-4 text-3xl leading-tight md:text-4xl">{isSw ? 'Hisia ya Kifalme kwa Wageni Wako' : 'A Palace Feeling for Your Guests'}</h3>
                 <p className="mt-4 text-sm text-white/85 md:text-base">
-                  Combine premium decor tiers, staging, and tailored flow plans to deliver a seamless event story from welcome to finale.
+                  {isSw
+                    ? 'Unganisha ngazi za mapambo ya ubora wa juu, stage, na mpangilio maalum wa mtiririko ili tukio liende kwa mpangilio kamili.'
+                    : 'Combine premium decor tiers, staging, and tailored flow plans to deliver a seamless event story from welcome to finale.'}
                 </p>
                 <Link to="/stories#featured-experience" className="mt-6 inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#E6CB8E]">
-                  View Full Experience <ArrowRight className="h-4 w-4" />
+                  {isSw ? 'Tazama Uzoefu Kamili' : 'View Full Experience'} <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>
@@ -234,7 +215,7 @@ export default function Index() {
         </section>
 
         <section className="reveal-on-scroll py-8">
-          <h2 className="text-4xl font-semibold">Our Stories</h2>
+          <h2 className="text-4xl font-semibold">{isSw ? 'Hadithi Zetu' : 'Our Stories'}</h2>
           <div className="mt-8 grid gap-4 md:grid-cols-12">
             {STORY_CARDS.map((card, index) => (
               <article
@@ -247,13 +228,13 @@ export default function Index() {
                   <h3 className="mt-4 text-xl leading-snug">{card.title}</h3>
                   <p className="mt-3 text-sm text-[#5a5a5a]">{card.note}</p>
                   <Link to={card.to} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
-                    Read story <ArrowRight className="h-4 w-4" />
+                    {isSw ? 'Soma hadithi' : 'Read story'} <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               </article>
             ))}
             <Link to="/stories" className="md:col-span-12 mt-2 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
-              See more stories <ArrowRight className="h-4 w-4" />
+              {isSw ? 'Tazama hadithi zaidi' : 'See more stories'} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
@@ -262,15 +243,15 @@ export default function Index() {
           <article className="relative overflow-hidden bg-black px-6 py-20 text-center text-white md:px-12">
             <img src={IMAGES.suite} alt="Premium suite styling" className="absolute inset-0 h-full w-full object-cover opacity-30" />
             <div className="relative mx-auto max-w-2xl">
-              <h2 className="text-4xl font-semibold md:text-5xl">Sensational Suites</h2>
-              <p className="mt-4 text-sm text-white/85 md:text-base">Choose package levels based on event scale, production needs, and guest impact.</p>
+              <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Vifurushi vya Kipekee' : 'Sensational Suites'}</h2>
+              <p className="mt-4 text-sm text-white/85 md:text-base">{isSw ? 'Chagua ngazi ya kifurushi kulingana na ukubwa wa tukio na mahitaji ya uzalishaji.' : 'Choose package levels based on event scale, production needs, and guest impact.'}</p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
                 <Link to="/packages">
-                  <Button className="rounded-full bg-white px-6 text-[#111111] hover:bg-white/90">View Packages</Button>
+                  <Button className="rounded-full bg-white px-6 text-[#111111] hover:bg-white/90">{isSw ? 'Tazama Vifurushi' : 'View Packages'}</Button>
                 </Link>
                 <Link to="/pricing">
                   <Button variant="outline" className="rounded-full border-white/40 bg-transparent px-6 text-white hover:bg-white/15">
-                    Compare Pricing
+                    {isSw ? 'Linganisha Bei' : 'Compare Pricing'}
                   </Button>
                 </Link>
               </div>
@@ -289,17 +270,17 @@ export default function Index() {
           <article className="bg-black px-6 py-14 text-center text-white md:px-12">
             <div className="grid gap-5 md:grid-cols-3">
               <Link to="/booking" className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black">
-                Instant Booking
+                {isSw ? 'Uhifadhi wa Haraka' : 'Instant Booking'}
               </Link>
               <Link to="/venues" className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black">
-                Discovery Tours
+                {isSw ? 'Ziara za Utambuzi' : 'Discovery Tours'}
               </Link>
               <button
                 type="button"
                 onClick={() => setShowSupportDialog(true)}
                 className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black"
               >
-                Live Local Support
+                {isSw ? 'Msaada wa Moja kwa Moja' : 'Live Local Support'}
               </button>
             </div>
           </article>
@@ -308,31 +289,40 @@ export default function Index() {
         <section className="reveal-on-scroll py-14">
           <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
             <article>
-              <h3 className="text-3xl font-semibold">Plan With Kuringe</h3>
+              <h3 className="text-3xl font-semibold">{isSw ? 'Panga na Kuringe' : 'Plan With Kuringe'}</h3>
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[#545454]">
-                Work with our team to align hall choice, decor package, food flow, and guest movement in one clear booking path.
-                Whether you host 50 or 700 guests, we keep setup quality consistent.
+                {isSw
+                  ? 'Shirikiana na timu yetu kuratibu uchaguzi wa ukumbi, kifurushi cha mapambo, mpangilio wa chakula, na mtiririko wa wageni katika njia moja ya uhifadhi.'
+                  : 'Work with our team to align hall choice, decor package, food flow, and guest movement in one clear booking path.'}
+                {isSw
+                  ? ' Iwe una wageni 50 au 700, tunahakikisha ubora wa maandalizi unabaki wa kiwango cha juu.'
+                  : ' Whether you host 50 or 700 guests, we keep setup quality consistent.'}
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link to="/booking">
-                  <Button className="rounded-full bg-[#121212] px-7 text-white hover:bg-[#272727]">Start Booking</Button>
+                  <Button className="rounded-full bg-[#121212] px-7 text-white hover:bg-[#272727]">{isSw ? 'Anza Uhifadhi' : 'Start Booking'}</Button>
                 </Link>
                 <Link to="/taratibu">
-                  <Button variant="outline" className="rounded-full border-black/20 px-7">Read Policies</Button>
+                  <Button variant="outline" className="rounded-full border-black/20 px-7">{isSw ? 'Soma Sera' : 'Read Policies'}</Button>
                 </Link>
               </div>
             </article>
 
             <article className="border border-black/10 bg-white p-6">
-              <h4 className="text-lg font-semibold">Top Decoration Packages</h4>
+              <h4 className="text-lg font-semibold">{isSw ? 'Vifurushi Bora vya Mapambo' : 'Top Decoration Packages'}</h4>
               <ul className="mt-5 space-y-4">
-                {PACKAGES.map((pkg) => (
-                  <li key={pkg.name} className="border-b border-black/10 pb-4 last:border-b-0 last:pb-0">
-                    <p className="text-sm uppercase tracking-[0.16em] text-[#787878]">{pkg.name}</p>
+                {decorationPackages.map((pkg, index) => {
+                  const style = getDecorationPackageVisual(index);
+                  return (
+                  <li key={pkg.title} className="border-b border-black/10 pb-4 last:border-b-0 last:pb-0">
+                    <p className={`inline-flex rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${style.badgeClass}`}>
+                      {style.tier}
+                    </p>
+                    <p className="mt-2 text-sm uppercase tracking-[0.16em] text-[#787878]">{getDecorationPackageName(pkg.title)}</p>
                     <p className="mt-1 text-xl font-semibold">{formatTZS(pkg.price)}</p>
-                    <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.summary}</p>
+                    <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights[0]}</p>
                   </li>
-                ))}
+                )})}
               </ul>
             </article>
           </div>
@@ -341,7 +331,9 @@ export default function Index() {
         <section className="reveal-on-scroll py-8">
           <div className="border-t border-black/15 pt-8">
             <p className="text-center text-2xl">kuringe halls</p>
-            <p className="mt-2 text-center text-xs uppercase tracking-[0.28em] text-[#7a7a7a]">A venue for your defining celebrations</p>
+            <p className="mt-2 text-center text-xs uppercase tracking-[0.28em] text-[#7a7a7a]">
+              {isSw ? 'Ukumbi wa sherehe zako muhimu' : 'A venue for your defining celebrations'}
+            </p>
           </div>
         </section>
       </main>
@@ -350,23 +342,23 @@ export default function Index() {
         <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-4">
           <div>
             <p className="text-2xl font-semibold">Kuringe Halls</p>
-            <p className="mt-2 text-sm text-white/70">Luxury Wedding and Event Venue</p>
+            <p className="mt-2 text-sm text-white/70">{isSw ? 'Ukumbi wa Kifahari wa Harusi na Matukio' : 'Luxury Wedding and Event Venue'}</p>
             <p className="mt-4 inline-flex items-center gap-2 text-sm text-white/90">
               <Phone className="h-4 w-4 text-[#C6A75E]" /> +255 717 000 000
             </p>
           </div>
 
           <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-white/60">Explore</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Chunguza' : 'Explore'}</p>
             <ul className="mt-4 space-y-2 text-sm text-white/85">
-              <li><Link to="/packages">Packages</Link></li>
-              <li><Link to="/pricing">Catering and Drinks</Link></li>
-              <li><Link to="/stories">Stories</Link></li>
+              <li><Link to="/packages">{isSw ? 'Vifurushi' : 'Packages'}</Link></li>
+              <li><Link to="/pricing">{isSw ? 'Upishi na Vinywaji' : 'Catering and Drinks'}</Link></li>
+              <li><Link to="/stories">{isSw ? 'Hadithi' : 'Stories'}</Link></li>
             </ul>
           </div>
 
           <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-white/60">Guest Favorite</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Pendwa ya Wageni' : 'Guest Favorite'}</p>
             <div className="mt-4 rounded border border-white/20 p-4">
               <p className="text-sm font-medium">Witness Hall Premium</p>
               <div className="mt-2 flex items-center gap-1 text-[#C6A75E]">
@@ -374,12 +366,12 @@ export default function Index() {
                   <Star key={n} className="h-4 w-4 fill-current" />
                 ))}
               </div>
-              <p className="mt-2 text-xs text-white/70">Large scale setup with chandelier finish and full stage flexibility.</p>
+              <p className="mt-2 text-xs text-white/70">{isSw ? 'Maandalizi ya ukubwa mkubwa yenye mwonekano wa chandelier na stage inayobadilika kwa urahisi.' : 'Large scale setup with chandelier finish and full stage flexibility.'}</p>
             </div>
           </div>
 
           <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-white/60">Quick Contact</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Mawasiliano ya Haraka' : 'Quick Contact'}</p>
             <ul className="mt-4 space-y-3 text-sm text-white/85">
               <li className="inline-flex items-start gap-2">
                 <Check className="mt-0.5 h-4 w-4 text-[#C6A75E]" /> {CONTACT_EMAIL}
@@ -389,7 +381,7 @@ export default function Index() {
               </li>
               <li>
                 <Link to="/booking" className="inline-flex items-center gap-2 font-medium text-[#E6CB8E]">
-                  Reserve now <ArrowRight className="h-4 w-4" />
+                  {isSw ? 'Hifadhi sasa' : 'Reserve now'} <ArrowRight className="h-4 w-4" />
                 </Link>
               </li>
             </ul>
@@ -401,7 +393,7 @@ export default function Index() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4">
           <div className="w-full max-w-lg bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-2xl font-semibold text-black">How can we help?</h3>
+              <h3 className="text-2xl font-semibold text-black">{isSw ? 'Tunakusaidiaje?' : 'How can we help?'}</h3>
               <button
                 type="button"
                 onClick={() => setShowSupportDialog(false)}
@@ -411,27 +403,27 @@ export default function Index() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mt-2 text-sm text-[#5a5a5a]">Share your request and we will prepare support details right away.</p>
+            <p className="mt-2 text-sm text-[#5a5a5a]">{isSw ? 'Tuma ombi lako na tutaandaa msaada mara moja.' : 'Share your request and we will prepare support details right away.'}</p>
             <div className="mt-4 space-y-3">
               <input
                 className="h-11 w-full border border-black/15 px-3 text-sm"
-                placeholder="Your name"
+                placeholder={isSw ? 'Jina lako' : 'Your name'}
                 value={supportName}
                 onChange={(event) => setSupportName(event.target.value)}
               />
               <textarea
                 className="w-full border border-black/15 px-3 py-2 text-sm"
                 rows={4}
-                placeholder="Type your message"
+                placeholder={isSw ? 'Andika ujumbe wako' : 'Type your message'}
                 value={supportMessage}
                 onChange={(event) => setSupportMessage(event.target.value)}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" className="rounded-none" onClick={() => setShowSupportDialog(false)}>
-                  Close
+                  {isSw ? 'Funga' : 'Close'}
                 </Button>
                 <Button className="rounded-none bg-black text-white hover:bg-black/90" onClick={openSupportEmail}>
-                  Send Request
+                  {isSw ? 'Tuma Ombi' : 'Send Request'}
                 </Button>
               </div>
             </div>

@@ -140,10 +140,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refreshStaffUsers();
-  }, [refreshStaffUsers]);
-
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         const localSessionRaw = localStorage.getItem(LOCAL_MD_SESSION_KEY);
@@ -181,13 +177,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         });
+        void refreshStaffUsers();
       } catch {
         setState({ user: null, isAuthenticated: false, isLoading: false });
       }
     });
 
     return unsubscribe;
-  }, []);
+  }, [refreshStaffUsers]);
 
   const loginWithResult = useCallback(
     async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
