@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, orderBy, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
@@ -8,7 +8,7 @@ import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus } f
 interface BookingContextValue {
   bookings: BookingRecord[];
   createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
-  createPublicBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  createPublicBooking: (payload: CreateBookingInput, requestId?: string) => Promise<{ ok: boolean; message: string }>;
   updateBooking: (bookingId: string, payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   deleteBooking: (bookingId: string) => Promise<{ ok: boolean; message: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<{ ok: boolean; message: string }>;
@@ -66,6 +66,10 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
   };
 }
 
+function normalizeRequestId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+}
+
 export function BookingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { policy, createApprovalRequest, reviewApproval } = useAuthorization();
@@ -91,11 +95,25 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const q = query(collection(db, BOOKINGS_COLLECTION), orderBy('createdAt', 'desc'));
+    const constraints: QueryConstraint[] = [];
+    if (user.role === 'assistant_hall_manager') {
+      constraints.push(where('createdByUserId', '==', user.id));
+    } else if (user.role === 'cashier_1') {
+      constraints.push(where('assignedToRole', '==', 'cashier_1'));
+    }
+    // For filtered role views we avoid orderBy here to keep index requirements low.
+    // We still sort in-memory after snapshot.
+    if (constraints.length === 0) {
+      constraints.push(orderBy('createdAt', 'desc'));
+    }
+
+    const q = query(collection(db, BOOKINGS_COLLECTION), ...constraints);
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        const next = snapshot.docs.map((item) => normalizeBooking(item.data() as Partial<BookingRecord>, item.id));
+        const next = snapshot.docs
+          .map((item) => normalizeBooking(item.data() as Partial<BookingRecord>, item.id))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setBookings(next);
       },
       () => {
@@ -199,7 +217,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [createApprovalRequest, hasConflict, user]);
 
-  const createPublicBooking = useCallback(async (payload: CreateBookingInput) => {
+  const createPublicBooking = useCallback(async (payload: CreateBookingInput, requestId?: string) => {
     if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
       return { ok: false, message: 'Customer and event details are required.' };
     }
@@ -216,8 +234,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Quoted amount must be greater than zero.' };
     }
 
+    const normalizedRequestId = requestId ? normalizeRequestId(requestId) : '';
+    const bookingId = normalizedRequestId ? `BOOK-${normalizedRequestId}` : `BOOK-${Date.now()}`;
+
     const record: BookingRecord = {
-      id: `BOOK-${Date.now()}`,
+      id: bookingId,
       customerName: payload.customerName.trim(),
       customerPhone: payload.customerPhone.trim(),
       eventName: payload.eventName.trim(),

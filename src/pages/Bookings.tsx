@@ -51,6 +51,7 @@ export default function Bookings() {
   const [message, setMessage] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
+  const [isSavingBooking, setIsSavingBooking] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentNotes, setPaymentNotes] = useState('');
 
@@ -85,25 +86,31 @@ export default function Bookings() {
   };
 
   const handleCreateBooking = async (assistantFlow = false) => {
+    if (isSavingBooking) return;
+    setIsSavingBooking(true);
     const editingId = editingBookingId;
-    const result = editingBookingId
-      ? await updateBooking(editingBookingId, form)
-      : await createBooking(form);
-    if (assistantFlow && result.ok && !editingBookingId) {
-      setMessage('Booked and sent to Cashier 1 dashboard.');
-    } else {
-      setMessage(result.message);
-    }
-    if (result.ok) {
-      if (editingId) {
-        await sendManagerAlert({
-          bookingId: editingId,
-          title: 'Booking Updated by Assistant Hall',
-          body: `Booking ${editingId} updated: ${form.eventName} on ${form.date} ${form.startTime}-${form.endTime}.`,
-        });
+    try {
+      const result = editingBookingId
+        ? await updateBooking(editingBookingId, form)
+        : await createBooking(form);
+      if (assistantFlow && result.ok && !editingBookingId) {
+        setMessage('Booked and sent to Cashier 1 dashboard.');
+      } else {
+        setMessage(result.message);
       }
-      setForm(initialForm);
-      setEditingBookingId(null);
+      if (result.ok) {
+        if (editingId) {
+          await sendManagerAlert({
+            bookingId: editingId,
+            title: 'Booking Updated by Assistant Hall',
+            body: `Booking ${editingId} updated: ${form.eventName} on ${form.date} ${form.startTime}-${form.endTime}.`,
+          });
+        }
+        setForm(initialForm);
+        setEditingBookingId(null);
+      }
+    } finally {
+      setIsSavingBooking(false);
     }
   };
 
@@ -237,8 +244,10 @@ export default function Bookings() {
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button size="sm" onClick={() => void handleCreateBooking(true)}>
-                      {editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
+                    <Button size="sm" disabled={isSavingBooking} onClick={() => void handleCreateBooking(true)}>
+                      {isSavingBooking
+                        ? 'Saving...'
+                        : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
                     </Button>
                     {editingBookingId ? (
                       <Button size="sm" variant="outline" onClick={() => { setEditingBookingId(null); setForm(initialForm); }}>
@@ -469,7 +478,9 @@ export default function Bookings() {
                 <input type="text" placeholder="Notes" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button size="sm" onClick={() => void handleCreateBooking()}>Submit Booking</Button>
+                <Button size="sm" disabled={isSavingBooking} onClick={() => void handleCreateBooking()}>
+                  {isSavingBooking ? 'Saving...' : 'Submit Booking'}
+                </Button>
                 {conflict ? <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge> : <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>}
                 {message ? <span className="text-xs text-slate-600">{message}</span> : null}
               </div>

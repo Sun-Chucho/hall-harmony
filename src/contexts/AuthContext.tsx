@@ -38,6 +38,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
 const DEFAULT_PASSWORD = '123456';
 const LEGACY_PASSWORD_ALIAS = '1234';
+const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
 
 function resolveFirebasePassword(password: string) {
   if (password === LEGACY_PASSWORD_ALIAS) {
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
+        localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
         setState({ user: null, isAuthenticated: false, isLoading: false });
         return;
       }
@@ -133,20 +135,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await fetchProfileByUid(firebaseUser.uid);
         if (!profile || !profile.isActive) {
           await signOut(auth);
+          localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
           setState({ user: null, isAuthenticated: false, isLoading: false });
           return;
         }
 
+        const resolvedUser = {
+          ...profile,
+          email: firebaseUser.email ?? profile.email,
+        };
+        localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(resolvedUser));
+
         setState({
-          user: {
-            ...profile,
-            email: firebaseUser.email ?? profile.email,
-          },
+          user: resolvedUser,
           isAuthenticated: true,
           isLoading: false,
         });
         void refreshStaffUsers();
       } catch {
+        const cached = localStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached) as User;
+            if (parsed.id === firebaseUser.uid) {
+              setState({
+                user: {
+                  ...parsed,
+                  email: firebaseUser.email ?? parsed.email,
+                },
+                isAuthenticated: true,
+                isLoading: false,
+              });
+              return;
+            }
+          } catch {
+            localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+          }
+        }
+
         setState({ user: null, isAuthenticated: false, isLoading: false });
       }
     });
@@ -195,6 +221,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         });
+        localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({
+          ...profile,
+          lastLogin: nowIso,
+        }));
         return { ok: true };
       } catch (error: unknown) {
         const authCode = typeof error === 'object' && error !== null && 'code' in error
@@ -221,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await signOut(auth);
+    localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
     setState({
       user: null,
       isAuthenticated: false,

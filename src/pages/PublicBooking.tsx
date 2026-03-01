@@ -42,6 +42,13 @@ function hallPrice(hallId: HallOption['id'], isoDate: string): number {
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
+function createRequestId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function PublicBooking() {
   const { language } = useLanguage();
   const isSw = language === 'sw';
@@ -54,6 +61,8 @@ export default function PublicBooking() {
     eventName: packageName ? `${packageName} Package Booking` : '',
     notes: packageName ? `Selected package: ${packageName}` : '',
   });
+  const [activeRequestId, setActiveRequestId] = useState(() => createRequestId());
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedHall = useMemo(() => HALL_OPTIONS.find((item) => item.name === form.hall), [form.hall]);
   const quote = selectedHall && form.date ? hallPrice(selectedHall.id, form.date) : 0;
@@ -65,22 +74,30 @@ export default function PublicBooking() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (isSubmitting) return;
+
     const payload: CreateBookingInput = {
       ...form,
       quotedAmount: quote,
     };
-    const result = await createPublicBooking(payload);
-    toast({
-      title: result.ok ? (isSw ? 'Uhifadhi umetumwa' : 'Booking submitted') : (isSw ? 'Uhifadhi umeshindikana' : 'Booking failed'),
-      description: result.message,
-      variant: result.ok ? 'default' : 'destructive',
-    });
-    if (result.ok) {
-      setForm({
-        ...INITIAL_BOOKING,
-        eventName: packageName ? `${packageName} Package Booking` : '',
-        notes: packageName ? `Selected package: ${packageName}` : '',
+    setIsSubmitting(true);
+    try {
+      const result = await createPublicBooking(payload, activeRequestId);
+      toast({
+        title: result.ok ? (isSw ? 'Uhifadhi umetumwa' : 'Booking submitted') : (isSw ? 'Uhifadhi umeshindikana' : 'Booking failed'),
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
       });
+      if (result.ok) {
+        setForm({
+          ...INITIAL_BOOKING,
+          eventName: packageName ? `${packageName} Package Booking` : '',
+          notes: packageName ? `Selected package: ${packageName}` : '',
+        });
+        setActiveRequestId(createRequestId());
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -138,8 +155,10 @@ export default function PublicBooking() {
                 ? isSw ? 'Muda uliochaguliwa tayari umechukuliwa.' : 'Selected slot already occupied.'
                 : isSw ? 'Muda uliochaguliwa unapatikana.' : 'Selected slot is available.'}
             </p>
-            <Button type="submit" className="w-full rounded-full bg-[#1f1f1f] text-white hover:bg-[#2c2c2c]">
-              {isSw ? 'Wasilisha Uhifadhi' : 'Submit Booking'}
+            <Button type="submit" disabled={isSubmitting} className="w-full rounded-full bg-[#1f1f1f] text-white hover:bg-[#2c2c2c] disabled:cursor-not-allowed disabled:opacity-70">
+              {isSubmitting
+                ? (isSw ? 'Inatuma...' : 'Submitting...')
+                : (isSw ? 'Wasilisha Uhifadhi' : 'Submit Booking')}
             </Button>
           </form>
         </section>

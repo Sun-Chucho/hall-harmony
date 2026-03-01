@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/login",
+      "destination": "/staff",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
