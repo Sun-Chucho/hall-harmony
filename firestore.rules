@@ -39,7 +39,8 @@ service cloud.firestore {
       allow create: if request.auth != null
         || request.resource.data.createdByUserId == 'public-web';
       allow read: if isSignedIn();
-      allow update: if isSignedIn();
+      allow update: if isControllerOrManager()
+        || (isSignedIn() && resource.data.createdByUserId == request.auth.uid);
       allow delete: if isControllerOrManager()
         || (isSignedIn() && resource.data.createdByUserId == request.auth.uid);
     }
