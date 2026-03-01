@@ -29,7 +29,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/staff" replace />;
   }
 
   return (

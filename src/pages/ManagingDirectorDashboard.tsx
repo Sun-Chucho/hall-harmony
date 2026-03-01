@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
-import { Banknote, Calendar, ReceiptText, Users } from 'lucide-react';
+import { Banknote, Calendar, ReceiptText, ShieldCheck, Users } from 'lucide-react';
 
 function formatTZS(amount: number): string {
   return new Intl.NumberFormat('en-TZ', {
@@ -15,10 +16,19 @@ function formatTZS(amount: number): string {
   }).format(amount);
 }
 
+type MdAuditItem = {
+  id: string;
+  timestamp: string;
+  category: string;
+  title: string;
+  detail: string;
+};
+
 export default function ManagingDirectorDashboard() {
   const { bookings } = useBookings();
   const { payments } = usePayments();
-  const { mdTransfers } = useEventFinance();
+  const { mdTransfers, logs } = useEventFinance();
+  const { approvals, auditLog } = useAuthorization();
 
   const metrics = useMemo(() => {
     const approvedBookings = bookings.filter((item) => item.bookingStatus === 'approved').length;
@@ -29,24 +39,87 @@ export default function ManagingDirectorDashboard() {
     ).size;
     const totalReceived = payments.reduce((sum, item) => sum + item.amount, 0);
     const totalTransferredToMd = mdTransfers.reduce((sum, item) => sum + item.amount, 0);
+    const pendingApprovals = approvals.filter((item) => item.status === 'pending').length;
 
     return {
       approvedBookings,
       activeCustomers,
       totalReceived,
       totalTransferredToMd,
+      pendingApprovals,
     };
-  }, [bookings, mdTransfers, payments]);
+  }, [approvals, bookings, mdTransfers, payments]);
+
+  const consolidatedAudit = useMemo<MdAuditItem[]>(() => {
+    const bookingItems: MdAuditItem[] = bookings.map((item) => ({
+      id: `booking-${item.id}`,
+      timestamp: item.createdAt,
+      category: 'Booking',
+      title: `${item.bookingStatus.toUpperCase()} | ${item.eventName}`,
+      detail: `${item.id} | ${item.customerName} | ${item.hall} | ${item.date} ${item.startTime}-${item.endTime}`,
+    }));
+
+    const paymentItems: MdAuditItem[] = payments.map((item) => ({
+      id: `payment-${item.id}`,
+      timestamp: item.receivedAt,
+      category: 'Payment',
+      title: `${formatTZS(item.amount)} | ${item.method.toUpperCase()}`,
+      detail: `${item.bookingId} | Ref: ${item.referenceNumber} | Receipt: ${item.receiptNumber}`,
+    }));
+
+    const transferItems: MdAuditItem[] = mdTransfers.map((item) => ({
+      id: `md-transfer-${item.id}`,
+      timestamp: item.transferredAt,
+      category: 'MD Transfer',
+      title: `${formatTZS(item.amount)} | ${item.reference}`,
+      detail: item.notes || 'Cashier transfer to managing director',
+    }));
+
+    const approvalItems: MdAuditItem[] = approvals.map((item) => ({
+      id: `approval-${item.id}`,
+      timestamp: item.updatedAt || item.createdAt,
+      category: 'Approval',
+      title: `${item.status.toUpperCase()} | ${item.module}`,
+      detail: `${item.title} | Ref: ${item.targetReference} | Level: ${item.level}`,
+    }));
+
+    const authAuditItems: MdAuditItem[] = auditLog.map((item) => ({
+      id: `auth-audit-${item.id}`,
+      timestamp: item.timestamp,
+      category: 'Authorization Audit',
+      title: `${item.action} | ${item.module}`,
+      detail: `${item.actorRole} | ${item.detail}`,
+    }));
+
+    const financeAuditItems: MdAuditItem[] = logs.map((item) => ({
+      id: `finance-audit-${item.id}`,
+      timestamp: item.timestamp,
+      category: 'Finance Audit',
+      title: `${item.action} | ${item.referenceId}`,
+      detail: `${item.actorRole} | ${item.detail}`,
+    }));
+
+    return [
+      ...bookingItems,
+      ...paymentItems,
+      ...transferItems,
+      ...approvalItems,
+      ...authAuditItems,
+      ...financeAuditItems,
+    ]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 120);
+  }, [approvals, auditLog, bookings, logs, mdTransfers, payments]);
 
   return (
     <DashboardLayout title="Managing Director Dashboard">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Managing Director Overview</h1>
-          <p className="text-sm text-slate-600">Executive finance visibility and cashier-to-MD fund distributions.</p>
+          <p className="text-sm text-slate-600">Executive finance visibility and full cross-module audit feed.</p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Transferred to MD</CardTitle>
@@ -87,30 +160,39 @@ export default function ManagingDirectorDashboard() {
               <p className="text-xs text-slate-600">Customers with active bookings</p>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{metrics.pendingApprovals}</div>
+              <p className="text-xs text-slate-600">Workflow actions awaiting decisions</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Fund Transfers to Managing Director</CardTitle>
-            <CardDescription>Latest transfer entries recorded under Cash Movement.</CardDescription>
+            <CardTitle>Full Executive Audit Feed</CardTitle>
+            <CardDescription>
+              Unified live feed from bookings, payments, approvals, authorization audit, finance audit, and MD transfers.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mdTransfers.length === 0 ? (
-              <p className="text-sm text-slate-500">No Managing Director transfers recorded yet.</p>
+            {consolidatedAudit.length === 0 ? (
+              <p className="text-sm text-slate-500">No audit activity recorded yet.</p>
             ) : (
-              mdTransfers.slice(0, 20).map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{item.reference}</p>
-                    <p className="text-xs text-slate-600">{item.notes || 'Cashier transfer to managing director'}</p>
+              consolidatedAudit.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    <div className="text-right">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.category}</p>
+                      <p className="text-xs text-slate-500">{new Date(item.timestamp).toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">{formatTZS(item.amount)}</p>
-                    <p className="text-xs text-slate-500">{new Date(item.transferredAt).toLocaleString()}</p>
-                  </div>
+                  <p className="mt-1 text-xs text-slate-600">{item.detail}</p>
                 </div>
               ))
             )}

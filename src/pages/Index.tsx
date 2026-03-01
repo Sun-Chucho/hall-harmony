@@ -22,27 +22,46 @@ const IMAGES = {
 
 const STORY_CARDS = [
   {
-    title: 'Nymphenburg Porcelain Style Setup',
-    note: 'Elegant table styling and layered textures for premium receptions.',
-    tag: 'Feature Story',
+    titleEn: 'Nymphenburg Porcelain Style Setup',
+    titleSw: 'Mpangilio wa Nymphenburg Porcelain',
+    noteEn: 'Elegant table styling and layered textures for premium receptions.',
+    noteSw: 'Mpangilio wa meza wa kifahari na muunganiko wa muundo kwa mapokezi ya kiwango cha juu.',
+    tagEn: 'Feature Story',
+    tagSw: 'Hadithi Maalum',
     image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
     to: '/stories#feature-story',
   },
   {
-    title: 'Hall A Signature Wedding',
-    note: 'A 600-guest celebration built around custom lighting and stage reveals.',
-    tag: 'Event Journal',
+    titleEn: 'Hall A Signature Wedding',
+    titleSw: 'Harusi Maalum ya Ukumbi A',
+    noteEn: 'A 600-guest celebration built around custom lighting and stage reveals.',
+    noteSw: 'Sherehe ya wageni 600 iliyoandaliwa kwa taa maalum na mpangilio wa stage.',
+    tagEn: 'Event Journal',
+    tagSw: 'Jarida la Tukio',
     image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80',
     to: '/stories#event-journal',
   },
   {
-    title: 'Boardroom to Banquet in Hall D',
-    note: 'Flexible transitions for intimate meetings and evening dinners.',
-    tag: 'Planning Guide',
+    titleEn: 'Boardroom to Banquet in Hall D',
+    titleSw: 'Kutoka Bodi hadi Banquet katika Ukumbi D',
+    noteEn: 'Flexible transitions for intimate meetings and evening dinners.',
+    noteSw: 'Mpangilio unaobadilika kwa mikutano ya karibu na chakula cha jioni.',
+    tagEn: 'Planning Guide',
+    tagSw: 'Mwongozo wa Mipango',
     image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
     to: '/stories#planning-guide',
   },
 ];
+
+const getTierLabel = (tier: string, isSw: boolean) => {
+  if (!isSw) return tier;
+  if (tier === 'Bronze Plan') return 'Mpango wa Bronze';
+  if (tier === 'Silver Plan') return 'Mpango wa Silver';
+  if (tier === 'Gold Plan') return 'Mpango wa Gold';
+  if (tier === 'Platinum Plan') return 'Mpango wa Platinum';
+  if (tier === 'Royal Plan') return 'Mpango wa Royal';
+  return tier;
+};
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -148,7 +167,7 @@ export default function Index() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                  <p className="text-xs uppercase tracking-[0.24em] text-white/70">{destination.capacity} guests</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/70">{destination.capacity} {isSw ? 'wageni' : 'guests'}</p>
                   <h3 className="mt-2 text-2xl">{destination.name}</h3>
                   <p className="mt-2 text-sm font-semibold text-white/90">{destination.marketingLine}</p>
                   <p className="mt-1 text-xs text-white/75">{destination.shortDescription}</p>
@@ -168,7 +187,7 @@ export default function Index() {
             {destinationProfiles.map((hall) => (
               <article key={hall.id} className="border border-black/10 bg-white p-6">
                 <h3 className="text-xl font-semibold">{hall.name}</h3>
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[#7b7b7b]">{hall.capacity} guests</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[#7b7b7b]">{hall.capacity} {isSw ? 'wageni' : 'guests'}</p>
                 <div className="mt-4 space-y-3 border-t border-black/10 pt-4">
                   {hall.standardRentalRates.map((rate) => (
                     <div key={`${hall.id}-${rate.label}`} className="flex items-center justify-between gap-3 text-sm">
@@ -188,18 +207,18 @@ export default function Index() {
         <section className="reveal-on-scroll py-2">
           <div className="mx-auto flex max-w-xl items-center justify-center gap-4 text-[11px] uppercase tracking-[0.24em] text-[#6e6e6e]">
             <span className="h-px flex-1 bg-black/20" />
-            Kuringe Signature Venues
+            {isSw ? 'Kumbi Maalum za Kuringe' : 'Kuringe Signature Venues'}
             <span className="h-px flex-1 bg-black/20" />
           </div>
         </section>
 
         <section className="reveal-on-scroll py-16">
           <article className="relative min-h-[420px] overflow-hidden">
-            <img src={IMAGES.story} alt="Premium featured setup" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={IMAGES.story} alt={isSw ? 'Mpangilio maalum wa kifahari' : 'Premium featured setup'} className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-black/45" />
             <div className="relative flex min-h-[420px] items-center p-8 md:p-14">
               <div className="max-w-xl text-white">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/80">Featured Experience</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/80">{isSw ? 'Uzoefu Maalum' : 'Featured Experience'}</p>
                 <h3 className="mt-4 text-3xl leading-tight md:text-4xl">{isSw ? 'Hisia ya Kifalme kwa Wageni Wako' : 'A Palace Feeling for Your Guests'}</h3>
                 <p className="mt-4 text-sm text-white/85 md:text-base">
                   {isSw
@@ -222,11 +241,11 @@ export default function Index() {
                 key={card.title}
                 className={`overflow-hidden border border-black/10 bg-white ${index === 0 ? 'md:col-span-5 md:min-h-[360px]' : 'md:col-span-3'} ${index === 1 ? 'md:translate-y-6' : ''}`}
               >
-                <img src={card.image} alt={card.title} className="h-40 w-full object-cover" />
+                <img src={card.image} alt={isSw ? card.titleSw : card.titleEn} className="h-40 w-full object-cover" />
                 <div className="p-5">
-                  <p className="text-xs uppercase tracking-[0.22em] text-[#8a8a8a]">{card.tag}</p>
-                  <h3 className="mt-4 text-xl leading-snug">{card.title}</h3>
-                  <p className="mt-3 text-sm text-[#5a5a5a]">{card.note}</p>
+                  <p className="text-xs uppercase tracking-[0.22em] text-[#8a8a8a]">{isSw ? card.tagSw : card.tagEn}</p>
+                  <h3 className="mt-4 text-xl leading-snug">{isSw ? card.titleSw : card.titleEn}</h3>
+                  <p className="mt-3 text-sm text-[#5a5a5a]">{isSw ? card.noteSw : card.noteEn}</p>
                   <Link to={card.to} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
                     {isSw ? 'Soma hadithi' : 'Read story'} <ArrowRight className="h-4 w-4" />
                   </Link>
@@ -241,7 +260,7 @@ export default function Index() {
 
         <section className="reveal-on-scroll py-14">
           <article className="relative overflow-hidden bg-black px-6 py-20 text-center text-white md:px-12">
-            <img src={IMAGES.suite} alt="Premium suite styling" className="absolute inset-0 h-full w-full object-cover opacity-30" />
+            <img src={IMAGES.suite} alt={isSw ? 'Mpangilio wa kifurushi cha kifahari' : 'Premium suite styling'} className="absolute inset-0 h-full w-full object-cover opacity-30" />
             <div className="relative mx-auto max-w-2xl">
               <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Vifurushi vya Kipekee' : 'Sensational Suites'}</h2>
               <p className="mt-4 text-sm text-white/85 md:text-base">{isSw ? 'Chagua ngazi ya kifurushi kulingana na ukubwa wa tukio na mahitaji ya uzalishaji.' : 'Choose package levels based on event scale, production needs, and guest impact.'}</p>
@@ -256,11 +275,11 @@ export default function Index() {
                 </Link>
               </div>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-5 text-xs uppercase tracking-[0.16em] text-white/80">
-                <span>Weddings</span>
-                <span>Conferences</span>
-                <span>Private Events</span>
-                <span>Corporate Nights</span>
-                <span>Gala Dinners</span>
+                <span>{isSw ? 'Harusi' : 'Weddings'}</span>
+                <span>{isSw ? 'Mikutano' : 'Conferences'}</span>
+                <span>{isSw ? 'Matukio Binafsi' : 'Private Events'}</span>
+                <span>{isSw ? 'Usiku wa Kampuni' : 'Corporate Nights'}</span>
+                <span>{isSw ? 'Gala Dinners' : 'Gala Dinners'}</span>
               </div>
             </div>
           </article>
@@ -309,21 +328,33 @@ export default function Index() {
             </article>
 
             <article className="border border-black/10 bg-white p-6">
-              <h4 className="text-lg font-semibold">{isSw ? 'Vifurushi Bora vya Mapambo' : 'Top Decoration Packages'}</h4>
-              <ul className="mt-5 space-y-4">
-                {decorationPackages.map((pkg, index) => {
-                  const style = getDecorationPackageVisual(index);
-                  return (
-                  <li key={pkg.title} className="border-b border-black/10 pb-4 last:border-b-0 last:pb-0">
-                    <p className={`inline-flex rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${style.badgeClass}`}>
-                      {style.tier}
-                    </p>
-                    <p className="mt-2 text-sm uppercase tracking-[0.16em] text-[#787878]">{getDecorationPackageName(pkg.title)}</p>
-                    <p className="mt-1 text-xl font-semibold">{formatTZS(pkg.price)}</p>
-                    <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights[0]}</p>
-                  </li>
-                )})}
-              </ul>
+              <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
+                <div className="relative overflow-hidden border border-black/10 min-h-[220px]">
+                  <img
+                    src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80"
+                    alt={isSw ? 'Onyesho la mapambo' : 'Decoration showcase'}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold">{isSw ? 'Vifurushi Bora vya Mapambo' : 'Top Decoration Packages'}</h4>
+                  <ul className="mt-5 space-y-4">
+                    {decorationPackages.map((pkg, index) => {
+                      const style = getDecorationPackageVisual(index);
+                      return (
+                      <li key={pkg.title} className="border-b border-black/10 pb-4 last:border-b-0 last:pb-0">
+                        <p className={`inline-flex rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${style.badgeClass}`}>
+                          {getTierLabel(style.tier, isSw)}
+                        </p>
+                        <p className="mt-2 text-sm uppercase tracking-[0.16em] text-[#787878]">{getDecorationPackageName(pkg.title)}</p>
+                        <p className="mt-1 text-xl font-semibold">{formatTZS(pkg.price)}</p>
+                        <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights[0]}</p>
+                      </li>
+                    )})}
+                  </ul>
+                </div>
+              </div>
             </article>
           </div>
         </section>
@@ -361,7 +392,7 @@ export default function Index() {
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Pendwa ya Wageni' : 'Guest Favorite'}</p>
             <div className="mt-4 rounded border border-white/20 p-4">
-              <p className="text-sm font-medium">Witness Hall Premium</p>
+              <p className="text-sm font-medium">{isSw ? 'Ukumbi wa Witness Premium' : 'Witness Hall Premium'}</p>
               <div className="mt-2 flex items-center gap-1 text-[#C6A75E]">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <Star key={n} className="h-4 w-4 fill-current" />
@@ -399,7 +430,7 @@ export default function Index() {
                 type="button"
                 onClick={() => setShowSupportDialog(false)}
                 className="rounded-full p-1 text-black/70 transition hover:bg-black/10"
-                aria-label="Close support dialog"
+                aria-label={isSw ? 'Funga dirisha la msaada' : 'Close support dialog'}
               >
                 <X className="h-5 w-5" />
               </button>

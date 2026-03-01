@@ -1,24 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths, isSameDay } from 'date-fns';
-
-// Mock booked dates
-const bookedDates = [
-  new Date(2026, 1, 7),
-  new Date(2026, 1, 14),
-  new Date(2026, 1, 15),
-  new Date(2026, 1, 21),
-  new Date(2026, 1, 28),
-];
-
-const tentativeDates = [
-  new Date(2026, 1, 10),
-  new Date(2026, 1, 22),
-];
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const CalendarSection = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -28,8 +17,11 @@ const CalendarSection = () => {
   const startDay = monthStart.getDay();
   const emptyDays = Array(startDay).fill(null);
 
-  const isBooked = (date: Date) => bookedDates.some(d => isSameDay(d, date));
-  const isTentative = (date: Date) => tentativeDates.some(d => isSameDay(d, date));
+  const bookedDates: Date[] = useMemo(() => [], []);
+  const tentativeDates: Date[] = useMemo(() => [], []);
+
+  const isBooked = (date: Date) => bookedDates.some((d) => isSameDay(d, date));
+  const isTentative = (date: Date) => tentativeDates.some((d) => isSameDay(d, date));
 
   return (
     <section id="calendar" className="py-24 bg-white">
@@ -38,35 +30,36 @@ const CalendarSection = () => {
           {/* Left - Info */}
           <div className="space-y-6">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Availability
+              {isSw ? 'Upatikanaji' : 'Availability'}
             </p>
             <h2 className="text-4xl md:text-5xl font-bold text-blue-950">
-              Check Real-Time Venue Availability
+              {isSw ? 'Kagua Upatikanaji wa Ukumbi Moja kwa Moja' : 'Check Real-Time Venue Availability'}
             </h2>
             <p className="text-lg text-blue-900/60 leading-relaxed">
-              Plan your event with confidence. Our live calendar shows you exactly 
-              which dates are available, tentatively booked, or already reserved.
+              {isSw
+                ? 'Panga tukio lako kwa uhakika. Upatikanaji unathibitishwa moja kwa moja na dawati la booking baada ya ombi lako kutumwa.'
+                : 'Plan your event with confidence. Availability is confirmed directly from the booking desk after your request is submitted.'}
             </p>
 
             <div className="space-y-4 pt-4">
               <div className="flex items-center gap-4">
                 <div className="w-4 h-4 rounded-full bg-green-500" />
-                <span className="text-blue-900/70">Available for booking</span>
+                <span className="text-blue-900/70">{isSw ? 'Unapatikana kwa booking' : 'Available for booking'}</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-4 h-4 rounded-full bg-amber-500" />
-                <span className="text-blue-900/70">Tentatively reserved</span>
+                <span className="text-blue-900/70">{isSw ? 'Umehifadhiwa kwa muda' : 'Tentatively reserved'}</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-4 h-4 rounded-full bg-red-500" />
-                <span className="text-blue-900/70">Already booked</span>
+                <span className="text-blue-900/70">{isSw ? 'Umeshahifadhiwa' : 'Already booked'}</span>
               </div>
             </div>
 
             <div className="pt-4">
               <Button className="bg-blue-900 hover:bg-blue-800 text-white px-8 py-6 text-lg rounded-xl">
                 <CalendarIcon className="w-5 h-5 mr-2" />
-                Request a Date
+                {isSw ? 'Omba Tarehe' : 'Request a Date'}
               </Button>
             </div>
           </div>
@@ -96,7 +89,7 @@ const CalendarSection = () => {
 
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-2 mb-4">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              {(isSw ? ['Jpl', 'Jtt', 'Jnn', 'Jtn', 'Alh', 'Ijm', 'Jms'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).map((day) => (
                 <div key={day} className="text-center text-sm font-medium text-white/50 py-2">
                   {day}
                 </div>
@@ -137,15 +130,15 @@ const CalendarSection = () => {
             <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-white/10">
               <div className="flex items-center gap-2 text-sm text-white/70">
                 <div className="w-3 h-3 rounded-full bg-white/20" />
-                <span>Available</span>
+                <span>{isSw ? 'Inapatikana' : 'Available'}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-white/70">
                 <div className="w-3 h-3 rounded-full bg-amber-500/50" />
-                <span>Tentative</span>
+                <span>{isSw ? 'Ya muda' : 'Tentative'}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-white/70">
                 <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                <span>Booked</span>
+                <span>{isSw ? 'Imehifadhiwa' : 'Booked'}</span>
               </div>
             </div>
           </div>

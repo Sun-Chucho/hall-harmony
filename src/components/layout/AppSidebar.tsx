@@ -163,7 +163,7 @@ export function AppSidebar() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/staff');
   };
 
   const assistantHallNavItems: NavItem[] = [

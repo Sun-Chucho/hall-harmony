@@ -98,7 +98,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('kuringe_language_v1');
-    return saved === 'sw' ? 'sw' : 'en';
+    return saved === 'en' ? 'en' : 'sw';
   });
 
   useEffect(() => {

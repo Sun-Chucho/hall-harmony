@@ -5,9 +5,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function currentUserRole() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/staff_users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/staff_users/$(request.auth.uid)).data.role
+        : null;
+    }
+
     function isControllerOrManager() {
-      return isSignedIn()
-        && (request.auth.token.role == 'controller' || request.auth.token.role == 'manager');
+      return currentUserRole() in ['controller', 'manager'];
     }
 
     function isSelfUpdateSafe() {
@@ -34,11 +40,18 @@ service cloud.firestore {
         || request.resource.data.createdByUserId == 'public-web';
       allow read: if isSignedIn();
       allow update: if isSignedIn();
-      allow delete: if isControllerOrManager();
+      allow delete: if isControllerOrManager()
+        || (isSignedIn() && resource.data.createdByUserId == request.auth.uid);
     }
 
     // Documents manual form outputs: staff-only visibility and submission.
     match /document_form_outputs/{entryId} {
+      allow create, read: if isSignedIn();
+      allow update, delete: if isControllerOrManager();
+    }
+
+    // Cash request workflow documents.
+    match /cash_request_workflow/{entryId} {
       allow create, read: if isSignedIn();
       allow update, delete: if isControllerOrManager();
     }

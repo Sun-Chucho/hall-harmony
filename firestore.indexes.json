@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "manager_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "toRole",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "manager_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

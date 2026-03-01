@@ -1,6 +1,7 @@
 import { Users, ArrowRight, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HallCatalogEntry } from '@/lib/landingData';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface VenueCardProps {
   hall: HallCatalogEntry;
@@ -16,7 +17,43 @@ const formatTZS = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const localizeHall = (hall: HallCatalogEntry, isSw: boolean) => {
+  if (!isSw) return hall;
+
+  if (hall.id === 'witness') {
+    return {
+      ...hall,
+      name: 'Ukumbi wa Witness',
+      alias: 'Ukumbi A',
+      description: 'Ukumbi mkubwa kwa wageni 500-700 wenye foyer nzuri, chandeliers, na mfumo bora wa sauti.',
+      capacity: 'Wageni 500 - 700',
+    };
+  }
+
+  if (hall.id === 'kilimanjaro') {
+    return {
+      ...hall,
+      name: 'Ukumbi wa Kilimanjaro na Garden',
+      alias: 'Ukumbi B + Garden',
+      description: 'Ukumbi kwa wageni 200-300 pamoja na garden ya watu 300-400 kwa sherehe na mapokezi.',
+      capacity: 'Ukumbi 200 - 300 | Garden 300 - 400',
+    };
+  }
+
+  return {
+    ...hall,
+    name: 'Ukumbi D',
+    alias: 'Ukumbi D',
+    description: 'Ukumbi wa karibu kwa wageni 30-60 unaofaa mikutano au chakula cha jioni cha binafsi.',
+    capacity: 'Wageni 30 - 60',
+  };
+};
+
 const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
+  const localizedHall = localizeHall(hall, isSw);
+
   return (
     <div 
       className={`group relative rounded-3xl overflow-hidden transition-all duration-500 hover:-translate-y-2 cursor-pointer ${
@@ -33,7 +70,7 @@ const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
             <div className="w-20 h-20 mx-auto rounded-2xl bg-current/10 flex items-center justify-center mb-3">
               <Users className="w-10 h-10" />
             </div>
-            <p className="text-sm font-medium">Venue Image</p>
+            <p className="text-sm font-medium">{isSw ? 'Picha ya Ukumbi' : 'Venue Image'}</p>
           </div>
         </div>
         
@@ -41,7 +78,7 @@ const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
         {featured && (
           <div className="absolute top-4 left-4 flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary to-red-500 text-white text-xs font-semibold">
             <Star className="w-3 h-3 fill-current" />
-            Featured Venue
+            {isSw ? 'Ukumbi Pendwa' : 'Featured Venue'}
           </div>
         )}
 
@@ -50,7 +87,7 @@ const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
           featured ? 'bg-white/10 backdrop-blur-sm text-white' : 'bg-blue-900 text-white'
         }`}>
           <Users className="w-4 h-4" />
-          <span className="text-sm font-medium">{hall.capacity}</span>
+          <span className="text-sm font-medium">{localizedHall.capacity}</span>
         </div>
       </div>
 
@@ -58,27 +95,27 @@ const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
       <div className="p-6 space-y-4">
         <div>
           <p className={`text-xs font-semibold uppercase tracking-wider ${featured ? 'text-primary' : 'text-primary'}`}>
-            {hall.alias}
+            {localizedHall.alias}
           </p>
           <h3 className={`text-2xl font-bold mt-1 ${featured ? 'text-white' : 'text-blue-950'}`}>
-            {hall.name}
+            {localizedHall.name}
           </h3>
           <p className={`mt-2 text-sm leading-relaxed ${featured ? 'text-white/70' : 'text-blue-900/60'}`}>
-            {hall.description}
+            {localizedHall.description}
           </p>
         </div>
 
         {/* Pricing */}
         <div className={`space-y-2 pt-4 border-t ${featured ? 'border-white/10' : 'border-blue-100'}`}>
           <p className={`text-xs font-semibold uppercase tracking-wider ${featured ? 'text-white/50' : 'text-blue-900/50'}`}>
-            Starting from
+            {isSw ? 'Kuanzia' : 'Starting from'}
           </p>
           <div className="flex items-end gap-2">
             <span className={`text-2xl font-bold ${featured ? 'text-white' : 'text-blue-950'}`}>
-              {formatTZS(Math.min(...hall.rates.map(r => r.price)))}
+              {formatTZS(Math.min(...localizedHall.rates.map(r => r.price)))}
             </span>
             <span className={`text-sm pb-1 ${featured ? 'text-white/50' : 'text-blue-900/50'}`}>
-              / day
+              {isSw ? '/ siku' : '/ day'}
             </span>
           </div>
         </div>
@@ -91,7 +128,7 @@ const VenueCard = ({ hall, onSelect, featured = false }: VenueCardProps) => {
               : 'bg-blue-900 text-white hover:bg-blue-800'
           }`}
         >
-          View Details
+          {isSw ? 'Tazama Maelezo' : 'View Details'}
           <ArrowRight className="ml-2 w-4 h-4" />
         </Button>
       </div>

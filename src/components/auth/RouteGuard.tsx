@@ -24,7 +24,7 @@ export function RouteGuard({
   const { can, policy } = useAuthorization();
 
   if (isLoading) return null;
-  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  if (!isAuthenticated || !user) return <Navigate to="/staff" replace />;
 
   const roleAllowedByRoute = canAccessRoute(user.role, path);
   const roleAllowedByProp = !allowedRoles || allowedRoles.includes(user.role);

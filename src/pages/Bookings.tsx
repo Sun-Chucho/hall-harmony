@@ -39,6 +39,7 @@ export default function Bookings() {
   const {
     bookings,
     createBooking,
+    deleteBooking,
     updateBooking,
     updateBookingStatus,
     updateEventDetailStatus,
@@ -73,6 +74,7 @@ export default function Bookings() {
   const canFinalizeEvent = user?.role === 'controller';
   const canAccountantReview = user?.role === 'accountant';
   const canCreateBooking = user?.role === 'controller';
+  const canDeleteAnyBooking = user?.role === 'controller' || user?.role === 'manager';
 
   const conflict = form.hall && form.date && form.startTime && form.endTime
     ? hasConflict(form)
@@ -131,6 +133,11 @@ export default function Bookings() {
 
   const handleEventStatus = async (bookingId: string, status: 'approved_assistant' | 'approved_controller' | 'rejected') => {
     const result = await updateEventDetailStatus(bookingId, status);
+    setMessage(result.message);
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    const result = await deleteBooking(bookingId);
     setMessage(result.message);
   };
 
@@ -266,7 +273,10 @@ export default function Bookings() {
                           <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                           <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
                           <div className="mt-3">
-                            <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
+                              <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete Booking</Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -282,7 +292,7 @@ export default function Bookings() {
   }
 
   if (isCashier1) {
-    const cashierBookings = bookings.filter((entry) => entry.assignedToRole === 'cashier_1' && entry.createdByUserId !== 'public-web');
+    const cashierBookings = bookings.filter((entry) => entry.assignedToRole === 'cashier_1');
     const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const financials = selected ? getBookingFinancials(selected.id) : null;
     const bookingPayments = selected ? payments.filter((item) => item.bookingId === selected.id) : [];
@@ -517,6 +527,12 @@ export default function Bookings() {
                           <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'cancelled')}>Cancel</Button>
                           <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'completed')}>Complete</Button>
                         </>
+                      ) : null}
+
+                      {(canDeleteAnyBooking || booking.createdByUserId === user?.id) ? (
+                        <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>
+                          Delete Booking
+                        </Button>
                       ) : null}
 
                       {canAccountantReview ? (

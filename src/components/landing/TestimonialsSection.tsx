@@ -1,40 +1,51 @@
 import { Star, Quote } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const testimonials = [
   {
     name: 'Fatima Mwinyi',
-    role: 'Wedding Client',
-    content: 'Witness Hall exceeded all our expectations. The team was incredibly professional, and our 600 guests were amazed by the beautiful setup. Truly unforgettable!',
+    roleEn: 'Wedding Client',
+    roleSw: 'Mteja wa Harusi',
+    contentEn: 'Witness Hall exceeded all our expectations. The team was incredibly professional, and our 600 guests were amazed by the beautiful setup. Truly unforgettable!',
+    contentSw: 'Ukumbi wa Witness ulizidi matarajio yetu yote. Timu ilikuwa ya kitaalamu sana, na wageni wetu 600 walivutiwa na mpangilio mzuri. Ilikuwa ya kukumbukwa sana!',
     rating: 5,
   },
   {
     name: 'James Mollel',
-    role: 'Corporate Event Manager',
-    content: 'We hosted our annual conference at Kilimanjaro Hall. The AV equipment, catering, and coordination were world-class. Will definitely return.',
+    roleEn: 'Corporate Event Manager',
+    roleSw: 'Msimamizi wa Matukio ya Kampuni',
+    contentEn: 'We hosted our annual conference at Kilimanjaro Hall. The AV equipment, catering, and coordination were world-class. Will definitely return.',
+    contentSw: 'Tulifanya mkutano wetu wa mwaka katika Ukumbi wa Kilimanjaro. Vifaa vya sauti/onekana, upishi, na uratibu vilikuwa vya kiwango cha juu. Tutarudi tena.',
     rating: 5,
   },
   {
     name: 'Grace Kimaro',
-    role: 'Birthday Celebration',
-    content: 'Hall D was perfect for my intimate 50th birthday dinner. The ambiance, service, and attention to detail made it a night to remember.',
+    roleEn: 'Birthday Celebration',
+    roleSw: 'Sherehe ya Siku ya Kuzaliwa',
+    contentEn: 'Hall D was perfect for my intimate 50th birthday dinner. The ambiance, service, and attention to detail made it a night to remember.',
+    contentSw: 'Ukumbi D ulikuwa sahihi kwa chakula cha jioni cha kumbukumbu ya miaka 50. Mandhari, huduma, na umakini kwa maelezo vilifanya usiku uwe wa kipekee.',
     rating: 5,
   },
 ];
 
 const TestimonialsSection = () => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
+
   return (
     <section className="py-24 bg-gradient-to-b from-blue-50/30 to-white">
       <div className="mx-auto max-w-7xl px-6">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-            Testimonials
+            {isSw ? 'Ushuhuda' : 'Testimonials'}
           </p>
           <h2 className="text-4xl md:text-5xl font-bold text-blue-950 mb-4">
-            What Our Clients Say
+            {isSw ? 'Wateja Wanasemaje' : 'What Our Clients Say'}
           </h2>
           <p className="text-lg text-blue-900/60">
-            Join hundreds of satisfied clients who have celebrated their special 
-            moments at Kuringe Halls.
+            {isSw
+              ? 'Jiunge na mamia ya wateja walioridhika waliofanya matukio yao maalum Kuringe Halls.'
+              : 'Join hundreds of satisfied clients who have celebrated their special moments at Kuringe Halls.'}
           </p>
         </div>
 
@@ -53,7 +64,7 @@ const TestimonialsSection = () => {
               </div>
 
               <p className="text-blue-900/70 leading-relaxed mb-6">
-                "{testimonial.content}"
+                "{isSw ? testimonial.contentSw : testimonial.contentEn}"
               </p>
 
               <div className="flex items-center gap-4">
@@ -62,7 +73,7 @@ const TestimonialsSection = () => {
                 </div>
                 <div>
                   <p className="font-semibold text-blue-950">{testimonial.name}</p>
-                  <p className="text-sm text-blue-900/50">{testimonial.role}</p>
+                  <p className="text-sm text-blue-900/50">{isSw ? testimonial.roleSw : testimonial.roleEn}</p>
                 </div>
               </div>
             </div>

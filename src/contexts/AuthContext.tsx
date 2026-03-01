@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { deleteApp, initializeApp } from 'firebase/app';
 import {
+  createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAuth,
   onAuthStateChanged,
@@ -9,10 +10,9 @@ import {
   signOut,
   updatePassword,
 } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import {
   AuthState,
-  PASSWORD_RESET_AUTHORITIES,
   ROLE_CHANGE_AUTHORITIES,
   ROLE_LABELS,
   User,
@@ -28,22 +28,16 @@ interface AuthContextType extends AuthState {
   switchUser: (userId: string) => void;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ ok: boolean; message: string }>;
   refreshStaffUsers: () => Promise<void>;
+  createStaffUser: (input: { name: string; email: string; role: UserRole; password: string }) => Promise<{ ok: boolean; message: string }>;
   updateStaffRole: (userId: string, role: UserRole) => Promise<{ ok: boolean; message: string }>;
+  updateStaffActive: (userId: string, isActive: boolean) => Promise<{ ok: boolean; message: string }>;
+  removeStaffUser: (userId: string) => Promise<{ ok: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
 const DEFAULT_PASSWORD = '123456';
 const LEGACY_PASSWORD_ALIAS = '1234';
-const LOCAL_MD_SESSION_KEY = 'kuringe_local_md_session_v1';
-const LOCAL_MD_USER = {
-  id: 'md-local-edward-mushi',
-  email: 'edward.mushi@kuringe.co.tz',
-  name: 'Edward Mushi',
-  role: 'managing_director' as const,
-  isActive: true,
-};
-const LOCAL_MD_PASSWORD = '1234';
 
 function resolveFirebasePassword(password: string) {
   if (password === LEGACY_PASSWORD_ALIAS) {
@@ -62,14 +56,6 @@ function normalizeUser(input: Partial<User> & { id: string; email: string; name:
     createdAt: input.createdAt ?? new Date().toISOString(),
     lastLogin: input.lastLogin,
   };
-}
-
-function buildLocalManagingDirectorUser(lastLogin?: string): User {
-  return normalizeUser({
-    ...LOCAL_MD_USER,
-    createdAt: new Date().toISOString(),
-    lastLogin,
-  });
 }
 
 async function fetchStaffDirectory(): Promise<User[]> {
@@ -133,30 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshStaffUsers = useCallback(async () => {
     const directory = await fetchStaffDirectory();
-    const hasManagingDirector = directory.some(
-      (item) => item.id === LOCAL_MD_USER.id || item.email.toLowerCase() === LOCAL_MD_USER.email.toLowerCase(),
-    );
-    setStaffUsers(hasManagingDirector ? directory : [buildLocalManagingDirectorUser(), ...directory]);
+    setStaffUsers(directory);
   }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        const localSessionRaw = localStorage.getItem(LOCAL_MD_SESSION_KEY);
-        if (localSessionRaw) {
-          try {
-            const parsed = JSON.parse(localSessionRaw) as { lastLogin?: string };
-            setState({
-              user: buildLocalManagingDirectorUser(parsed.lastLogin),
-              isAuthenticated: true,
-              isLoading: false,
-            });
-            return;
-          } catch {
-            localStorage.removeItem(LOCAL_MD_SESSION_KEY);
-          }
-        }
-
         setState({ user: null, isAuthenticated: false, isLoading: false });
         return;
       }
@@ -192,25 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const targetUser = staffUsers.find(
         (item) => item.id === identifier || item.email.toLowerCase() === normalizedIdentifier,
       );
-      if (
-        identifier === LOCAL_MD_USER.id ||
-        targetUser?.email.toLowerCase() === LOCAL_MD_USER.email.toLowerCase() ||
-        normalizedIdentifier === LOCAL_MD_USER.email.toLowerCase() ||
-        normalizedIdentifier === LOCAL_MD_USER.name.toLowerCase()
-      ) {
-        if (password.trim() !== LOCAL_MD_PASSWORD) {
-          return { ok: false, message: 'Invalid Managing Director password.' };
-        }
-        const nowIso = new Date().toISOString();
-        localStorage.setItem(LOCAL_MD_SESSION_KEY, JSON.stringify({ lastLogin: nowIso }));
-        setState({
-          user: buildLocalManagingDirectorUser(nowIso),
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        return { ok: true };
-      }
-      localStorage.removeItem(LOCAL_MD_SESSION_KEY);
 
       if (!targetUser) {
         return { ok: false, message: 'Selected user was not found in Firestore staff directory.' };
@@ -271,7 +220,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loginWithResult]);
 
   const logout = useCallback(async () => {
-    localStorage.removeItem(LOCAL_MD_SESSION_KEY);
     await signOut(auth);
     setState({
       user: null,
@@ -296,9 +244,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ?? (state.user && state.user.id === userId ? state.user : null);
       if (!targetUser) {
         return { ok: false, message: 'Selected user account was not found.' };
-      }
-      if (targetUser.id === LOCAL_MD_USER.id) {
-        return { ok: false, message: 'Managing Director password is fixed by system configuration.' };
       }
 
       try {
@@ -331,6 +276,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [staffUsers, state.user],
   );
 
+  const createStaffUser = useCallback(
+    async (input: { name: string; email: string; role: UserRole; password: string }) => {
+      if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
+        return { ok: false, message: 'Only Controller or Hall Manager can add users.' };
+      }
+
+      const name = input.name.trim();
+      const email = input.email.trim().toLowerCase();
+      const password = input.password.trim();
+      if (!name) return { ok: false, message: 'Name is required.' };
+      if (!email || !email.includes('@')) return { ok: false, message: 'Valid email is required.' };
+      if (!ROLE_LABELS[input.role]) return { ok: false, message: 'Invalid role.' };
+      if (password.length < 6) return { ok: false, message: 'Password must be at least 6 characters.' };
+
+      const existing = staffUsers.find((entry) => entry.email.toLowerCase() === email);
+      if (existing) {
+        return { ok: false, message: 'A staff profile with this email already exists.' };
+      }
+
+      const tempAppName = `staff-create-${Date.now()}`;
+      const tempApp = initializeApp(firebaseConfig, tempAppName);
+      const tempAuth = getAuth(tempApp);
+
+      try {
+        const credential = await createUserWithEmailAndPassword(tempAuth, email, password);
+        await setDoc(doc(db, STAFF_COLLECTION, credential.user.uid), {
+          id: credential.user.uid,
+          email,
+          name,
+          role: input.role,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        await signOut(tempAuth);
+        await deleteApp(tempApp);
+        await refreshStaffUsers();
+        return { ok: true, message: 'Staff user added successfully.' };
+      } catch {
+        try {
+          await signOut(tempAuth);
+        } catch {
+          // Ignore.
+        }
+        await deleteApp(tempApp);
+        return { ok: false, message: 'Failed to create user. Verify Firebase Authentication is enabled for Email/Password.' };
+      }
+    },
+    [refreshStaffUsers, staffUsers, state.user],
+  );
+
   const updateStaffRole = useCallback(
     async (userId: string, role: UserRole) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
@@ -355,6 +352,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshStaffUsers, state.user],
   );
 
+  const updateStaffActive = useCallback(
+    async (userId: string, isActive: boolean) => {
+      if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
+        return { ok: false, message: 'Only Controller or Hall Manager can update user status.' };
+      }
+
+      if (state.user.id === userId && !isActive) {
+        return { ok: false, message: 'You cannot deactivate your own account.' };
+      }
+
+      try {
+        await updateDoc(doc(db, STAFF_COLLECTION, userId), {
+          isActive,
+          updatedAt: serverTimestamp(),
+        });
+        await refreshStaffUsers();
+        return { ok: true, message: isActive ? 'User activated.' : 'User deactivated.' };
+      } catch {
+        return { ok: false, message: 'Failed to update user status.' };
+      }
+    },
+    [refreshStaffUsers, state.user],
+  );
+
+  const removeStaffUser = useCallback(
+    async (userId: string) => {
+      if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
+        return { ok: false, message: 'Only Controller or Hall Manager can remove users.' };
+      }
+
+      if (state.user.id === userId) {
+        return { ok: false, message: 'You cannot remove your own account.' };
+      }
+
+      try {
+        await deleteDoc(doc(db, STAFF_COLLECTION, userId));
+        await refreshStaffUsers();
+        return { ok: true, message: 'User removed from staff directory.' };
+      } catch {
+        return { ok: false, message: 'Failed to remove user.' };
+      }
+    },
+    [refreshStaffUsers, state.user],
+  );
+
   const value = useMemo(
     () => ({
       ...state,
@@ -365,9 +407,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       switchUser,
       changePassword,
       refreshStaffUsers,
+      createStaffUser,
       updateStaffRole,
+      updateStaffActive,
+      removeStaffUser,
     }),
-    [changePassword, login, loginWithResult, logout, refreshStaffUsers, staffUsers, state, switchUser, updateStaffRole],
+    [
+      changePassword,
+      createStaffUser,
+      login,
+      loginWithResult,
+      logout,
+      refreshStaffUsers,
+      removeStaffUser,
+      staffUsers,
+      state,
+      switchUser,
+      updateStaffActive,
+      updateStaffRole,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -382,5 +440,5 @@ export function useAuth() {
 }
 
 export function canResetOtherUsers(role: UserRole) {
-  return PASSWORD_RESET_AUTHORITIES.includes(role);
+  return ROLE_CHANGE_AUTHORITIES.includes(role);
 }

@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { hallCatalog, HallCatalogEntry } from '@/lib/landingData';
 import VenueCard from './VenueCard';
 import VenueDetailModal from './VenueDetailModal';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const VenuesSection = () => {
   const [selectedHall, setSelectedHall] = useState<HallCatalogEntry | null>(null);
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
 
   return (
     <>
@@ -12,14 +15,15 @@ const VenuesSection = () => {
         <div className="mx-auto max-w-7xl px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-3">
-              Our Venues
+              {isSw ? 'Kumbi Zetu' : 'Our Venues'}
             </p>
             <h2 className="text-4xl md:text-5xl font-bold text-blue-950 mb-4">
-              Discover Premium Event Spaces
+              {isSw ? 'Gundua Nafasi Bora za Matukio' : 'Discover Premium Event Spaces'}
             </h2>
             <p className="text-lg text-blue-900/60">
-              Three exceptional venues designed to bring your vision to life. 
-              Each space offers unique character and amenities for unforgettable events.
+              {isSw
+                ? 'Kumbi tatu za kipekee zilizobuniwa kuifanya ndoto ya tukio lako iwe halisi. Kila ukumbi una tabia na huduma zake kwa kumbukumbu zisizosahaulika.'
+                : 'Three exceptional venues designed to bring your vision to life. Each space offers unique character and amenities for unforgettable events.'}
             </p>
           </div>
 

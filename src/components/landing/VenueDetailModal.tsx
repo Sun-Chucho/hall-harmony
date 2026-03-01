@@ -2,6 +2,7 @@ import { X, Users, Calendar, Check, MapPin, Clock, Sparkles } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { HallCatalogEntry } from '@/lib/landingData';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface VenueDetailModalProps {
   hall: HallCatalogEntry | null;
@@ -17,6 +18,8 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
+  const { language } = useLanguage();
+  const isSw = language === 'sw';
   if (!hall) return null;
 
   const amenities = [
@@ -63,7 +66,7 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
           {/* Description & Quick Info */}
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <h3 className="text-lg font-semibold text-blue-950 mb-3">About This Venue</h3>
+              <h3 className="text-lg font-semibold text-blue-950 mb-3">{isSw ? 'Kuhusu Ukumbi Huu' : 'About This Venue'}</h3>
               <p className="text-blue-900/70 leading-relaxed">{hall.description}</p>
             </div>
             <div className="space-y-4">
@@ -72,7 +75,7 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
                   <Users className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">Capacity</p>
+                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">{isSw ? 'Uwezo' : 'Capacity'}</p>
                   <p className="font-semibold text-blue-950">{hall.capacity}</p>
                 </div>
               </div>
@@ -81,7 +84,7 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
                   <MapPin className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">Location</p>
+                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">{isSw ? 'Eneo' : 'Location'}</p>
                   <p className="font-semibold text-blue-950">Kuringe Halls, Dar es Salaam</p>
                 </div>
               </div>
@@ -90,8 +93,8 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
                   <Clock className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">Event End Time</p>
-                  <p className="font-semibold text-blue-950">Midnight (00:00)</p>
+                  <p className="text-xs text-blue-900/50 uppercase tracking-wide">{isSw ? 'Mwisho wa Tukio' : 'Event End Time'}</p>
+                  <p className="font-semibold text-blue-950">{isSw ? 'Saa sita usiku (00:00)' : 'Midnight (00:00)'}</p>
                 </div>
               </div>
             </div>
@@ -101,7 +104,7 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
           <div>
             <h3 className="text-lg font-semibold text-blue-950 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Pricing by Day
+              {isSw ? 'Bei kwa Siku' : 'Pricing by Day'}
             </h3>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
               {hall.rates.map((rate) => (
@@ -111,14 +114,14 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
                 </div>
               ))}
             </div>
-            <p className="text-sm text-blue-900/50 mt-3">* All prices include VAT 18%</p>
+            <p className="text-sm text-blue-900/50 mt-3">{isSw ? '* Bei zote zinajumuisha VAT 18%' : '* All prices include VAT 18%'}</p>
           </div>
 
           {/* Amenities */}
           <div>
             <h3 className="text-lg font-semibold text-blue-950 mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
-              Included Amenities
+              {isSw ? 'Huduma Zinazojumuishwa' : 'Included Amenities'}
             </h3>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
               {amenities.map((amenity) => (
@@ -132,9 +135,9 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
 
           {/* CTA */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-blue-100">
-            <Link to="/login" className="flex-1">
+            <Link to="/booking" className="flex-1">
               <Button className="w-full bg-gradient-to-r from-primary to-red-500 hover:from-primary/90 hover:to-red-500/90 text-white py-6 text-lg rounded-xl shadow-lg">
-                Book This Venue
+                {isSw ? 'Hifadhi Ukumbi Huu' : 'Book This Venue'}
               </Button>
             </Link>
             <Button 
@@ -142,7 +145,7 @@ const VenueDetailModal = ({ hall, onClose }: VenueDetailModalProps) => {
               onClick={onClose}
               className="flex-1 border-2 border-blue-900/20 text-blue-900 py-6 text-lg rounded-xl hover:bg-blue-50"
             >
-              Continue Browsing
+              {isSw ? 'Endelea Kutazama' : 'Continue Browsing'}
             </Button>
           </div>
         </div>

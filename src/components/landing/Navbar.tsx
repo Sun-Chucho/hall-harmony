@@ -40,11 +40,6 @@ const Navbar = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
-            <Link to="/login">
-              <Button variant="outline" className="border-slate-300 text-slate-900 hover:bg-slate-50">
-                Login
-              </Button>
-            </Link>
             <Link to="/foods">
               <Button className="bg-red-600 text-white hover:bg-red-500">
                 View menu
@@ -83,11 +78,6 @@ const Navbar = () => {
                 Food menu
               </Link>
               <div className="flex flex-col gap-3 pt-4 mt-4 border-t border-slate-200">
-                <Link to="/login" onClick={() => setIsOpen(false)}>
-                  <Button variant="outline" className="w-full border-slate-300 text-slate-900">
-                    Login
-                  </Button>
-                </Link>
                 <Link to="/foods" onClick={() => setIsOpen(false)}>
                   <Button className="w-full bg-red-600 text-white hover:bg-red-500">
                     View menu

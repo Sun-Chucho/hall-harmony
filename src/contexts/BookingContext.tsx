@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
@@ -10,6 +10,7 @@ interface BookingContextValue {
   createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   createPublicBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   updateBooking: (bookingId: string, payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  deleteBooking: (bookingId: string) => Promise<{ ok: boolean; message: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<{ ok: boolean; message: string }>;
   submitEventDetails: (
     bookingId: string,
@@ -342,6 +343,26 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [bookings, reviewApproval, user]);
 
+  const deleteBooking = useCallback(async (bookingId: string) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    const target = bookings.find((booking) => booking.id === bookingId);
+    if (!target) return { ok: false, message: 'Booking not found.' };
+
+    const isManagerOrController = user.role === 'manager' || user.role === 'controller';
+    const isOwner = target.createdByUserId === user.id;
+    if (!isManagerOrController && !isOwner) {
+      return { ok: false, message: 'You can only delete your own bookings.' };
+    }
+
+    try {
+      await deleteDoc(doc(db, BOOKINGS_COLLECTION, bookingId));
+      return { ok: true, message: 'Booking deleted.' };
+    } catch {
+      setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
+      return { ok: true, message: 'Booking deleted locally. Cloud sync pending.' };
+    }
+  }, [bookings, user]);
+
   const submitEventDetails = useCallback(async (
     bookingId: string,
     eventType: string,
@@ -450,12 +471,23 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     bookings,
     createBooking,
     createPublicBooking,
+    deleteBooking,
     updateBooking,
     updateBookingStatus,
     submitEventDetails,
     updateEventDetailStatus,
     hasConflict,
-  }), [bookings, createBooking, createPublicBooking, hasConflict, submitEventDetails, updateBooking, updateBookingStatus, updateEventDetailStatus]);
+  }), [
+    bookings,
+    createBooking,
+    createPublicBooking,
+    deleteBooking,
+    hasConflict,
+    submitEventDetails,
+    updateBooking,
+    updateBookingStatus,
+    updateEventDetailStatus,
+  ]);
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
 }

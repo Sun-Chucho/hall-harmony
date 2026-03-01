@@ -21,30 +21,51 @@ const categoryImages: Record<string, string> = {
 const categorized = [
   {
     key: 'beer',
-    title: 'Beers and Ciders',
+    titleEn: 'Beers and Ciders',
+    titleSw: 'Bia na Cider',
     items: beverageList.filter((x) => /(Beer|Flying Fish|Kilimanjaro Lite|Savanna|Bavaria|Baltika|Malta)/i.test(x.name)),
   },
   {
     key: 'soft',
-    title: 'Soft Drinks',
+    titleEn: 'Soft Drinks',
+    titleSw: 'Vinywaji Baridi',
     items: beverageList.filter((x) => /(Soda)/i.test(x.name)),
   },
   {
     key: 'juice',
-    title: 'Juices',
+    titleEn: 'Juices',
+    titleSw: 'Juisi',
     items: beverageList.filter((x) => /(Juice|Azam|Ceres)/i.test(x.name)),
   },
   {
     key: 'water',
-    title: 'Water',
+    titleEn: 'Water',
+    titleSw: 'Maji',
     items: beverageList.filter((x) => /(Maji|Water)/i.test(x.name)),
   },
   {
     key: 'premium',
-    title: 'Premium and Bottle Service',
+    titleEn: 'Premium and Bottle Service',
+    titleSw: 'Huduma ya Premium na Chupa',
     items: beverageList.filter((x) => /(Konyagi|Wine)/i.test(x.name)),
   },
 ];
+
+const localizeDrinkName = (name: string, isSw: boolean) => {
+  if (!isSw) return name;
+
+  const map: Record<string, string> = {
+    'Local Beer': 'Bia za Ndani',
+    'Imported Beer': 'Bia za Nje',
+    Soda: 'Soda',
+    'Azam Juice': 'Juisi ya Azam',
+    'Ceres Juice': 'Juisi ya Ceres',
+    'Maji Kili 1/2 LT (0.5 LT)': 'Maji Kili 1/2 LT (0.5 LT)',
+    'Wine (5 LTRS)': 'Wine (Lita 5)',
+    'Konyagi & K Vant': 'Konyagi na K Vant',
+  };
+  return map[name] ?? name;
+};
 
 export default function Drinks() {
   const { language } = useLanguage();
@@ -72,18 +93,25 @@ export default function Drinks() {
         {categorized.map((category) => (
           <section key={category.key} className="grid gap-6 lg:grid-cols-[1fr_1.2fr] items-stretch">
             <article className="relative overflow-hidden border border-black/10 min-h-[260px]">
-              <img src={categoryImages[category.key]} alt={category.title} className="h-full w-full object-cover" />
+              <img
+                src={categoryImages[category.key]}
+                alt={isSw ? category.titleSw : category.titleEn}
+                className="h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
                 <p className="text-xs uppercase tracking-[0.22em] text-white/80">{isSw ? 'Kundi la Vinywaji' : 'Drink Category'}</p>
-                <h2 className="mt-2 text-2xl font-semibold">{category.title}</h2>
+                <h2 className="mt-2 text-2xl font-semibold">{isSw ? category.titleSw : category.titleEn}</h2>
               </div>
             </article>
             <article className="border border-black/10 bg-white p-5">
               <div className="grid gap-3 sm:grid-cols-2">
                 {category.items.map((drink) => (
-                  <div key={drink.name} className="flex items-center justify-between border border-black/10 bg-[#faf9f6] px-4 py-3 text-sm">
-                    <span>{drink.name}</span>
+                  <div
+                    key={drink.name}
+                    className="flex h-14 items-center justify-between border border-black/10 bg-[#faf9f6] px-4 text-sm"
+                  >
+                    <span>{localizeDrinkName(drink.name, isSw)}</span>
                     <span className="font-semibold">{formatTZS(drink.price)}</span>
                   </div>
                 ))}
