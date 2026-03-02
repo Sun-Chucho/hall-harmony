@@ -10,7 +10,7 @@ import {
   signOut,
   updatePassword,
 } from 'firebase/auth';
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import {
   AuthState,
   ROLE_CHANGE_AUTHORITIES,
@@ -32,6 +32,7 @@ interface AuthContextType extends AuthState {
   updateStaffRole: (userId: string, role: UserRole) => Promise<{ ok: boolean; message: string }>;
   updateStaffActive: (userId: string, isActive: boolean) => Promise<{ ok: boolean; message: string }>;
   removeStaffUser: (userId: string) => Promise<{ ok: boolean; message: string }>;
+  forceLogoutAllSessions: () => Promise<{ ok: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,6 +40,7 @@ const STAFF_COLLECTION = 'staff_users';
 const DEFAULT_PASSWORD = '123456';
 const LEGACY_PASSWORD_ALIAS = '1234';
 const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
+const SESSION_CONTROL_REF = doc(db, 'system_state', 'session_control');
 
 function resolveFirebasePassword(password: string) {
   if (password === LEGACY_PASSWORD_ALIAS) {
@@ -179,6 +181,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return unsubscribe;
   }, [refreshStaffUsers]);
+
+  useEffect(() => {
+    if (!state.user) return;
+
+    const unsub = onSnapshot(
+      SESSION_CONTROL_REF,
+      async (snapshot) => {
+        const data = snapshot.data() as { forceLogoutAt?: string } | undefined;
+        const forceLogoutAt = data?.forceLogoutAt;
+        if (!forceLogoutAt) return;
+        const forcedAtMs = Date.parse(forceLogoutAt);
+        if (Number.isNaN(forcedAtMs)) return;
+        const baseline = state.user?.lastLogin ?? state.user?.createdAt ?? '';
+        const lastLoginMs = Date.parse(baseline);
+        if (Number.isNaN(lastLoginMs) || lastLoginMs < forcedAtMs) {
+          await signOut(auth);
+          localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+          setState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
+      },
+      () => {
+        // Ignore listener errors; auth flow remains available.
+      },
+    );
+
+    return () => unsub();
+  }, [state.user]);
 
   const loginWithResult = useCallback(
     async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
@@ -428,6 +461,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshStaffUsers, state.user],
   );
 
+  const forceLogoutAllSessions = useCallback(async () => {
+    if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
+      return { ok: false, message: 'Only Controller or Hall Manager can force logout all sessions.' };
+    }
+
+    try {
+      const nowIso = new Date().toISOString();
+      await setDoc(
+        SESSION_CONTROL_REF,
+        {
+          forceLogoutAt: nowIso,
+          forcedByUserId: state.user.id,
+          forcedByRole: state.user.role,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      return { ok: true, message: 'Global logout signal sent. Active sessions will be signed out.' };
+    } catch {
+      return { ok: false, message: 'Failed to send global logout signal.' };
+    }
+  }, [state.user]);
+
   const value = useMemo(
     () => ({
       ...state,
@@ -442,6 +498,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateStaffRole,
       updateStaffActive,
       removeStaffUser,
+      forceLogoutAllSessions,
     }),
     [
       changePassword,
@@ -456,6 +513,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       switchUser,
       updateStaffActive,
       updateStaffRole,
+      forceLogoutAllSessions,
     ],
   );
 

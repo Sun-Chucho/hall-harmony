@@ -31,6 +31,7 @@ export default function Settings() {
     updateStaffRole,
     updateStaffActive,
     removeStaffUser,
+    forceLogoutAllSessions,
   } = useAuth();
   const { toast } = useToast();
 
@@ -39,6 +40,7 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [isForcingLogout, setIsForcingLogout] = useState(false);
   const [busyUserId, setBusyUserId] = useState('');
   const [createForm, setCreateForm] = useState({
     name: '',
@@ -141,6 +143,18 @@ export default function Settings() {
     setBusyUserId('');
   };
 
+  const handleForceLogoutAll = async () => {
+    if (!canManageUsers) return;
+    setIsForcingLogout(true);
+    const result = await forceLogoutAllSessions();
+    toast({
+      title: result.ok ? 'Logout signal sent' : 'Action failed',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
+    setIsForcingLogout(false);
+  };
+
   return (
     <DashboardLayout title="Settings">
       <div className="mx-auto grid max-w-5xl gap-6">
@@ -194,6 +208,23 @@ export default function Settings() {
             </form>
           </CardContent>
         </Card>
+
+        {canManageUsers ? (
+          <Card className="border-rose-200">
+            <CardHeader>
+              <CardTitle>Session Control</CardTitle>
+              <CardDescription>
+                Force sign-out for all active staff devices. Users must log in again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="destructive" onClick={() => void handleForceLogoutAll()} disabled={isForcingLogout}>
+                {isForcingLogout ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Force Logout All Devices
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="border-slate-200">
           <CardHeader>
