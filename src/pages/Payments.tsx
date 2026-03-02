@@ -42,6 +42,7 @@ function statusLabel(value: string) {
 
 export default function Payments() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { bookings } = useBookings();
   const {
     payments,
@@ -327,4 +328,3 @@ export default function Payments() {
     />
   );
 }
-  const { toast } = useToast();

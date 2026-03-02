@@ -65,6 +65,11 @@ const Hall = () => {
     notes: '',
   });
 
+  const conflict = useMemo(() => {
+    if (!bookForm.hall || !bookForm.date || !bookForm.startTime || !bookForm.endTime) return false;
+    return hasConflict(bookForm);
+  }, [bookForm, hasConflict]);
+
   if (!profile) {
     return (
       <div className="min-h-screen bg-white text-slate-900">
@@ -84,10 +89,6 @@ const Hall = () => {
 
   const heroImage = hallImages[profile.id];
   const quote = bookForm.date ? rateForDay(profile.standardRentalRates, new Date(bookForm.date).getDay()) : 0;
-  const conflict = useMemo(() => {
-    if (!bookForm.hall || !bookForm.date || !bookForm.startTime || !bookForm.endTime) return false;
-    return hasConflict(bookForm);
-  }, [bookForm, hasConflict]);
 
   const handleScheduleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
