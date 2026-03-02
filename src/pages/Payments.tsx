@@ -55,6 +55,18 @@ export default function Payments() {
   const [statusValue, setStatusValue] = useState<BookingPaymentStatus>('pending');
   const [receiptPreview, setReceiptPreview] = useState('');
   const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+
+  const refreshPageAfterUpdate = (notice?: string) => {
+    setIsRefreshingPage(true);
+    setMessage(notice ?? 'Update saved. Refreshing page...');
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 900);
+    }
+  };
 
   const eligibleBookings = useMemo(
     () => bookings.filter((booking) => booking.bookingStatus !== 'cancelled' && booking.bookingStatus !== 'rejected'),
@@ -90,6 +102,8 @@ export default function Payments() {
   const canRecordPayments = user?.role === 'cashier_1' || user?.role === 'controller';
 
   const handleRecordPayment = () => {
+    if (isSubmitting || isRefreshingPage) return;
+    setIsSubmitting(true);
     const result = recordPayment(form);
     setMessage(result.message);
     if (result.ok) {
@@ -100,16 +114,24 @@ export default function Payments() {
           setReceiptPreview(receipt.receipt);
         }
       }
+      refreshPageAfterUpdate('Payment recorded. Refreshing page...');
     }
+    setIsSubmitting(false);
   };
 
   const handleSetStatus = () => {
+    if (isSubmitting || isRefreshingPage) return;
     if (!statusBookingId) {
       setMessage('Select a booking first.');
       return;
     }
+    setIsSubmitting(true);
     const result = setBookingPaymentStatus(statusBookingId, statusValue);
     setMessage(result.message);
+    if (result.ok) {
+      refreshPageAfterUpdate('Booking payment status updated. Refreshing page...');
+    }
+    setIsSubmitting(false);
   };
 
   return (
@@ -168,7 +190,7 @@ export default function Payments() {
               />
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button size="sm" onClick={handleRecordPayment} disabled={!canRecordPayments}>
+              <Button size="sm" onClick={handleRecordPayment} disabled={!canRecordPayments || isSubmitting || isRefreshingPage}>
                 Record Payment
               </Button>
               {selectedFinancials ? (
@@ -211,7 +233,7 @@ export default function Payments() {
                   </option>
                 ))}
               </select>
-              <Button size="sm" onClick={handleSetStatus} disabled={!canRecordPayments}>
+              <Button size="sm" onClick={handleSetStatus} disabled={!canRecordPayments || isSubmitting || isRefreshingPage}>
                 Mark Status
               </Button>
             </div>

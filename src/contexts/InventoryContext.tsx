@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
@@ -49,6 +49,15 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [damages, setDamages] = useState<DamagedItemRecord[]>([]);
   const [allocations, setAllocations] = useState<EventItemAllocation[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const lastSyncedStateRef = useRef('');
+  const pendingRemoteWriteRef = useRef(false);
+
+  const serializeState = useCallback((nextState: {
+    items: InventoryItem[];
+    movements: InventoryMovement[];
+    damages: DamagedItemRecord[];
+    allocations: EventItemAllocation[];
+  }) => JSON.stringify(nextState), []);
 
   useEffect(() => {
     const raw = localStorage.getItem(INVENTORY_CACHE_KEY);
@@ -88,6 +97,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       setDamages([]);
       setAllocations([]);
       setHydrated(false);
+      lastSyncedStateRef.current = '';
       return;
     }
 
@@ -100,10 +110,20 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           damages?: DamagedItemRecord[];
           allocations?: EventItemAllocation[];
         } | undefined;
-        setItems(Array.isArray(data?.items) ? data.items : []);
-        setMovements(Array.isArray(data?.movements) ? data.movements : []);
-        setDamages(Array.isArray(data?.damages) ? data.damages : []);
-        setAllocations(Array.isArray(data?.allocations) ? data.allocations : []);
+        const nextState = {
+          items: Array.isArray(data?.items) ? data.items : [],
+          movements: Array.isArray(data?.movements) ? data.movements : [],
+          damages: Array.isArray(data?.damages) ? data.damages : [],
+          allocations: Array.isArray(data?.allocations) ? data.allocations : [],
+        };
+        const serialized = serializeState(nextState);
+        if (serialized !== lastSyncedStateRef.current) {
+          setItems(nextState.items);
+          setMovements(nextState.movements);
+          setDamages(nextState.damages);
+          setAllocations(nextState.allocations);
+          lastSyncedStateRef.current = serialized;
+        }
         setHydrated(true);
       },
       () => {
@@ -133,6 +153,16 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || !hydrated) return;
+    if (!pendingRemoteWriteRef.current) return;
+    pendingRemoteWriteRef.current = false;
+    const serialized = serializeState({
+      items,
+      movements,
+      damages,
+      allocations,
+    });
+    if (serialized === lastSyncedStateRef.current) return;
+    lastSyncedStateRef.current = serialized;
     void setDoc(
       INVENTORY_STATE_REF,
       {
@@ -158,15 +188,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       damages: overrides?.damages ?? damages,
       allocations: overrides?.allocations ?? allocations,
     };
+    pendingRemoteWriteRef.current = true;
     localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(payload));
-    void setDoc(
-      INVENTORY_STATE_REF,
-      {
-        ...payload,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
   }, [allocations, damages, items, movements]);
 
   const canManage = useCallback(() => {

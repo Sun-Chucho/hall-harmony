@@ -195,6 +195,39 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle>Website Translation (Google)</CardTitle>
+            <CardDescription>
+              English is now the default first-load language for the website.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-slate-700">
+            <p>
+              Whether Google Translate is free for your website depends on how you implement it.
+              There are two main approaches: a free, basic widget for simple, low-traffic sites,
+              and a paid API for professional, high-volume websites.
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold text-slate-900">1. Free: Google Translate Website Translator (Widget)</p>
+              <p className="mt-2"><span className="font-medium text-slate-900">Cost:</span> Free of charge.</p>
+              <p className="mt-1">
+                <span className="font-medium text-slate-900">How it works:</span> A simple JavaScript snippet
+                added to your website that creates a dropdown menu for users to translate the page on-the-fly.
+              </p>
+              <p className="mt-1">
+                <span className="font-medium text-slate-900">Pros:</span> Easy to set up, instant translation,
+                no coding knowledge required.
+              </p>
+              <p className="mt-1">
+                <span className="font-medium text-slate-900">Limitations:</span> Google officially discontinued
+                support for new websites in 2019, though it still works for some. It is not ideal for SEO, as
+                search engines may not index translated content, and it can be slow.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {canManageUsers ? (
           <Card className="border-slate-200">
             <CardHeader>

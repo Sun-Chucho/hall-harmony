@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
@@ -103,6 +103,18 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   const [cashDistributions, setCashDistributions] = useState<CashDistributionRecord[]>([]);
   const [logs, setLogs] = useState<EventFinanceLog[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const lastSyncedStateRef = useRef('');
+  const pendingRemoteWriteRef = useRef(false);
+
+  const serializeState = useCallback((input: {
+    budgets: EventBudget[];
+    allocations: AllocationRequest[];
+    distributions: ExpenseDistribution[];
+    cashTransfers: CashTransfer[];
+    mdTransfers: ManagingDirectorTransfer[];
+    cashDistributions: CashDistributionRecord[];
+    logs: EventFinanceLog[];
+  }) => JSON.stringify(input), []);
 
   useEffect(() => {
     const raw = localStorage.getItem(EVENT_FINANCE_CACHE_KEY);
@@ -154,6 +166,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       setCashDistributions([]);
       setLogs([]);
       setHydrated(false);
+      lastSyncedStateRef.current = '';
       return;
     }
 
@@ -169,13 +182,26 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
           cashDistributions?: CashDistributionRecord[];
           logs?: EventFinanceLog[];
         } | undefined;
-        setBudgets(Array.isArray(data?.budgets) ? data.budgets : []);
-        setAllocations(Array.isArray(data?.allocations) ? data.allocations : []);
-        setDistributions(Array.isArray(data?.distributions) ? data.distributions : []);
-        setCashTransfers(Array.isArray(data?.cashTransfers) ? data.cashTransfers : []);
-        setMdTransfers(Array.isArray(data?.mdTransfers) ? data.mdTransfers : []);
-        setCashDistributions(Array.isArray(data?.cashDistributions) ? data.cashDistributions : []);
-        setLogs(Array.isArray(data?.logs) ? data.logs : []);
+        const nextState = {
+          budgets: Array.isArray(data?.budgets) ? data.budgets : [],
+          allocations: Array.isArray(data?.allocations) ? data.allocations : [],
+          distributions: Array.isArray(data?.distributions) ? data.distributions : [],
+          cashTransfers: Array.isArray(data?.cashTransfers) ? data.cashTransfers : [],
+          mdTransfers: Array.isArray(data?.mdTransfers) ? data.mdTransfers : [],
+          cashDistributions: Array.isArray(data?.cashDistributions) ? data.cashDistributions : [],
+          logs: Array.isArray(data?.logs) ? data.logs : [],
+        };
+        const serialized = serializeState(nextState);
+        if (serialized !== lastSyncedStateRef.current) {
+          setBudgets(nextState.budgets);
+          setAllocations(nextState.allocations);
+          setDistributions(nextState.distributions);
+          setCashTransfers(nextState.cashTransfers);
+          setMdTransfers(nextState.mdTransfers);
+          setCashDistributions(nextState.cashDistributions);
+          setLogs(nextState.logs);
+          lastSyncedStateRef.current = serialized;
+        }
         setHydrated(true);
       },
       () => {
@@ -211,6 +237,19 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!user || !hydrated) return;
+    if (!pendingRemoteWriteRef.current) return;
+    pendingRemoteWriteRef.current = false;
+    const serialized = serializeState({
+      budgets,
+      allocations,
+      distributions,
+      cashTransfers,
+      mdTransfers,
+      cashDistributions,
+      logs,
+    });
+    if (serialized === lastSyncedStateRef.current) return;
+    lastSyncedStateRef.current = serialized;
     void setDoc(
       EVENT_FINANCE_STATE_REF,
       {
@@ -245,19 +284,13 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       cashDistributions: overrides?.cashDistributions ?? cashDistributions,
       logs: overrides?.logs ?? logs,
     };
+    pendingRemoteWriteRef.current = true;
     localStorage.setItem(EVENT_FINANCE_CACHE_KEY, JSON.stringify(payload));
-    void setDoc(
-      EVENT_FINANCE_STATE_REF,
-      {
-        ...payload,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, logs, mdTransfers]);
 
   const appendLog = useCallback((action: string, referenceId: string, detail: string) => {
     if (!user) return;
+    pendingRemoteWriteRef.current = true;
     const entry: EventFinanceLog = {
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -56,6 +56,14 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [auditLog, setAuditLog] = useState<AuthorizationAuditEntry[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const lastSyncedStateRef = useRef('');
+  const pendingRemoteWriteRef = useRef(false);
+
+  const serializeState = useCallback((nextState: {
+    policy: SystemPolicy;
+    approvals: ApprovalRequest[];
+    auditLog: AuthorizationAuditEntry[];
+  }) => JSON.stringify(nextState), []);
 
   useEffect(() => {
     const raw = localStorage.getItem(AUTHZ_CACHE_KEY);
@@ -91,6 +99,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       setApprovals([]);
       setAuditLog([]);
       setHydrated(false);
+      lastSyncedStateRef.current = '';
       return;
     }
 
@@ -103,15 +112,33 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
           auditLog?: AuthorizationAuditEntry[];
         } | undefined;
         if (!data) {
-          setPolicy(DEFAULT_SYSTEM_POLICY);
-          setApprovals([]);
-          setAuditLog([]);
+          const emptyState = {
+            policy: DEFAULT_SYSTEM_POLICY,
+            approvals: [],
+            auditLog: [],
+          };
+          const serialized = serializeState(emptyState);
+          if (serialized !== lastSyncedStateRef.current) {
+            setPolicy(emptyState.policy);
+            setApprovals(emptyState.approvals);
+            setAuditLog(emptyState.auditLog);
+            lastSyncedStateRef.current = serialized;
+          }
           setHydrated(true);
           return;
         }
-        setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
-        setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
-        setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
+        const nextState = {
+          policy: { ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) },
+          approvals: Array.isArray(data.approvals) ? data.approvals : [],
+          auditLog: Array.isArray(data.auditLog) ? data.auditLog : [],
+        };
+        const serialized = serializeState(nextState);
+        if (serialized !== lastSyncedStateRef.current) {
+          setPolicy(nextState.policy);
+          setApprovals(nextState.approvals);
+          setAuditLog(nextState.auditLog);
+          lastSyncedStateRef.current = serialized;
+        }
         setHydrated(true);
       },
       () => {
@@ -139,6 +166,15 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     if (!user || !hydrated) return;
+    if (!pendingRemoteWriteRef.current) return;
+    pendingRemoteWriteRef.current = false;
+    const serialized = serializeState({
+      policy,
+      approvals,
+      auditLog,
+    });
+    if (serialized === lastSyncedStateRef.current) return;
+    lastSyncedStateRef.current = serialized;
     void setDoc(
       AUTHZ_STATE_REF,
       {
@@ -152,6 +188,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   }, [approvals, auditLog, hydrated, policy, user]);
 
   const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
+    pendingRemoteWriteRef.current = true;
     const record: AuthorizationAuditEntry = {
       ...entry,
       id: crypto.randomUUID(),

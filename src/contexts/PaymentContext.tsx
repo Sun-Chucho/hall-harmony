@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
@@ -39,6 +39,15 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [statusOverride, setStatusOverride] = useState<Record<string, BookingPaymentStatus>>({});
   const [hydrated, setHydrated] = useState(false);
+  const lastSyncedStateRef = useRef('');
+  const pendingRemoteWriteRef = useRef(false);
+
+  const serializeState = useCallback((nextPayments: PaymentRecord[], nextStatusOverride: Record<string, BookingPaymentStatus>) => {
+    return JSON.stringify({
+      payments: nextPayments,
+      statusOverride: nextStatusOverride,
+    });
+  }, []);
 
   useEffect(() => {
     const raw = localStorage.getItem(PAYMENT_CACHE_KEY);
@@ -70,6 +79,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       setPayments([]);
       setStatusOverride({});
       setHydrated(false);
+      lastSyncedStateRef.current = '';
       return;
     }
 
@@ -80,8 +90,14 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
           payments?: PaymentRecord[];
           statusOverride?: Record<string, BookingPaymentStatus>;
         } | undefined;
-        setPayments(Array.isArray(data?.payments) ? data?.payments : []);
-        setStatusOverride(data?.statusOverride ?? {});
+        const nextPayments = Array.isArray(data?.payments) ? data?.payments : [];
+        const nextStatusOverride = data?.statusOverride ?? {};
+        const serialized = serializeState(nextPayments, nextStatusOverride);
+        if (serialized !== lastSyncedStateRef.current) {
+          setPayments(nextPayments);
+          setStatusOverride(nextStatusOverride);
+          lastSyncedStateRef.current = serialized;
+        }
         setHydrated(true);
       },
       () => {
@@ -107,6 +123,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user || !hydrated) return;
+    if (!pendingRemoteWriteRef.current) return;
+    pendingRemoteWriteRef.current = false;
+    const serialized = serializeState(payments, statusOverride);
+    if (serialized === lastSyncedStateRef.current) return;
+    lastSyncedStateRef.current = serialized;
     void setDoc(
       PAYMENT_STATE_REF,
       {
@@ -189,6 +210,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     const nextStatusOverride = { ...statusOverride };
     delete nextStatusOverride[input.bookingId];
 
+    pendingRemoteWriteRef.current = true;
     setPayments(nextPayments);
     setStatusOverride(nextStatusOverride);
     localStorage.setItem(
@@ -197,15 +219,6 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         payments: nextPayments,
         statusOverride: nextStatusOverride,
       }),
-    );
-    void setDoc(
-      PAYMENT_STATE_REF,
-      {
-        payments: nextPayments,
-        statusOverride: nextStatusOverride,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
     );
     return { ok: true, message: 'Payment recorded successfully.', paymentId };
   }, [bookings, payments, policy.transactionsFrozen, statusOverride, user]);
@@ -219,6 +232,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Booking not found.' };
     }
     const nextStatusOverride = { ...statusOverride, [bookingId]: status };
+    pendingRemoteWriteRef.current = true;
     setStatusOverride(nextStatusOverride);
     localStorage.setItem(
       PAYMENT_CACHE_KEY,
@@ -226,15 +240,6 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         payments,
         statusOverride: nextStatusOverride,
       }),
-    );
-    void setDoc(
-      PAYMENT_STATE_REF,
-      {
-        payments,
-        statusOverride: nextStatusOverride,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
     );
     return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };
   }, [bookings, payments, statusOverride, user]);

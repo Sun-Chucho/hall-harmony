@@ -29,6 +29,17 @@ export default function Distribution() {
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+
+  const refreshPageAfterSave = (notice?: string) => {
+    setIsRefreshingPage(true);
+    setMessage(notice ?? 'Distribution saved. Refreshing page...');
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 900);
+    }
+  };
 
   const stats = useMemo(() => {
     const total = cashDistributions.reduce((sum, item) => sum + item.amount, 0);
@@ -95,9 +106,9 @@ export default function Distribution() {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
-                disabled={isSaving}
+                disabled={isSaving || isRefreshingPage}
                 onClick={() => {
-                  if (isSaving) return;
+                  if (isSaving || isRefreshingPage) return;
                   if (!canRecordDistribution) {
                     setMessage('This role cannot record distributions.');
                     return;
@@ -121,11 +132,12 @@ export default function Distribution() {
                     setAmount(0);
                     setOtherDetails('');
                     setReason('');
+                    refreshPageAfterSave('Distribution recorded. Refreshing page...');
                   }
                   setIsSaving(false);
                 }}
               >
-                {isSaving ? 'Saving...' : 'Save Distribution'}
+                {isSaving ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Save Distribution'}
               </Button>
               {message ? <span className="text-xs text-slate-600">{message}</span> : null}
             </div>
