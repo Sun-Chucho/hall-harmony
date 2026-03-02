@@ -236,16 +236,20 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     cashDistributions?: CashDistributionRecord[];
     logs?: EventFinanceLog[];
   }) => {
+    const payload = {
+      budgets: overrides?.budgets ?? budgets,
+      allocations: overrides?.allocations ?? allocations,
+      distributions: overrides?.distributions ?? distributions,
+      cashTransfers: overrides?.cashTransfers ?? cashTransfers,
+      mdTransfers: overrides?.mdTransfers ?? mdTransfers,
+      cashDistributions: overrides?.cashDistributions ?? cashDistributions,
+      logs: overrides?.logs ?? logs,
+    };
+    localStorage.setItem(EVENT_FINANCE_CACHE_KEY, JSON.stringify(payload));
     void setDoc(
       EVENT_FINANCE_STATE_REF,
       {
-        budgets: overrides?.budgets ?? budgets,
-        allocations: overrides?.allocations ?? allocations,
-        distributions: overrides?.distributions ?? distributions,
-        cashTransfers: overrides?.cashTransfers ?? cashTransfers,
-        mdTransfers: overrides?.mdTransfers ?? mdTransfers,
-        cashDistributions: overrides?.cashDistributions ?? cashDistributions,
-        logs: overrides?.logs ?? logs,
+        ...payload,
         updatedAt: serverTimestamp(),
       },
       { merge: true },

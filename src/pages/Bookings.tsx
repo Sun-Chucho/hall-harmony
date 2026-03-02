@@ -61,6 +61,7 @@ export default function Bookings() {
     bookings,
     createBooking,
     createPastBooking,
+    reviewPastBooking,
     deleteBooking,
     updateBooking,
     updateBookingStatus,
@@ -81,6 +82,10 @@ export default function Bookings() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paidDateTime, setPaidDateTime] = useState(getDefaultPaidDateTime);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [pastApprovalAmount, setPastApprovalAmount] = useState<Record<string, number>>({});
+  const [pastApprovalMethod, setPastApprovalMethod] = useState<Record<string, PaymentMethod>>({});
+  const [pastApprovalDateTime, setPastApprovalDateTime] = useState<Record<string, string>>({});
+  const [pastApprovalNotes, setPastApprovalNotes] = useState<Record<string, string>>({});
   const [pastForm, setPastForm] = useState<CreateBookingInput>({
     ...initialForm,
     date: getTodayIso(),
@@ -350,6 +355,12 @@ export default function Bookings() {
                           </div>
                           <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                           <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
+                          {booking.pastBookingSubmission ? (
+                            <p className="text-xs text-violet-700">
+                              Past Record: {toShortStatus(booking.pastBookingApprovalStatus ?? 'pending_cashier_1')}
+                              {booking.pastReviewedAt ? ` | Reviewed: ${new Date(booking.pastReviewedAt).toLocaleString()}` : ''}
+                            </p>
+                          ) : null}
                           <div className="mt-3">
                             <div className="flex flex-wrap gap-2">
                               <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
@@ -415,6 +426,12 @@ export default function Bookings() {
     const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const financials = selected ? getBookingFinancials(selected.id) : null;
     const bookingPayments = selected ? payments.filter((item) => item.bookingId === selected.id) : [];
+    const pendingPastBookings = bookings.filter(
+      (entry) =>
+        entry.pastBookingSubmission
+        && entry.pastBookingApprovalStatus === 'pending_cashier_1'
+        && entry.bookingStatus === 'pending',
+    );
     const paymentMethodBreakdown = bookingPayments.reduce(
       (acc, payment) => {
         if (payment.method === 'cash') acc.cash += payment.amount;
@@ -443,11 +460,113 @@ export default function Bookings() {
               'View booking details in read-only mode.',
               'Select payment module (cash, bank transfer, or mobile money).',
               'Enter paid amount and notes, then mark Paid to update remaining balance.',
+              'Review past booking submissions from Assistant and record payment while approving.',
             ],
           },
         ]}
         action={
           <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Past Booking Submissions (Assistant)</p>
+                <Badge className="bg-slate-100 text-slate-700">{pendingPastBookings.length} pending</Badge>
+              </div>
+              <div className="mt-3 space-y-3">
+                {pendingPastBookings.length === 0 ? (
+                  <p className="text-sm text-slate-600">No pending past bookings for approval.</p>
+                ) : (
+                  pendingPastBookings.map((entry) => (
+                    <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
+                        <Badge className="bg-amber-100 text-amber-800">Pending Cashier 1</Badge>
+                      </div>
+                      <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
+                      <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
+                      <div className="mt-2 grid gap-2 md:grid-cols-4">
+                        <input
+                          type="number"
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                          placeholder="Paid Amount"
+                          value={pastApprovalAmount[entry.id] ?? entry.quotedAmount}
+                          onChange={(event) => setPastApprovalAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))}
+                        />
+                        <select
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                          value={pastApprovalMethod[entry.id] ?? 'cash'}
+                          onChange={(event) => setPastApprovalMethod((prev) => ({ ...prev, [entry.id]: event.target.value as PaymentMethod }))}
+                        >
+                          {cashierPaymentMethods.map((method) => (
+                            <option key={method.value} value={method.value}>{method.label}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="datetime-local"
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                          value={pastApprovalDateTime[entry.id] ?? getDefaultPaidDateTime()}
+                          onChange={(event) => setPastApprovalDateTime((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        />
+                        <input
+                          type="text"
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                          placeholder="Payment note"
+                          value={pastApprovalNotes[entry.id] ?? ''}
+                          onChange={(event) => setPastApprovalNotes((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        />
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={isRefreshingPage}
+                          onClick={async () => {
+                            const amount = Number.isFinite(pastApprovalAmount[entry.id])
+                              ? Number(pastApprovalAmount[entry.id])
+                              : Number(entry.quotedAmount);
+                            if (!Number.isFinite(amount) || amount <= 0) {
+                              setMessage('Enter a valid paid amount for past booking approval.');
+                              return;
+                            }
+                            const paymentResult = recordPayment({
+                              bookingId: entry.id,
+                              amount,
+                              method: pastApprovalMethod[entry.id] ?? 'cash',
+                              receivedAt: pastApprovalDateTime[entry.id] ?? getDefaultPaidDateTime(),
+                              notes: pastApprovalNotes[entry.id] ?? 'Past booking payment recorded by Cashier 1',
+                            });
+                            if (!paymentResult.ok) {
+                              setMessage(paymentResult.message);
+                              return;
+                            }
+                            const reviewResult = await reviewPastBooking(entry.id, 'approved_cashier_1');
+                            setMessage(reviewResult.message);
+                            if (reviewResult.ok) {
+                              refreshPageAfterUpdate('Past booking payment recorded and approved. Refreshing page...');
+                            }
+                          }}
+                        >
+                          Record & Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isRefreshingPage}
+                          onClick={async () => {
+                            const reviewResult = await reviewPastBooking(entry.id, 'rejected_cashier_1');
+                            setMessage(reviewResult.message);
+                            if (reviewResult.ok) {
+                              refreshPageAfterUpdate('Past booking rejected. Refreshing page...');
+                            }
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Registered Bookings</p>
               <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -666,6 +785,12 @@ export default function Bookings() {
                     </div>
                     <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                     <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
+                    {booking.pastBookingSubmission ? (
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">
+                        Past Record: {toShortStatus(booking.pastBookingApprovalStatus ?? 'pending_cashier_1')}
+                        {booking.pastReviewedAt ? ` | ${new Date(booking.pastReviewedAt).toLocaleString()}` : ''}
+                      </p>
+                    ) : null}
                     {booking.createdByUserId === 'public-web' ? (
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Source: Public Web Booking</p>
                     ) : null}

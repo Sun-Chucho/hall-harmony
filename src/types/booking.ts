@@ -13,6 +13,11 @@ export type EventDetailStatus =
   | 'approved_controller'
   | 'rejected';
 
+export type PastBookingApprovalStatus =
+  | 'pending_cashier_1'
+  | 'approved_cashier_1'
+  | 'rejected_cashier_1';
+
 export interface BookingRecord {
   id: string;
   customerName: string;
@@ -39,6 +44,11 @@ export interface BookingRecord {
   lastEditedAt?: string;
   lastEditedByUserId?: string;
   lastEditedByRole?: string;
+  pastBookingSubmission?: boolean;
+  pastBookingApprovalStatus?: PastBookingApprovalStatus;
+  pastReviewedAt?: string;
+  pastReviewedByUserId?: string;
+  pastReviewedByRole?: string;
 }
 
 export interface CreateBookingInput {

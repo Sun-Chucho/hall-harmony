@@ -45,7 +45,7 @@ export default function CashMovement() {
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
         window.location.reload();
-      }, 450);
+      }, 1600);
     }
   };
 

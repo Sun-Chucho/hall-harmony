@@ -152,13 +152,17 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     damages?: DamagedItemRecord[];
     allocations?: EventItemAllocation[];
   }) => {
+    const payload = {
+      items: overrides?.items ?? items,
+      movements: overrides?.movements ?? movements,
+      damages: overrides?.damages ?? damages,
+      allocations: overrides?.allocations ?? allocations,
+    };
+    localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(payload));
     void setDoc(
       INVENTORY_STATE_REF,
       {
-        items: overrides?.items ?? items,
-        movements: overrides?.movements ?? movements,
-        damages: overrides?.damages ?? damages,
-        allocations: overrides?.allocations ?? allocations,
+        ...payload,
         updatedAt: serverTimestamp(),
       },
       { merge: true },

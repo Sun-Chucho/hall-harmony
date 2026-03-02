@@ -3,12 +3,16 @@ import { collection, deleteDoc, doc, onSnapshot, query, QueryConstraint, serverT
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
-import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus } from '@/types/booking';
+import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus, PastBookingApprovalStatus } from '@/types/booking';
 
 interface BookingContextValue {
   bookings: BookingRecord[];
   createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   createPastBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  reviewPastBooking: (
+    bookingId: string,
+    decision: Extract<PastBookingApprovalStatus, 'approved_cashier_1' | 'rejected_cashier_1'>,
+  ) => Promise<{ ok: boolean; message: string }>;
   createPublicBooking: (payload: CreateBookingInput, requestId?: string) => Promise<{ ok: boolean; message: string }>;
   updateBooking: (bookingId: string, payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   deleteBooking: (bookingId: string) => Promise<{ ok: boolean; message: string }>;
@@ -64,6 +68,11 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
     lastEditedAt: data.lastEditedAt,
     lastEditedByUserId: data.lastEditedByUserId,
     lastEditedByRole: data.lastEditedByRole,
+    pastBookingSubmission: data.pastBookingSubmission,
+    pastBookingApprovalStatus: data.pastBookingApprovalStatus,
+    pastReviewedAt: data.pastReviewedAt,
+    pastReviewedByUserId: data.pastReviewedByUserId,
+    pastReviewedByRole: data.pastReviewedByRole,
   };
 }
 
@@ -315,8 +324,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
-      bookingStatus: 'completed',
+      bookingStatus: 'pending',
       eventDetailStatus: 'approved_controller',
+      assignedToRole: 'cashier_1',
+      sentToCashier1At: new Date().toISOString(),
+      pastBookingSubmission: true,
+      pastBookingApprovalStatus: 'pending_cashier_1',
     };
 
     try {
@@ -330,6 +343,42 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: true, message: 'Past booking saved locally. Cloud sync pending.' };
     }
   }, [hasConflict, user]);
+
+  const reviewPastBooking = useCallback(async (
+    bookingId: string,
+    decision: Extract<PastBookingApprovalStatus, 'approved_cashier_1' | 'rejected_cashier_1'>,
+  ) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'cashier_1' && user.role !== 'controller') {
+      return { ok: false, message: 'Only Cashier 1 or Controller can review past bookings.' };
+    }
+    const target = bookings.find((booking) => booking.id === bookingId);
+    if (!target) return { ok: false, message: 'Booking not found.' };
+    if (!target.pastBookingSubmission) return { ok: false, message: 'This booking is not in past-booking review flow.' };
+    if (target.pastBookingApprovalStatus && target.pastBookingApprovalStatus !== 'pending_cashier_1') {
+      return { ok: false, message: 'Past booking already reviewed.' };
+    }
+
+    const bookingStatus: BookingStatus = decision === 'approved_cashier_1' ? 'completed' : 'rejected';
+    const patch = {
+      bookingStatus,
+      pastBookingApprovalStatus: decision,
+      pastReviewedAt: new Date().toISOString(),
+      pastReviewedByUserId: user.id,
+      pastReviewedByRole: user.role,
+    };
+
+    try {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+        ...patch,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier 1.' : 'Past booking rejected.' };
+    } catch {
+      setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
+      return { ok: true, message: 'Past booking review saved locally. Cloud sync pending.' };
+    }
+  }, [bookings, user]);
 
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -558,6 +607,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     bookings,
     createBooking,
     createPastBooking,
+    reviewPastBooking,
     createPublicBooking,
     deleteBooking,
     updateBooking,
@@ -569,6 +619,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     bookings,
     createBooking,
     createPastBooking,
+    reviewPastBooking,
     createPublicBooking,
     deleteBooking,
     hasConflict,

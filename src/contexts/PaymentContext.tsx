@@ -191,6 +191,13 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
     setPayments(nextPayments);
     setStatusOverride(nextStatusOverride);
+    localStorage.setItem(
+      PAYMENT_CACHE_KEY,
+      JSON.stringify({
+        payments: nextPayments,
+        statusOverride: nextStatusOverride,
+      }),
+    );
     void setDoc(
       PAYMENT_STATE_REF,
       {
@@ -213,6 +220,13 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
     const nextStatusOverride = { ...statusOverride, [bookingId]: status };
     setStatusOverride(nextStatusOverride);
+    localStorage.setItem(
+      PAYMENT_CACHE_KEY,
+      JSON.stringify({
+        payments,
+        statusOverride: nextStatusOverride,
+      }),
+    );
     void setDoc(
       PAYMENT_STATE_REF,
       {
