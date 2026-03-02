@@ -1,9 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Open rules: allow all reads/writes to all collections.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /system_state/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if isSignedIn()
+        || request.resource.data.createdByUserId == 'public-web';
+      allow read, update, delete: if isSignedIn();
+    }
+
+    match /staff_users/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /manager_messages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /document_form_outputs/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cash_request_workflow/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
