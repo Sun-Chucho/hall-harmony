@@ -1,72 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function currentUserRole() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/staff_users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/staff_users/$(request.auth.uid)).data.role
-        : null;
-    }
-
-    function isControllerOrManager() {
-      return currentUserRole() in ['controller', 'manager'];
-    }
-
-    function isSelfUpdateSafe() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
-        'lastLogin',
-        'updatedAt'
-      ]);
-    }
-
-    // Login directory: visible before login so staff can select role/user.
-    match /staff_users/{userId} {
-      allow read: if true;
-
-      // User may only update last-login metadata.
-      allow update: if isSignedIn() && request.auth.uid == userId && isSelfUpdateSafe();
-
-      // Controller and manager can edit role and activation status.
-      allow create, delete, update: if isControllerOrManager();
-    }
-
-    // Booking records: public can create booking requests, staff can view/process.
-    match /bookings/{bookingId} {
-      allow create: if request.auth != null
-        || request.resource.data.createdByUserId == 'public-web';
-      allow read: if isSignedIn();
-      allow update: if isControllerOrManager()
-        || (isSignedIn() && resource.data.createdByUserId == request.auth.uid);
-      allow delete: if isControllerOrManager()
-        || (isSignedIn() && resource.data.createdByUserId == request.auth.uid);
-    }
-
-    // Documents manual form outputs: staff-only visibility and submission.
-    match /document_form_outputs/{entryId} {
-      allow create, read: if isSignedIn();
-      allow update, delete: if isControllerOrManager();
-    }
-
-    // Cash request workflow documents.
-    match /cash_request_workflow/{entryId} {
-      allow create, read: if isSignedIn();
-      allow update, delete: if isControllerOrManager();
-    }
-
-    // Accountant/Controller alerts to Hall Manager.
-    match /manager_messages/{messageId} {
-      allow create, read: if isSignedIn();
-      allow update, delete: if isSignedIn();
-    }
-
-    // Shared app state docs synced by authenticated staff.
-    match /system_state/{stateId} {
-      allow create, read, update: if isSignedIn();
-      allow delete: if isControllerOrManager();
+    // Open rules: allow all reads/writes to all collections.
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }
