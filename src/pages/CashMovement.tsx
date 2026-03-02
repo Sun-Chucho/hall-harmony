@@ -37,6 +37,17 @@ export default function CashMovement() {
   const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
   const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+
+  const refreshPageAfterSend = (notice?: string) => {
+    setIsRefreshingPage(true);
+    setMessage(notice ?? 'Update saved. Refreshing page...');
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 450);
+    }
+  };
 
   const pendingRequests = useMemo(
     () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2'),
@@ -215,12 +226,15 @@ export default function CashMovement() {
                               />
                               <Button
                                 size="sm"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isRefreshingPage}
                                 onClick={() => {
-                                  if (isSubmitting) return;
+                                  if (isSubmitting || isRefreshingPage) return;
                                   setIsSubmitting(true);
                                   const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '');
                                   setMessage(result.message);
+                                  if (result.ok) {
+                                    refreshPageAfterSend('Cash received confirmation sent. Refreshing page...');
+                                  }
                                   setIsSubmitting(false);
                                 }}
                               >
@@ -242,9 +256,9 @@ export default function CashMovement() {
                     <div className="mt-4">
                       <Button
                         size="sm"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isRefreshingPage}
                         onClick={() => {
-                          if (isSubmitting) return;
+                          if (isSubmitting || isRefreshingPage) return;
                           if (!Number.isFinite(requestAmount) || requestAmount <= 0) {
                             setMessage('Enter a valid requested amount greater than zero.');
                             return;
@@ -255,11 +269,12 @@ export default function CashMovement() {
                           if (result.ok) {
                             setRequestAmount(0);
                             setRequestComment('');
+                            refreshPageAfterSend('Cash request sent for approval. Refreshing page...');
                           }
                           setIsSubmitting(false);
                         }}
                       >
-                        Send for Approval
+                        {isRefreshingPage ? 'Refreshing...' : 'Send for Approval'}
                       </Button>
                     </div>
 
@@ -341,9 +356,9 @@ export default function CashMovement() {
                 <div className="mt-4">
                   <Button
                     size="sm"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isRefreshingPage}
                     onClick={() => {
-                      if (isSubmitting) return;
+                      if (isSubmitting || isRefreshingPage) return;
                       if (!Number.isFinite(moveCashAmount) || moveCashAmount <= 0) {
                         setMessage('Enter a valid amount greater than zero.');
                         return;
@@ -354,11 +369,12 @@ export default function CashMovement() {
                       if (result.ok) {
                         setMoveCashAmount(0);
                         setMoveCashComment('');
+                        refreshPageAfterSend('Cash sent successfully. Refreshing page...');
                       }
                       setIsSubmitting(false);
                     }}
                   >
-                    {isSubmitting ? 'Sending...' : 'Send'}
+                    {isSubmitting ? 'Sending...' : isRefreshingPage ? 'Refreshing...' : 'Send'}
                   </Button>
                 </div>
               </div>

@@ -31,6 +31,14 @@ const initialForm: CreateBookingInput = {
   notes: '',
 };
 
+function getTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getYearStartIso() {
+  return `${new Date().getUTCFullYear()}-01-01`;
+}
+
 function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -52,6 +60,7 @@ export default function Bookings() {
   const {
     bookings,
     createBooking,
+    createPastBooking,
     deleteBooking,
     updateBooking,
     updateBookingStatus,
@@ -65,12 +74,17 @@ export default function Bookings() {
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [isSavingBooking, setIsSavingBooking] = useState(false);
+  const [isSavingPastBooking, setIsSavingPastBooking] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paidDateTime, setPaidDateTime] = useState(getDefaultPaidDateTime);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [pastForm, setPastForm] = useState<CreateBookingInput>({
+    ...initialForm,
+    date: getTodayIso(),
+  });
 
   const refreshPageAfterUpdate = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -110,6 +124,10 @@ export default function Bookings() {
 
   const onChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const onPastChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
+    setPastForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCreateBooking = async (assistantFlow = false) => {
@@ -195,6 +213,24 @@ export default function Bookings() {
     if (result.ok) refreshPageAfterUpdate('Recommendation sent. Refreshing page...');
   };
 
+  const handleRecordPastBooking = async () => {
+    if (isSavingPastBooking) return;
+    setIsSavingPastBooking(true);
+    try {
+      const result = await createPastBooking(pastForm);
+      setMessage(result.message);
+      if (result.ok) {
+        setPastForm({
+          ...initialForm,
+          date: getTodayIso(),
+        });
+        refreshPageAfterUpdate('Past booking recorded. Refreshing page...');
+      }
+    } finally {
+      setIsSavingPastBooking(false);
+    }
+  };
+
   if (isAssistantHall && user) {
     const assistantBookings = bookings.filter((entry) => entry.createdByUserId === user.id);
     const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1' || !entry.assignedToRole).length;
@@ -224,6 +260,7 @@ export default function Bookings() {
             <Tabs defaultValue="hall-registration" className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="hall-registration">Hall Registration Form</TabsTrigger>
+                <TabsTrigger value="past-booking">Record Past Booking</TabsTrigger>
                 <TabsTrigger value="submitted-bookings">Submitted Bookings</TabsTrigger>
               </TabsList>
 
@@ -323,6 +360,43 @@ export default function Bookings() {
                       ))}
                     </div>
                   )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="past-booking">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Record Past Booking (This Year)</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <input
+                      type="date"
+                      min={getYearStartIso()}
+                      max={getTodayIso()}
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={pastForm.date}
+                      onChange={(event) => onPastChange('date', event.target.value)}
+                    />
+                    <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.hall} onChange={(event) => onPastChange('hall', event.target.value)}>
+                      <option value="">Select Hall</option>
+                      {halls.map((hall) => (
+                        <option key={hall} value={hall}>{hall}</option>
+                      ))}
+                    </select>
+                    <input type="text" placeholder="Customer Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.customerName} onChange={(event) => onPastChange('customerName', event.target.value)} />
+                    <input type="text" placeholder="Customer Phone" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.customerPhone} onChange={(event) => onPastChange('customerPhone', event.target.value)} />
+                    <input type="text" placeholder="Event Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.eventName} onChange={(event) => onPastChange('eventName', event.target.value)} />
+                    <input type="text" placeholder="Event Type" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.eventType} onChange={(event) => onPastChange('eventType', event.target.value)} />
+                    <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.startTime} onChange={(event) => onPastChange('startTime', event.target.value)} />
+                    <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.endTime} onChange={(event) => onPastChange('endTime', event.target.value)} />
+                    <input type="number" placeholder="Expected Guests" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.expectedGuests || ''} onChange={(event) => onPastChange('expectedGuests', Number(event.target.value))} />
+                    <input type="number" placeholder="Amount Paid / Quoted (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.quotedAmount || ''} onChange={(event) => onPastChange('quotedAmount', Number(event.target.value))} />
+                    <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={pastForm.notes} onChange={(event) => onPastChange('notes', event.target.value)} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button size="sm" disabled={isSavingPastBooking} onClick={() => void handleRecordPastBooking()}>
+                      {isSavingPastBooking ? 'Saving...' : 'Record Past Booking'}
+                    </Button>
+                    <span className="text-xs text-slate-500">Allowed date range: {getYearStartIso()} to {getTodayIso()}</span>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>

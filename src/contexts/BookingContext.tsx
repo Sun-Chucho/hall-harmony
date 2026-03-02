@@ -8,6 +8,7 @@ import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus } f
 interface BookingContextValue {
   bookings: BookingRecord[];
   createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  createPastBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   createPublicBooking: (payload: CreateBookingInput, requestId?: string) => Promise<{ ok: boolean; message: string }>;
   updateBooking: (bookingId: string, payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
   deleteBooking: (bookingId: string) => Promise<{ ok: boolean; message: string }>;
@@ -267,6 +268,69 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const createPastBooking = useCallback(async (payload: CreateBookingInput) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'assistant_hall_manager') {
+      return { ok: false, message: 'Only Assistant Hall Manager can record past bookings.' };
+    }
+    if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
+      return { ok: false, message: 'Customer and event details are required.' };
+    }
+    if (!payload.hall || !payload.date || !payload.startTime || !payload.endTime) {
+      return { ok: false, message: 'Hall, date, and time window are required.' };
+    }
+    if (toMinutes(payload.endTime) <= toMinutes(payload.startTime)) {
+      return { ok: false, message: 'End time must be later than start time.' };
+    }
+    if (payload.expectedGuests <= 0) {
+      return { ok: false, message: 'Expected guests must be greater than zero.' };
+    }
+    if (payload.quotedAmount <= 0) {
+      return { ok: false, message: 'Quoted amount must be greater than zero.' };
+    }
+
+    const now = new Date();
+    const todayIso = now.toISOString().slice(0, 10);
+    const yearStartIso = `${now.getUTCFullYear()}-01-01`;
+    if (payload.date < yearStartIso || payload.date > todayIso) {
+      return { ok: false, message: `Past booking date must be between ${yearStartIso} and ${todayIso}.` };
+    }
+    if (hasConflict(payload)) {
+      return { ok: false, message: 'Booking conflict detected for the selected hall and time.' };
+    }
+
+    const id = `BOOK-PAST-${Date.now()}`;
+    const record: BookingRecord = {
+      id,
+      customerName: payload.customerName.trim(),
+      customerPhone: payload.customerPhone.trim(),
+      eventName: payload.eventName.trim(),
+      eventType: payload.eventType.trim(),
+      hall: payload.hall.trim(),
+      date: payload.date,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      expectedGuests: payload.expectedGuests,
+      quotedAmount: payload.quotedAmount,
+      notes: payload.notes?.trim() ?? '',
+      createdAt: new Date().toISOString(),
+      createdByUserId: user.id,
+      bookingStatus: 'completed',
+      eventDetailStatus: 'approved_controller',
+    };
+
+    try {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, id), {
+        ...record,
+        updatedAt: serverTimestamp(),
+      });
+      return { ok: true, message: 'Past booking recorded successfully.' };
+    } catch {
+      setBookings((prev) => [record, ...prev]);
+      return { ok: true, message: 'Past booking saved locally. Cloud sync pending.' };
+    }
+  }, [hasConflict, user]);
+
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'controller';
@@ -493,6 +557,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<BookingContextValue>(() => ({
     bookings,
     createBooking,
+    createPastBooking,
     createPublicBooking,
     deleteBooking,
     updateBooking,
@@ -503,6 +568,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   }), [
     bookings,
     createBooking,
+    createPastBooking,
     createPublicBooking,
     deleteBooking,
     hasConflict,

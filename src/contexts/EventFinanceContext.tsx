@@ -72,6 +72,7 @@ interface EventFinanceContextValue {
     category: CashDistributionCategory;
     amount: number;
     reason: string;
+    otherDetails?: string;
   }) => { ok: boolean; message: string; distributionId?: string };
   getAllocationSummary: (requestId: string) => { requested: number; distributed: number; remaining: number };
   generateExpenseSheet: (requestId: string) => { ok: boolean; message: string; sheet?: string };
@@ -661,6 +662,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     category: CashDistributionCategory;
     amount: number;
     reason: string;
+    otherDetails?: string;
   }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_2' && user.role !== 'cashier_1' && user.role !== 'controller') {
@@ -672,10 +674,15 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
     const amount = Math.round(input.amount);
     if (!input.reason.trim()) return { ok: false, message: 'Reason is required.' };
+    const customCategoryLabel = input.category === 'other' ? (input.otherDetails?.trim() ?? '') : '';
+    if (input.category === 'other' && !customCategoryLabel) {
+      return { ok: false, message: 'Enter details for Others category.' };
+    }
 
     const record: CashDistributionRecord = {
       id: `CDIST-${Date.now()}`,
       category: input.category,
+      customCategoryLabel: customCategoryLabel || undefined,
       amount,
       reason: input.reason.trim(),
       distributedAt: new Date().toISOString(),

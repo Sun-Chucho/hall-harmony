@@ -106,11 +106,13 @@ export type CashDistributionCategory =
   | 'logistics'
   | 'decoration'
   | 'cooling'
-  | 'drink';
+  | 'drink'
+  | 'other';
 
 export interface CashDistributionRecord {
   id: string;
   category: CashDistributionCategory;
+  customCategoryLabel?: string;
   amount: number;
   reason: string;
   distributedAt: string;

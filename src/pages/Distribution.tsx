@@ -17,6 +17,7 @@ const categories: { value: CashDistributionCategory; label: string }[] = [
   { value: 'decoration', label: 'Decoration' },
   { value: 'cooling', label: 'Cooling' },
   { value: 'drink', label: 'Drink' },
+  { value: 'other', label: 'Others' },
 ];
 
 export default function Distribution() {
@@ -24,6 +25,7 @@ export default function Distribution() {
   const { cashDistributions, recordCashDistribution } = useEventFinance();
   const [category, setCategory] = useState<CashDistributionCategory>('cleaning');
   const [amount, setAmount] = useState(0);
+  const [otherDetails, setOtherDetails] = useState('');
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -66,6 +68,15 @@ export default function Distribution() {
                   <option key={item.value} value={item.value}>{item.label}</option>
                 ))}
               </select>
+              {category === 'other' ? (
+                <input
+                  type="text"
+                  placeholder="Others details (new category name)"
+                  className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                  value={otherDetails}
+                  onChange={(event) => setOtherDetails(event.target.value)}
+                />
+              ) : null}
               <input
                 type="number"
                 placeholder="Amount (TZS)"
@@ -76,7 +87,7 @@ export default function Distribution() {
               <input
                 type="text"
                 placeholder="Reason / Comment"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                className={`rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm ${category === 'other' ? 'md:col-span-3' : ''}`}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
@@ -99,11 +110,16 @@ export default function Distribution() {
                     setMessage('Reason is required.');
                     return;
                   }
+                  if (category === 'other' && !otherDetails.trim()) {
+                    setMessage('Enter details for Others category.');
+                    return;
+                  }
                   setIsSaving(true);
-                  const result = recordCashDistribution({ category, amount, reason });
+                  const result = recordCashDistribution({ category, amount, reason, otherDetails });
                   setMessage(result.message);
                   if (result.ok) {
                     setAmount(0);
+                    setOtherDetails('');
                     setReason('');
                   }
                   setIsSaving(false);
@@ -127,7 +143,11 @@ export default function Distribution() {
                 cashDistributions.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">{item.category.replace(/_/g, ' ')}</p>
+                      <p className="font-semibold text-slate-900">
+                        {item.category === 'other'
+                          ? `Others - ${item.customCategoryLabel ?? 'Unspecified'}`
+                          : item.category.replace(/_/g, ' ')}
+                      </p>
                       <Badge className="bg-slate-200 text-slate-900">TZS {item.amount.toLocaleString()}</Badge>
                     </div>
                     <p className="text-slate-500">Reason: {item.reason}</p>
