@@ -260,6 +260,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
         mdTransfers,
         cashDistributions,
         logs,
+        writeToken: 'action_v1',
         updatedAt: serverTimestamp(),
       },
       { merge: true },

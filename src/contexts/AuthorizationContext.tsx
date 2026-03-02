@@ -181,6 +181,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
         policy,
         approvals,
         auditLog,
+        writeToken: 'action_v1',
         updatedAt: serverTimestamp(),
       },
       { merge: true },

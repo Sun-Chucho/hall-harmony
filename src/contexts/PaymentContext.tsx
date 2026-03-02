@@ -133,6 +133,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       {
         payments,
         statusOverride,
+        writeToken: 'action_v1',
         updatedAt: serverTimestamp(),
       },
       { merge: true },

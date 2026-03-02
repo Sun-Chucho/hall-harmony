@@ -474,6 +474,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           forceLogoutAt: nowIso,
           forcedByUserId: state.user.id,
           forcedByRole: state.user.role,
+          writeToken: 'action_v1',
           updatedAt: serverTimestamp(),
         },
         { merge: true },

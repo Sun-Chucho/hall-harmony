@@ -170,6 +170,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         movements,
         damages,
         allocations,
+        writeToken: 'action_v1',
         updatedAt: serverTimestamp(),
       },
       { merge: true },
