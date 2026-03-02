@@ -5,6 +5,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    match /system_state/session_control {
+      allow read, write: if isSignedIn();
+    }
+
     match /system_state/{docId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn()
