@@ -16,7 +16,8 @@ service cloud.firestore {
     }
 
     match /staff_users/{userId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /manager_messages/{messageId} {
