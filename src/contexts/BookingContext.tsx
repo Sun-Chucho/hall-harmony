@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, orderBy, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
@@ -99,19 +99,19 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     if (user.role === 'assistant_hall_manager') {
       constraints.push(where('createdByUserId', '==', user.id));
     }
-    // For filtered role views we avoid orderBy here to keep index requirements low.
-    // We still sort in-memory after snapshot.
-    if (constraints.length === 0) {
-      constraints.push(orderBy('createdAt', 'desc'));
-    }
-
-    const q = query(collection(db, BOOKINGS_COLLECTION), ...constraints);
+    const q = constraints.length > 0
+      ? query(collection(db, BOOKINGS_COLLECTION), ...constraints)
+      : query(collection(db, BOOKINGS_COLLECTION));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
         const next = snapshot.docs
           .map((item) => normalizeBooking(item.data() as Partial<BookingRecord>, item.id))
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          .sort((a, b) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+          });
         setBookings(next);
       },
       () => {
@@ -269,12 +269,14 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'assistant_hall_manager') {
-      return { ok: false, message: 'Only Assistant Hall Manager can edit bookings in this flow.' };
+    const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'controller';
+    if (!canEditAsRole) {
+      return { ok: false, message: 'Only Assistant Hall Manager, Hall Manager, or Controller can edit bookings.' };
     }
     const target = bookings.find((entry) => entry.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
-    if (target.createdByUserId !== user.id) {
+    const canEditAny = user.role === 'manager' || user.role === 'controller';
+    if (!canEditAny && target.createdByUserId !== user.id) {
       return { ok: false, message: 'You can only edit your own bookings.' };
     }
 
@@ -313,6 +315,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       lastEditedByUserId: user.id,
       lastEditedByRole: user.role,
       revision: (target.revision ?? 0) + 1,
+      assignedToRole: target.assignedToRole ?? 'cashier_1',
+      sentToCashier1At: target.sentToCashier1At ?? new Date().toISOString(),
     };
 
     try {

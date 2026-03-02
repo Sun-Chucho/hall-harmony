@@ -162,15 +162,18 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
     const booking = bookings.find((item) => item.id === input.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
-    if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
+    }
     const paymentId = generateReference('PAY');
     const receiptNumber = generateReference('RCT');
     const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
+    const amount = Math.round(input.amount);
 
     const record: PaymentRecord = {
       id: paymentId,
       bookingId: input.bookingId,
-      amount: input.amount,
+      amount,
       method: input.method,
       referenceNumber,
       receivedAt: new Date().toISOString(),
@@ -178,14 +181,23 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       receiptNumber,
       notes: input.notes?.trim() ?? '',
     };
-    setPayments((prev) => [record, ...prev]);
-    setStatusOverride((prev) => {
-      const next = { ...prev };
-      delete next[input.bookingId];
-      return next;
-    });
+    const nextPayments = [record, ...payments];
+    const nextStatusOverride = { ...statusOverride };
+    delete nextStatusOverride[input.bookingId];
+
+    setPayments(nextPayments);
+    setStatusOverride(nextStatusOverride);
+    void setDoc(
+      PAYMENT_STATE_REF,
+      {
+        payments: nextPayments,
+        statusOverride: nextStatusOverride,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
     return { ok: true, message: 'Payment recorded successfully.', paymentId };
-  }, [bookings, policy.transactionsFrozen, user]);
+  }, [bookings, payments, policy.transactionsFrozen, statusOverride, user]);
 
   const setBookingPaymentStatus = useCallback((bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -195,9 +207,19 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!bookings.some((item) => item.id === bookingId)) {
       return { ok: false, message: 'Booking not found.' };
     }
-    setStatusOverride((prev) => ({ ...prev, [bookingId]: status }));
+    const nextStatusOverride = { ...statusOverride, [bookingId]: status };
+    setStatusOverride(nextStatusOverride);
+    void setDoc(
+      PAYMENT_STATE_REF,
+      {
+        payments,
+        statusOverride: nextStatusOverride,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
     return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };
-  }, [bookings, user]);
+  }, [bookings, payments, statusOverride, user]);
 
   const generateReceiptText = useCallback((paymentId: string) => {
     const payment = payments.find((item) => item.id === paymentId);

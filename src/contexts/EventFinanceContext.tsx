@@ -226,6 +226,31 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     );
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, hydrated, logs, mdTransfers, user]);
 
+  const persistFinanceState = useCallback((overrides?: {
+    budgets?: EventBudget[];
+    allocations?: AllocationRequest[];
+    distributions?: ExpenseDistribution[];
+    cashTransfers?: CashTransfer[];
+    mdTransfers?: ManagingDirectorTransfer[];
+    cashDistributions?: CashDistributionRecord[];
+    logs?: EventFinanceLog[];
+  }) => {
+    void setDoc(
+      EVENT_FINANCE_STATE_REF,
+      {
+        budgets: overrides?.budgets ?? budgets,
+        allocations: overrides?.allocations ?? allocations,
+        distributions: overrides?.distributions ?? distributions,
+        cashTransfers: overrides?.cashTransfers ?? cashTransfers,
+        mdTransfers: overrides?.mdTransfers ?? mdTransfers,
+        cashDistributions: overrides?.cashDistributions ?? cashDistributions,
+        logs: overrides?.logs ?? logs,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [allocations, budgets, cashDistributions, cashTransfers, distributions, logs, mdTransfers]);
+
   const appendLog = useCallback((action: string, referenceId: string, detail: string) => {
     if (!user) return;
     const entry: EventFinanceLog = {
@@ -461,11 +486,14 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (user.role !== 'cashier_2' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 2 or Controller can request cash.' };
     }
-    if (input.amount <= 0) return { ok: false, message: 'Requested amount must be greater than zero.' };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      return { ok: false, message: 'Requested amount must be greater than zero.' };
+    }
+    const requestedAmount = Math.round(input.amount);
 
     const transfer: CashTransfer = {
-      id: `CASH-MOVE-${Date.now()}`,
-      requestedAmount: input.amount,
+      id: `CASH-MOVE-${crypto.randomUUID()}`,
+      requestedAmount,
       approvedAmount: 0,
       requestComment: input.comment.trim(),
       decisionComment: '',
@@ -475,22 +503,25 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       requestedAt: new Date().toISOString(),
       status: 'pending_cashier_1_approval',
     };
-    setCashTransfers((prev) => [transfer, ...prev]);
-    appendLog('cash_move.requested', transfer.id, `Cashier 2 requested TZS ${input.amount.toLocaleString()}`);
+    const nextCashTransfers = [transfer, ...cashTransfers];
+    setCashTransfers(nextCashTransfers);
+    persistFinanceState({ cashTransfers: nextCashTransfers });
+    appendLog('cash_move.requested', transfer.id, `Cashier 2 requested TZS ${requestedAmount.toLocaleString()}`);
     return { ok: true, message: 'Cash request sent to Cashier 1.', requestId: transfer.id };
-  }, [appendLog, user]);
+  }, [appendLog, cashTransfers, persistFinanceState, user]);
 
   const sendCashToCashier2 = useCallback((input: { amount: number; comment: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can send cash to Cashier 2.' };
     }
-    if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const requestedAmount = Math.round(input.amount);
 
     const transfer: CashTransfer = {
-      id: `CASH-MOVE-${Date.now()}`,
-      requestedAmount: input.amount,
-      approvedAmount: input.amount,
+      id: `CASH-MOVE-${crypto.randomUUID()}`,
+      requestedAmount,
+      approvedAmount: requestedAmount,
       requestComment: input.comment.trim(),
       decisionComment: 'Direct transfer by Cashier 1',
       receiveComment: '',
@@ -503,17 +534,20 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       sentByUserId: user.id,
       status: 'sent_to_cashier_2',
     };
-    setCashTransfers((prev) => [transfer, ...prev]);
-    appendLog('cash_move.sent', transfer.id, `Cashier 1 sent TZS ${input.amount.toLocaleString()} to Cashier 2`);
+    const nextCashTransfers = [transfer, ...cashTransfers];
+    setCashTransfers(nextCashTransfers);
+    persistFinanceState({ cashTransfers: nextCashTransfers });
+    appendLog('cash_move.sent', transfer.id, `Cashier 1 sent TZS ${requestedAmount.toLocaleString()} to Cashier 2`);
     return { ok: true, message: 'Cash sent. Waiting for Cashier 2 confirmation.', transferId: transfer.id };
-  }, [appendLog, user]);
+  }, [appendLog, cashTransfers, persistFinanceState, user]);
 
   const approveCashTransferRequest = useCallback((transferId: string, approvedAmount: number, decisionComment: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can approve cash requests.' };
     }
-    if (approvedAmount <= 0) return { ok: false, message: 'Approved amount must be greater than zero.' };
+    if (!Number.isFinite(approvedAmount) || approvedAmount <= 0) return { ok: false, message: 'Approved amount must be greater than zero.' };
+    const normalizedApprovedAmount = Math.round(approvedAmount);
 
     const target = cashTransfers.find((item) => item.id === transferId);
     if (!target) return { ok: false, message: 'Cash request not found.' };
@@ -521,25 +555,25 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       return { ok: false, message: 'Only pending requests can be approved.' };
     }
 
-    setCashTransfers((prev) =>
-      prev.map((item) =>
-        item.id === transferId
-          ? {
-              ...item,
-              approvedAmount,
-              decisionComment: decisionComment.trim(),
-              decidedAt: new Date().toISOString(),
-              decidedByUserId: user.id,
-              sentAt: new Date().toISOString(),
-              sentByUserId: user.id,
-              status: 'sent_to_cashier_2',
-            }
-          : item,
-      ),
+    const nextCashTransfers = cashTransfers.map((item) =>
+      item.id === transferId
+        ? {
+            ...item,
+            approvedAmount: normalizedApprovedAmount,
+            decisionComment: decisionComment.trim(),
+            decidedAt: new Date().toISOString(),
+            decidedByUserId: user.id,
+            sentAt: new Date().toISOString(),
+            sentByUserId: user.id,
+            status: 'sent_to_cashier_2' as const,
+          }
+        : item,
     );
-    appendLog('cash_move.approved', transferId, `Cash request approved for TZS ${approvedAmount.toLocaleString()}`);
+    setCashTransfers(nextCashTransfers);
+    persistFinanceState({ cashTransfers: nextCashTransfers });
+    appendLog('cash_move.approved', transferId, `Cash request approved for TZS ${normalizedApprovedAmount.toLocaleString()}`);
     return { ok: true, message: 'Request approved and cash sent to Cashier 2.' };
-  }, [appendLog, cashTransfers, user]);
+  }, [appendLog, cashTransfers, persistFinanceState, user]);
 
   const declineCashTransferRequest = useCallback((transferId: string, decisionComment: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -553,22 +587,22 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       return { ok: false, message: 'Only pending requests can be declined.' };
     }
 
-    setCashTransfers((prev) =>
-      prev.map((item) =>
-        item.id === transferId
-          ? {
-              ...item,
-              decisionComment: decisionComment.trim(),
-              decidedAt: new Date().toISOString(),
-              decidedByUserId: user.id,
-              status: 'declined_by_cashier_1',
-            }
-          : item,
-      ),
+    const nextCashTransfers = cashTransfers.map((item) =>
+      item.id === transferId
+        ? {
+            ...item,
+            decisionComment: decisionComment.trim(),
+            decidedAt: new Date().toISOString(),
+            decidedByUserId: user.id,
+            status: 'declined_by_cashier_1' as const,
+          }
+        : item,
     );
+    setCashTransfers(nextCashTransfers);
+    persistFinanceState({ cashTransfers: nextCashTransfers });
     appendLog('cash_move.declined', transferId, 'Cash request declined by Cashier 1');
     return { ok: true, message: 'Request declined.' };
-  }, [appendLog, cashTransfers, user]);
+  }, [appendLog, cashTransfers, persistFinanceState, user]);
 
   const confirmCashTransferReceived = useCallback((transferId: string, receiveComment: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -582,43 +616,46 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       return { ok: false, message: 'Transfer is not awaiting receipt confirmation.' };
     }
 
-    setCashTransfers((prev) =>
-      prev.map((item) =>
-        item.id === transferId
-          ? {
-              ...item,
-              receiveComment: receiveComment.trim(),
-              receivedAt: new Date().toISOString(),
-              receivedByUserId: user.id,
-              status: 'received_by_cashier_2',
-            }
-          : item,
-      ),
+    const nextCashTransfers = cashTransfers.map((item) =>
+      item.id === transferId
+        ? {
+            ...item,
+            receiveComment: receiveComment.trim(),
+            receivedAt: new Date().toISOString(),
+            receivedByUserId: user.id,
+            status: 'received_by_cashier_2' as const,
+          }
+        : item,
     );
+    setCashTransfers(nextCashTransfers);
+    persistFinanceState({ cashTransfers: nextCashTransfers });
     appendLog('cash_move.received', transferId, 'Cashier 2 confirmed receipt');
     return { ok: true, message: 'Cash receipt confirmed.' };
-  }, [appendLog, cashTransfers, user]);
+  }, [appendLog, cashTransfers, persistFinanceState, user]);
 
   const recordManagingDirectorTransfer = useCallback((input: { amount: number; reference?: string; notes?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can record MD transfers.' };
     }
-    if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const amount = Math.round(input.amount);
     const reference = input.reference?.trim() || generateReference('MDTRF');
 
     const transfer: ManagingDirectorTransfer = {
       id: generateReference('MD-TRANSFER'),
-      amount: input.amount,
+      amount,
       reference,
       notes: input.notes?.trim() ?? '',
       transferredAt: new Date().toISOString(),
       transferredByUserId: user.id,
     };
-    setMdTransfers((prev) => [transfer, ...prev]);
-    appendLog('md_transfer.recorded', transfer.id, `TZS ${input.amount.toLocaleString()} moved to Managing Director`);
+    const nextTransfers = [transfer, ...mdTransfers];
+    setMdTransfers(nextTransfers);
+    persistFinanceState({ mdTransfers: nextTransfers });
+    appendLog('md_transfer.recorded', transfer.id, `TZS ${amount.toLocaleString()} moved to Managing Director`);
     return { ok: true, message: 'Managing Director transfer recorded.', transferId: transfer.id };
-  }, [appendLog, user]);
+  }, [appendLog, mdTransfers, persistFinanceState, user]);
 
   const recordCashDistribution = useCallback((input: {
     category: CashDistributionCategory;
@@ -626,24 +663,30 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     reason: string;
   }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') {
-      return { ok: false, message: 'Only Cashier 2 or Controller can record cash distributions.' };
+    if (user.role !== 'cashier_2' && user.role !== 'cashier_1' && user.role !== 'controller') {
+      return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can record cash distributions.' };
     }
-    if (input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    if (policy.transactionsFrozen && user.role !== 'controller') {
+      return { ok: false, message: 'Transactions are frozen by controller.' };
+    }
+    if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const amount = Math.round(input.amount);
     if (!input.reason.trim()) return { ok: false, message: 'Reason is required.' };
 
     const record: CashDistributionRecord = {
       id: `CDIST-${Date.now()}`,
       category: input.category,
-      amount: input.amount,
+      amount,
       reason: input.reason.trim(),
       distributedAt: new Date().toISOString(),
       distributedByUserId: user.id,
     };
-    setCashDistributions((prev) => [record, ...prev]);
-    appendLog('cash_distribution.recorded', record.id, `${input.category} TZS ${input.amount.toLocaleString()}`);
+    const nextDistributions = [record, ...cashDistributions];
+    setCashDistributions(nextDistributions);
+    persistFinanceState({ cashDistributions: nextDistributions });
+    appendLog('cash_distribution.recorded', record.id, `${input.category} TZS ${amount.toLocaleString()}`);
     return { ok: true, message: 'Cash distribution recorded.', distributionId: record.id };
-  }, [appendLog, user]);
+  }, [appendLog, cashDistributions, persistFinanceState, policy.transactionsFrozen, user]);
 
   const generateExpenseSheet = useCallback((requestId: string) => {
     const request = allocations.find((item) => item.id === requestId);

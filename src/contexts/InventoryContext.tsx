@@ -146,43 +146,31 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     );
   }, [allocations, damages, hydrated, items, movements, user]);
 
+  const persistInventoryState = useCallback((overrides?: {
+    items?: InventoryItem[];
+    movements?: InventoryMovement[];
+    damages?: DamagedItemRecord[];
+    allocations?: EventItemAllocation[];
+  }) => {
+    void setDoc(
+      INVENTORY_STATE_REF,
+      {
+        items: overrides?.items ?? items,
+        movements: overrides?.movements ?? movements,
+        damages: overrides?.damages ?? damages,
+        allocations: overrides?.allocations ?? allocations,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, [allocations, damages, items, movements]);
+
   const canManage = useCallback(() => {
     if (!user) return false;
     return user.role === 'store_keeper' || user.role === 'controller';
   }, [user]);
 
   const canActWhenFrozen = useCallback(() => user?.role === 'controller', [user]);
-
-  const updateItemQuantity = useCallback((itemId: string, delta: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, currentQuantity: Math.max(item.currentQuantity + delta, 0) } : item,
-      ),
-    );
-  }, []);
-
-  const addMovement = useCallback((
-    itemId: string,
-    type: InventoryMovement['type'],
-    quantity: number,
-    reference: string,
-    notes: string,
-    eventBookingId?: string,
-  ) => {
-    if (!user) return;
-    const movement: InventoryMovement = {
-      id: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      itemId,
-      type,
-      quantity,
-      reference: reference.trim(),
-      notes: notes.trim(),
-      eventBookingId,
-      performedByUserId: user.id,
-      createdAt: new Date().toISOString(),
-    };
-    setMovements((prev) => [movement, ...prev]);
-  }, [user]);
 
   const addItem = useCallback((name: string, unit: string, openingQuantity: number, reorderLevel: number) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -191,23 +179,41 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Transactions are frozen by controller.' };
     }
     if (!name.trim() || !unit.trim()) return { ok: false, message: 'Item name and unit are required.' };
-    if (openingQuantity < 0 || reorderLevel < 0) return { ok: false, message: 'Quantities cannot be negative.' };
+    if (!Number.isFinite(openingQuantity) || openingQuantity < 0 || !Number.isFinite(reorderLevel) || reorderLevel < 0) {
+      return { ok: false, message: 'Quantities cannot be negative.' };
+    }
+    const normalizedOpeningQuantity = Math.round(openingQuantity);
+    const normalizedReorderLevel = Math.round(reorderLevel);
 
     const item: InventoryItem = {
-      id: `ITEM-${Date.now()}`,
+      id: `ITEM-${crypto.randomUUID()}`,
       name: name.trim(),
       unit: unit.trim(),
-      currentQuantity: openingQuantity,
-      reorderLevel,
+      currentQuantity: normalizedOpeningQuantity,
+      reorderLevel: normalizedReorderLevel,
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
     };
-    setItems((prev) => [item, ...prev]);
-    if (openingQuantity > 0) {
-      addMovement(item.id, 'stock_in', openingQuantity, 'OPENING', 'Opening stock balance');
+    const nextItems = [item, ...items];
+    let nextMovements = movements;
+    if (normalizedOpeningQuantity > 0) {
+      const movement: InventoryMovement = {
+        id: `MOV-${crypto.randomUUID()}`,
+        itemId: item.id,
+        type: 'stock_in',
+        quantity: normalizedOpeningQuantity,
+        reference: 'OPENING',
+        notes: 'Opening stock balance',
+        performedByUserId: user.id,
+        createdAt: new Date().toISOString(),
+      };
+      nextMovements = [movement, ...movements];
+      setMovements(nextMovements);
     }
+    setItems(nextItems);
+    persistInventoryState({ items: nextItems, movements: nextMovements });
     return { ok: true, message: 'Inventory item created.' };
-  }, [addMovement, canActWhenFrozen, canManage, policy.transactionsFrozen, user]);
+  }, [canActWhenFrozen, canManage, items, movements, persistInventoryState, policy.transactionsFrozen, user]);
 
   const stockIn = useCallback((itemId: string, quantity: number, reference: string, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -216,13 +222,29 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Transactions are frozen by controller.' };
     }
     if (!items.some((item) => item.id === itemId)) return { ok: false, message: 'Item not found.' };
-    if (quantity <= 0) return { ok: false, message: 'Stock in quantity must be greater than zero.' };
+    if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: 'Stock in quantity must be greater than zero.' };
+    const normalizedQuantity = Math.round(quantity);
     const movementReference = reference.trim() || generateReference('STKIN');
 
-    updateItemQuantity(itemId, quantity);
-    addMovement(itemId, 'stock_in', quantity, movementReference, notes);
+    const nextItems = items.map((item) =>
+      item.id === itemId ? { ...item, currentQuantity: Math.max(item.currentQuantity + normalizedQuantity, 0) } : item,
+    );
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId,
+      type: 'stock_in',
+      quantity: normalizedQuantity,
+      reference: movementReference,
+      notes: notes.trim(),
+      performedByUserId: user.id,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMovements = [movement, ...movements];
+    setItems(nextItems);
+    setMovements(nextMovements);
+    persistInventoryState({ items: nextItems, movements: nextMovements });
     return { ok: true, message: 'Stock in recorded.' };
-  }, [addMovement, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
+  }, [canActWhenFrozen, canManage, items, movements, persistInventoryState, policy.transactionsFrozen, user]);
 
   const stockOut = useCallback((itemId: string, quantity: number, reference: string, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -232,14 +254,30 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return { ok: false, message: 'Item not found.' };
-    if (quantity <= 0) return { ok: false, message: 'Stock out quantity must be greater than zero.' };
-    if (item.currentQuantity < quantity) return { ok: false, message: 'Insufficient stock quantity.' };
+    if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: 'Stock out quantity must be greater than zero.' };
+    const normalizedQuantity = Math.round(quantity);
+    if (item.currentQuantity < normalizedQuantity) return { ok: false, message: 'Insufficient stock quantity.' };
     const movementReference = reference.trim() || generateReference('STKOUT');
 
-    updateItemQuantity(itemId, -quantity);
-    addMovement(itemId, 'stock_out', quantity, movementReference, notes);
+    const nextItems = items.map((entry) =>
+      entry.id === itemId ? { ...entry, currentQuantity: Math.max(entry.currentQuantity - normalizedQuantity, 0) } : entry,
+    );
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId,
+      type: 'stock_out',
+      quantity: normalizedQuantity,
+      reference: movementReference,
+      notes: notes.trim(),
+      performedByUserId: user.id,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMovements = [movement, ...movements];
+    setItems(nextItems);
+    setMovements(nextMovements);
+    persistInventoryState({ items: nextItems, movements: nextMovements });
     return { ok: true, message: 'Stock out recorded.' };
-  }, [addMovement, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
+  }, [canActWhenFrozen, canManage, items, movements, persistInventoryState, policy.transactionsFrozen, user]);
 
   const allocateToEvent = useCallback((bookingId: string, itemId: string, quantity: number, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -252,25 +290,43 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     if (booking.bookingStatus !== 'approved') return { ok: false, message: 'Only approved bookings can receive stock allocation.' };
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return { ok: false, message: 'Item not found.' };
-    if (quantity <= 0) return { ok: false, message: 'Allocation quantity must be greater than zero.' };
-    if (item.currentQuantity < quantity) return { ok: false, message: 'Insufficient stock for allocation.' };
+    if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: 'Allocation quantity must be greater than zero.' };
+    const normalizedQuantity = Math.round(quantity);
+    if (item.currentQuantity < normalizedQuantity) return { ok: false, message: 'Insufficient stock for allocation.' };
 
-    updateItemQuantity(itemId, -quantity);
-    addMovement(itemId, 'allocation', quantity, `EVT-${bookingId}`, notes, bookingId);
+    const nextItems = items.map((entry) =>
+      entry.id === itemId ? { ...entry, currentQuantity: Math.max(entry.currentQuantity - normalizedQuantity, 0) } : entry,
+    );
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId,
+      type: 'allocation',
+      quantity: normalizedQuantity,
+      reference: `EVT-${bookingId}`,
+      notes: notes.trim(),
+      eventBookingId: bookingId,
+      performedByUserId: user.id,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMovements = [movement, ...movements];
 
     const allocation: EventItemAllocation = {
-      id: `ALC-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `ALC-${crypto.randomUUID()}`,
       bookingId,
       itemId,
-      quantity,
+      quantity: normalizedQuantity,
       status: 'allocated',
       notes: notes.trim(),
       allocatedByUserId: user.id,
       allocatedAt: new Date().toISOString(),
     };
-    setAllocations((prev) => [allocation, ...prev]);
+    const nextAllocations = [allocation, ...allocations];
+    setItems(nextItems);
+    setMovements(nextMovements);
+    setAllocations(nextAllocations);
+    persistInventoryState({ items: nextItems, movements: nextMovements, allocations: nextAllocations });
     return { ok: true, message: 'Item allocated to event.' };
-  }, [addMovement, bookings, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
+  }, [allocations, bookings, canActWhenFrozen, canManage, items, movements, persistInventoryState, policy.transactionsFrozen, user]);
 
   const returnFromEvent = useCallback((allocationId: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -279,22 +335,37 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     if (!allocation) return { ok: false, message: 'Allocation not found.' };
     if (allocation.status === 'returned') return { ok: false, message: 'Allocation already returned.' };
 
-    updateItemQuantity(allocation.itemId, allocation.quantity);
-    addMovement(allocation.itemId, 'return', allocation.quantity, `RET-${allocation.bookingId}`, 'Event return', allocation.bookingId);
-    setAllocations((prev) =>
-      prev.map((entry) =>
-        entry.id === allocationId
-          ? {
-              ...entry,
-              status: 'returned',
-              returnedByUserId: user.id,
-              returnedAt: new Date().toISOString(),
-            }
-          : entry,
-      ),
+    const nextItems = items.map((entry) =>
+      entry.id === allocation.itemId ? { ...entry, currentQuantity: Math.max(entry.currentQuantity + allocation.quantity, 0) } : entry,
     );
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId: allocation.itemId,
+      type: 'return',
+      quantity: allocation.quantity,
+      reference: `RET-${allocation.bookingId}`,
+      notes: 'Event return',
+      eventBookingId: allocation.bookingId,
+      performedByUserId: user.id,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMovements = [movement, ...movements];
+    const nextAllocations = allocations.map((entry) =>
+      entry.id === allocationId
+        ? {
+            ...entry,
+            status: 'returned' as const,
+            returnedByUserId: user.id,
+            returnedAt: new Date().toISOString(),
+          }
+        : entry,
+    );
+    setItems(nextItems);
+    setMovements(nextMovements);
+    setAllocations(nextAllocations);
+    persistInventoryState({ items: nextItems, movements: nextMovements, allocations: nextAllocations });
     return { ok: true, message: 'Items returned to store.' };
-  }, [addMovement, allocations, canManage, updateItemQuantity, user]);
+  }, [allocations, canManage, items, movements, persistInventoryState, user]);
 
   const recordDamage = useCallback((itemId: string, quantity: number, reason: string, bookingId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -304,25 +375,43 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return { ok: false, message: 'Item not found.' };
-    if (quantity <= 0) return { ok: false, message: 'Damage quantity must be greater than zero.' };
-    if (item.currentQuantity < quantity) return { ok: false, message: 'Insufficient stock to mark as damaged.' };
+    if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: 'Damage quantity must be greater than zero.' };
+    const normalizedQuantity = Math.round(quantity);
+    if (item.currentQuantity < normalizedQuantity) return { ok: false, message: 'Insufficient stock to mark as damaged.' };
     if (!reason.trim()) return { ok: false, message: 'Damage reason is required.' };
 
-    updateItemQuantity(itemId, -quantity);
-    addMovement(itemId, 'damaged', quantity, `DMG-${Date.now()}`, reason, bookingId);
+    const nextItems = items.map((entry) =>
+      entry.id === itemId ? { ...entry, currentQuantity: Math.max(entry.currentQuantity - normalizedQuantity, 0) } : entry,
+    );
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId,
+      type: 'damaged',
+      quantity: normalizedQuantity,
+      reference: `DMG-${Date.now()}`,
+      notes: reason.trim(),
+      eventBookingId: bookingId,
+      performedByUserId: user.id,
+      createdAt: new Date().toISOString(),
+    };
+    const nextMovements = [movement, ...movements];
 
     const damage: DamagedItemRecord = {
-      id: `DMG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `DMG-${crypto.randomUUID()}`,
       itemId,
-      quantity,
+      quantity: normalizedQuantity,
       reason: reason.trim(),
       eventBookingId: bookingId || undefined,
       reportedByUserId: user.id,
       reportedAt: new Date().toISOString(),
     };
-    setDamages((prev) => [damage, ...prev]);
+    const nextDamages = [damage, ...damages];
+    setItems(nextItems);
+    setMovements(nextMovements);
+    setDamages(nextDamages);
+    persistInventoryState({ items: nextItems, movements: nextMovements, damages: nextDamages });
     return { ok: true, message: 'Damaged item recorded.' };
-  }, [addMovement, canActWhenFrozen, canManage, items, policy.transactionsFrozen, updateItemQuantity, user]);
+  }, [canActWhenFrozen, canManage, damages, items, movements, persistInventoryState, policy.transactionsFrozen, user]);
 
   const getReport = useCallback((): InventoryReport => {
     const totalUnits = items.reduce((sum, item) => sum + item.currentQuantity, 0);

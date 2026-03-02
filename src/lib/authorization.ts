@@ -158,8 +158,8 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   ],
   '/bookings': ['manager', 'assistant_hall_manager', 'cashier_1', 'controller', 'accountant'],
   '/customers': ['manager', 'assistant_hall_manager'],
-  '/payments': ['cashier_1', 'accountant'],
-  '/cash-movement': ['cashier_2', 'cashier_1', 'accountant'],
+  '/payments': ['cashier_1', 'controller', 'accountant'],
+  '/cash-movement': ['cashier_2', 'cashier_1', 'controller', 'accountant'],
   '/services': ['manager', 'controller'],
   '/rentals': ['manager', 'assistant_hall_manager', 'controller', 'store_keeper', 'purchaser'],
   '/documents': ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'store_keeper', 'purchaser'],
@@ -179,7 +179,7 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   ],
   '/admin': ['controller'],
   '/md-transfer': ['cashier_1', 'controller'],
-  '/distribution': ['cashier_2', 'controller'],
+  '/distribution': ['cashier_1', 'cashier_2', 'controller'],
   '/messages': ['manager', 'accountant', 'controller'],
 };
 

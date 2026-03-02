@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { CashDistributionCategory } from '@/types/eventFinance';
 
@@ -19,11 +20,13 @@ const categories: { value: CashDistributionCategory; label: string }[] = [
 ];
 
 export default function Distribution() {
+  const { user } = useAuth();
   const { cashDistributions, recordCashDistribution } = useEventFinance();
   const [category, setCategory] = useState<CashDistributionCategory>('cleaning');
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const stats = useMemo(() => {
     const total = cashDistributions.reduce((sum, item) => sum + item.amount, 0);
@@ -40,6 +43,8 @@ export default function Distribution() {
       { title: 'Latest', value: cashDistributions[0] ? new Date(cashDistributions[0].distributedAt).toLocaleDateString() : '-', description: 'last distribution date' },
     ];
   }, [cashDistributions]);
+
+  const canRecordDistribution = user?.role === 'cashier_1' || user?.role === 'cashier_2' || user?.role === 'controller';
 
   return (
     <ManagementPageTemplate
@@ -79,16 +84,32 @@ export default function Distribution() {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
+                disabled={isSaving}
                 onClick={() => {
+                  if (isSaving) return;
+                  if (!canRecordDistribution) {
+                    setMessage('This role cannot record distributions.');
+                    return;
+                  }
+                  if (!Number.isFinite(amount) || amount <= 0) {
+                    setMessage('Enter a valid amount greater than zero.');
+                    return;
+                  }
+                  if (!reason.trim()) {
+                    setMessage('Reason is required.');
+                    return;
+                  }
+                  setIsSaving(true);
                   const result = recordCashDistribution({ category, amount, reason });
                   setMessage(result.message);
                   if (result.ok) {
                     setAmount(0);
                     setReason('');
                   }
+                  setIsSaving(false);
                 }}
               >
-                Save Distribution
+                {isSaving ? 'Saving...' : 'Save Distribution'}
               </Button>
               {message ? <span className="text-xs text-slate-600">{message}</span> : null}
             </div>

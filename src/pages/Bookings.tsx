@@ -8,6 +8,7 @@ import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { CreateBookingInput } from '@/types/booking';
+import { PaymentMethod } from '@/types/payment';
 
 const halls = [
   'Witness Hall',
@@ -34,6 +35,12 @@ function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'mobile_money', label: 'Mobile Money' },
+];
+
 export default function Bookings() {
   const { user } = useAuth();
   const {
@@ -52,8 +59,21 @@ export default function Bookings() {
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [isSavingBooking, setIsSavingBooking] = useState(false);
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
+
+  const refreshPageAfterUpdate = (notice?: string) => {
+    setIsRefreshingPage(true);
+    setMessage(notice ?? 'Update saved. Refreshing page...');
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 450);
+    }
+  };
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -74,7 +94,7 @@ export default function Bookings() {
   const canManageBookings = user?.role === 'controller';
   const canFinalizeEvent = user?.role === 'controller';
   const canAccountantReview = user?.role === 'accountant';
-  const canCreateBooking = user?.role === 'controller';
+  const canCreateBooking = user?.role === 'controller' || user?.role === 'manager';
   const canDeleteAnyBooking = user?.role === 'controller' || user?.role === 'manager';
 
   const conflict = form.hall && form.date && form.startTime && form.endTime
@@ -108,6 +128,7 @@ export default function Bookings() {
         }
         setForm(initialForm);
         setEditingBookingId(null);
+        refreshPageAfterUpdate('Booking update saved. Refreshing page...');
       }
     } finally {
       setIsSavingBooking(false);
@@ -136,16 +157,19 @@ export default function Bookings() {
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
     const result = await updateBookingStatus(bookingId, status);
     setMessage(result.message);
+    if (result.ok) refreshPageAfterUpdate(`Booking marked as ${status}. Refreshing page...`);
   };
 
   const handleEventStatus = async (bookingId: string, status: 'approved_assistant' | 'approved_controller' | 'rejected') => {
     const result = await updateEventDetailStatus(bookingId, status);
     setMessage(result.message);
+    if (result.ok) refreshPageAfterUpdate('Event status updated. Refreshing page...');
   };
 
   const handleDeleteBooking = async (bookingId: string) => {
     const result = await deleteBooking(bookingId);
     setMessage(result.message);
+    if (result.ok) refreshPageAfterUpdate('Booking deleted. Refreshing page...');
   };
 
   const handleAccountantDecision = async (bookingId: string, decision: 'approve' | 'disapprove') => {
@@ -161,6 +185,7 @@ export default function Bookings() {
       decision,
     });
     setMessage(result.message);
+    if (result.ok) refreshPageAfterUpdate('Recommendation sent. Refreshing page...');
   };
 
   if (isAssistantHall && user) {
@@ -250,7 +275,7 @@ export default function Bookings() {
                         : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
                     </Button>
                     {editingBookingId ? (
-                      <Button size="sm" variant="outline" onClick={() => { setEditingBookingId(null); setForm(initialForm); }}>
+                      <Button size="sm" variant="outline" disabled={isRefreshingPage} onClick={() => { setEditingBookingId(null); setForm(initialForm); }}>
                         Cancel Edit
                       </Button>
                     ) : null}
@@ -309,6 +334,15 @@ export default function Bookings() {
     const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const financials = selected ? getBookingFinancials(selected.id) : null;
     const bookingPayments = selected ? payments.filter((item) => item.bookingId === selected.id) : [];
+    const paymentMethodBreakdown = bookingPayments.reduce(
+      (acc, payment) => {
+        if (payment.method === 'cash') acc.cash += payment.amount;
+        if (payment.method === 'bank_transfer') acc.bankTransfer += payment.amount;
+        if (payment.method === 'mobile_money') acc.mobileMoney += payment.amount;
+        return acc;
+      },
+      { cash: 0, bankTransfer: 0, mobileMoney: 0 },
+    );
 
     return (
       <ManagementPageTemplate
@@ -326,6 +360,7 @@ export default function Bookings() {
             bullets: [
               'Select a registered booking from Assistant Halls.',
               'View booking details in read-only mode.',
+              'Select payment module (cash, bank transfer, or mobile money).',
               'Enter paid amount and notes, then mark Paid to update remaining balance.',
             ],
           },
@@ -377,6 +412,17 @@ export default function Bookings() {
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Section</p>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <select
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={paymentMethod}
+                      onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
+                    >
+                      {cashierPaymentMethods.map((method) => (
+                        <option key={method.value} value={method.value}>
+                          {method.label}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="number"
                       placeholder="Amount Paid (TZS)"
@@ -387,7 +433,7 @@ export default function Bookings() {
                     <input
                       type="text"
                       placeholder="Notes / Comment"
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
                       value={paymentNotes}
                       onChange={(event) => setPaymentNotes(event.target.value)}
                     />
@@ -395,21 +441,34 @@ export default function Bookings() {
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Button
                       size="sm"
+                      disabled={isRecordingPayment || isRefreshingPage}
                       onClick={() => {
+                        if (isRecordingPayment || isRefreshingPage) return;
+                        if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+                          setMessage('Enter a valid payment amount greater than zero.');
+                          return;
+                        }
+                        const currentBalance = financials?.balance ?? 0;
+                        setIsRecordingPayment(true);
                         const result = recordPayment({
                           bookingId: selected.id,
                           amount: paidAmount,
-                          method: 'cash',
+                          method: paymentMethod,
                           notes: paymentNotes,
                         });
                         setMessage(result.message);
                         if (result.ok) {
+                          const remainingBalance = Math.max(currentBalance - paidAmount, 0);
                           setPaidAmount(0);
                           setPaymentNotes('');
+                          refreshPageAfterUpdate(
+                            `Payment recorded successfully. Remaining balance: TZS ${remainingBalance.toLocaleString()}. Refreshing page...`,
+                          );
                         }
+                        setIsRecordingPayment(false);
                       }}
                     >
-                      Paid
+                      {isRecordingPayment ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Paid'}
                     </Button>
                     {financials ? <Badge className="bg-slate-100 text-slate-700">Remaining: TZS {financials.balance.toLocaleString()}</Badge> : null}
                     {message ? <span className="text-xs text-slate-600">{message}</span> : null}
@@ -417,7 +476,12 @@ export default function Bookings() {
                 </div>
 
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Tracking by Date and Comment</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Tracking by Date, Module and Comment</p>
+                    <Badge className="bg-emerald-100 text-emerald-800">Cash: TZS {paymentMethodBreakdown.cash.toLocaleString()}</Badge>
+                    <Badge className="bg-blue-100 text-blue-800">Bank: TZS {paymentMethodBreakdown.bankTransfer.toLocaleString()}</Badge>
+                    <Badge className="bg-violet-100 text-violet-800">Mobile: TZS {paymentMethodBreakdown.mobileMoney.toLocaleString()}</Badge>
+                  </div>
                   <div className="mt-3 space-y-3">
                     {bookingPayments.length === 0 ? (
                       <p className="text-sm text-slate-600">No payment entries yet for this booking.</p>
@@ -429,6 +493,7 @@ export default function Bookings() {
                             <Badge className="bg-slate-200 text-slate-900">{new Date(entry.receivedAt).toLocaleDateString()}</Badge>
                           </div>
                           <p className="text-slate-600">{new Date(entry.receivedAt).toLocaleString()}</p>
+                          <p className="text-slate-500">Module: {toShortStatus(entry.method)}</p>
                           <p className="text-slate-500">Comment: {entry.notes || '-'}</p>
                         </div>
                       ))
@@ -482,7 +547,7 @@ export default function Bookings() {
                 <input type="text" placeholder="Notes" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button size="sm" disabled={isSavingBooking} onClick={() => void handleCreateBooking()}>
+                <Button size="sm" disabled={isSavingBooking || isRefreshingPage} onClick={() => void handleCreateBooking()}>
                   {isSavingBooking ? 'Saving...' : 'Submit Booking'}
                 </Button>
                 {conflict ? <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge> : <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>}
@@ -542,6 +607,12 @@ export default function Bookings() {
                           <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'cancelled')}>Cancel</Button>
                           <Button size="sm" variant="outline" onClick={() => void handleBookingStatus(booking.id, 'completed')}>Complete</Button>
                         </>
+                      ) : null}
+
+                      {(user?.role === 'controller' || user?.role === 'manager') ? (
+                        <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>
+                          Edit Booking
+                        </Button>
                       ) : null}
 
                       {(canDeleteAnyBooking || booking.createdByUserId === user?.id) ? (

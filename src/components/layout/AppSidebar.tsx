@@ -80,13 +80,13 @@ const financeNavItems: NavItem[] = [
     title: 'Payments',
     icon: CreditCard,
     path: '/payments',
-    roles: ['cashier_1', 'accountant'],
+    roles: ['cashier_1', 'controller', 'accountant'],
   },
   {
     title: 'Cash Movement',
     icon: Banknote,
     path: '/cash-movement',
-    roles: ['cashier_2', 'cashier_1', 'accountant'],
+    roles: ['cashier_2', 'cashier_1', 'controller', 'accountant'],
   },
 ];
 
@@ -178,6 +178,7 @@ export function AppSidebar() {
   const cashier1NavItems: NavItem[] = [
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
+    { title: 'Distributing Money', icon: Package, path: '/distribution' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Managing Director', icon: CreditCard, path: '/md-transfer' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },

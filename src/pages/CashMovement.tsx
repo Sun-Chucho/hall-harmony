@@ -36,6 +36,7 @@ export default function CashMovement() {
   const [decisionComment, setDecisionComment] = useState<Record<string, string>>({});
   const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
   const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pendingRequests = useMemo(
     () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2'),
@@ -214,9 +215,13 @@ export default function CashMovement() {
                               />
                               <Button
                                 size="sm"
+                                disabled={isSubmitting}
                                 onClick={() => {
+                                  if (isSubmitting) return;
+                                  setIsSubmitting(true);
                                   const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '');
                                   setMessage(result.message);
+                                  setIsSubmitting(false);
                                 }}
                               >
                                 Received
@@ -237,13 +242,21 @@ export default function CashMovement() {
                     <div className="mt-4">
                       <Button
                         size="sm"
+                        disabled={isSubmitting}
                         onClick={() => {
+                          if (isSubmitting) return;
+                          if (!Number.isFinite(requestAmount) || requestAmount <= 0) {
+                            setMessage('Enter a valid requested amount greater than zero.');
+                            return;
+                          }
+                          setIsSubmitting(true);
                           const result = requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment });
                           setMessage(result.message);
                           if (result.ok) {
                             setRequestAmount(0);
                             setRequestComment('');
                           }
+                          setIsSubmitting(false);
                         }}
                       >
                         Send for Approval
@@ -263,6 +276,30 @@ export default function CashMovement() {
                 </div>
               </TabsContent>
             </Tabs>
+          </div>
+        }
+      />
+    );
+  }
+
+  if (user?.role !== 'cashier_1' && user?.role !== 'controller') {
+    return (
+      <ManagementPageTemplate
+        pageTitle="Cash Movement"
+        subtitle="Cash movement actions are available only to Cashier 1 / Controller and Cashier 2."
+        stats={stats}
+        sections={[
+          {
+            title: 'Access',
+            bullets: [
+              'Use Cashier 1/Controller for send/approve/decline actions.',
+              'Use Cashier 2 for request/received confirmation actions.',
+            ],
+          },
+        ]}
+        action={
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-700 shadow-sm">
+            You have view access only for this role.
           </div>
         }
       />
@@ -304,16 +341,24 @@ export default function CashMovement() {
                 <div className="mt-4">
                   <Button
                     size="sm"
+                    disabled={isSubmitting}
                     onClick={() => {
+                      if (isSubmitting) return;
+                      if (!Number.isFinite(moveCashAmount) || moveCashAmount <= 0) {
+                        setMessage('Enter a valid amount greater than zero.');
+                        return;
+                      }
+                      setIsSubmitting(true);
                       const result = sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment });
                       setMessage(result.message);
                       if (result.ok) {
                         setMoveCashAmount(0);
                         setMoveCashComment('');
                       }
+                      setIsSubmitting(false);
                     }}
                   >
-                    Send
+                    {isSubmitting ? 'Sending...' : 'Send'}
                   </Button>
                 </div>
               </div>
@@ -352,9 +397,18 @@ export default function CashMovement() {
                           />
                           <Button
                             size="sm"
+                            disabled={isSubmitting}
                             onClick={() => {
-                              const result = approveCashTransferRequest(item.id, decisionAmount[item.id] || 0, decisionComment[item.id] ?? '');
+                              if (isSubmitting) return;
+                              const amount = decisionAmount[item.id] || 0;
+                              if (!Number.isFinite(amount) || amount <= 0) {
+                                setMessage('Enter a valid approved amount greater than zero.');
+                                return;
+                              }
+                              setIsSubmitting(true);
+                              const result = approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '');
                               setMessage(result.message);
+                              setIsSubmitting(false);
                             }}
                           >
                             Approve
@@ -362,9 +416,13 @@ export default function CashMovement() {
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={isSubmitting}
                             onClick={() => {
+                              if (isSubmitting) return;
+                              setIsSubmitting(true);
                               const result = declineCashTransferRequest(item.id, decisionComment[item.id] ?? '');
                               setMessage(result.message);
+                              setIsSubmitting(false);
                             }}
                           >
                             Decline
