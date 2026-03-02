@@ -81,6 +81,7 @@ interface EventFinanceContextValue {
 const EventFinanceContext = createContext<EventFinanceContextValue | undefined>(undefined);
 const EVENT_FINANCE_STATE_REF = doc(db, 'system_state', 'event_finance');
 const EVENT_FINANCE_CACHE_KEY = 'kuringe_event_finance_cache_v1';
+const EVENT_FINANCE_DIRTY_KEY = 'kuringe_event_finance_dirty_v1';
 
 function sumBudget(categories: Record<BudgetCategory, number>): number {
   return Object.values(categories).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
@@ -139,6 +140,12 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       setLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch {
       localStorage.removeItem(EVENT_FINANCE_CACHE_KEY);
+    }
+    if (localStorage.getItem(EVENT_FINANCE_DIRTY_KEY) === '1') {
+      pendingRemoteWriteRef.current = true;
+      if (!pendingActionNonceRef.current) {
+        pendingActionNonceRef.current = crypto.randomUUID();
+      }
     }
   }, []);
 
@@ -240,8 +247,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current;
-    if (!actionNonce) return;
+    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
     pendingActionNonceRef.current = '';
     const serialized = serializeState({
       budgets,
@@ -254,22 +260,31 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     });
     if (serialized === lastSyncedStateRef.current) return;
     lastSyncedStateRef.current = serialized;
-    void setDoc(
-      EVENT_FINANCE_STATE_REF,
-      {
-        budgets,
-        allocations,
-        distributions,
-        cashTransfers,
-        mdTransfers,
-        cashDistributions,
-        logs,
-        writeToken: 'action_v1',
-        clientActionNonce: actionNonce,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    void (async () => {
+      try {
+        await setDoc(
+          EVENT_FINANCE_STATE_REF,
+          {
+            budgets,
+            allocations,
+            distributions,
+            cashTransfers,
+            mdTransfers,
+            cashDistributions,
+            logs,
+            writeToken: 'action_v1',
+            clientActionNonce: actionNonce,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        localStorage.removeItem(EVENT_FINANCE_DIRTY_KEY);
+      } catch {
+        pendingRemoteWriteRef.current = true;
+        pendingActionNonceRef.current = crypto.randomUUID();
+        localStorage.setItem(EVENT_FINANCE_DIRTY_KEY, '1');
+      }
+    })();
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, hydrated, logs, mdTransfers, user]);
 
   const persistFinanceState = useCallback((overrides?: {
@@ -292,6 +307,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     };
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
+    localStorage.setItem(EVENT_FINANCE_DIRTY_KEY, '1');
     localStorage.setItem(EVENT_FINANCE_CACHE_KEY, JSON.stringify(payload));
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, logs, mdTransfers]);
 

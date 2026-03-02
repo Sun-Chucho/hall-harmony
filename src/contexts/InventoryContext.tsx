@@ -35,6 +35,7 @@ interface InventoryContextValue {
 const InventoryContext = createContext<InventoryContextValue | undefined>(undefined);
 const INVENTORY_STATE_REF = doc(db, 'system_state', 'inventory');
 const INVENTORY_CACHE_KEY = 'kuringe_inventory_cache_v1';
+const INVENTORY_DIRTY_KEY = 'kuringe_inventory_dirty_v1';
 
 function generateReference(prefix: string) {
   return `${prefix}-${Date.now()}`;
@@ -76,6 +77,12 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
     } catch {
       localStorage.removeItem(INVENTORY_CACHE_KEY);
+    }
+    if (localStorage.getItem(INVENTORY_DIRTY_KEY) === '1') {
+      pendingRemoteWriteRef.current = true;
+      if (!pendingActionNonceRef.current) {
+        pendingActionNonceRef.current = crypto.randomUUID();
+      }
     }
   }, []);
 
@@ -156,8 +163,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current;
-    if (!actionNonce) return;
+    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
     pendingActionNonceRef.current = '';
     const serialized = serializeState({
       items,
@@ -167,19 +173,28 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     });
     if (serialized === lastSyncedStateRef.current) return;
     lastSyncedStateRef.current = serialized;
-    void setDoc(
-      INVENTORY_STATE_REF,
-      {
-        items,
-        movements,
-        damages,
-        allocations,
-        writeToken: 'action_v1',
-        clientActionNonce: actionNonce,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    void (async () => {
+      try {
+        await setDoc(
+          INVENTORY_STATE_REF,
+          {
+            items,
+            movements,
+            damages,
+            allocations,
+            writeToken: 'action_v1',
+            clientActionNonce: actionNonce,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        localStorage.removeItem(INVENTORY_DIRTY_KEY);
+      } catch {
+        pendingRemoteWriteRef.current = true;
+        pendingActionNonceRef.current = crypto.randomUUID();
+        localStorage.setItem(INVENTORY_DIRTY_KEY, '1');
+      }
+    })();
   }, [allocations, damages, hydrated, items, movements, user]);
 
   const persistInventoryState = useCallback((overrides?: {
@@ -196,6 +211,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     };
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
+    localStorage.setItem(INVENTORY_DIRTY_KEY, '1');
     localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(payload));
   }, [allocations, damages, items, movements]);
 

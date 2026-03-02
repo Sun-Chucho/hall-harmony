@@ -24,6 +24,7 @@ interface PaymentContextValue {
 const DEPOSIT_RATIO = 0.3;
 const PAYMENT_STATE_REF = doc(db, 'system_state', 'payments');
 const PAYMENT_CACHE_KEY = 'kuringe_payments_cache_v1';
+const PAYMENT_DIRTY_KEY = 'kuringe_payments_dirty_v1';
 
 function generateReference(prefix: string) {
   const stamp = Date.now().toString();
@@ -62,6 +63,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       setStatusOverride(data.statusOverride ?? {});
     } catch {
       localStorage.removeItem(PAYMENT_CACHE_KEY);
+    }
+    if (localStorage.getItem(PAYMENT_DIRTY_KEY) === '1') {
+      pendingRemoteWriteRef.current = true;
+      if (!pendingActionNonceRef.current) {
+        pendingActionNonceRef.current = crypto.randomUUID();
+      }
     }
   }, []);
 
@@ -126,23 +133,31 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current;
-    if (!actionNonce) return;
+    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
     pendingActionNonceRef.current = '';
     const serialized = serializeState(payments, statusOverride);
     if (serialized === lastSyncedStateRef.current) return;
     lastSyncedStateRef.current = serialized;
-    void setDoc(
-      PAYMENT_STATE_REF,
-      {
-        payments,
-        statusOverride,
-        writeToken: 'action_v1',
-        clientActionNonce: actionNonce,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    void (async () => {
+      try {
+        await setDoc(
+          PAYMENT_STATE_REF,
+          {
+            payments,
+            statusOverride,
+            writeToken: 'action_v1',
+            clientActionNonce: actionNonce,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        localStorage.removeItem(PAYMENT_DIRTY_KEY);
+      } catch {
+        pendingRemoteWriteRef.current = true;
+        pendingActionNonceRef.current = crypto.randomUUID();
+        localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
+      }
+    })();
   }, [hydrated, payments, statusOverride, user]);
 
   const computeStatus = useCallback((bookingId: string): BookingPaymentStatus => {
@@ -218,6 +233,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
+    localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
     setPayments(nextPayments);
     setStatusOverride(nextStatusOverride);
     localStorage.setItem(
@@ -241,6 +257,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     const nextStatusOverride = { ...statusOverride, [bookingId]: status };
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
+    localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
     setStatusOverride(nextStatusOverride);
     localStorage.setItem(
       PAYMENT_CACHE_KEY,

@@ -48,6 +48,7 @@ interface AuthorizationContextValue {
 const AuthorizationContext = createContext<AuthorizationContextValue | undefined>(undefined);
 const AUTHZ_STATE_REF = doc(db, 'system_state', 'authorization');
 const AUTHZ_CACHE_KEY = 'kuringe_authorization_state_cache_v1';
+const AUTHZ_DIRTY_KEY = 'kuringe_authorization_dirty_v1';
 const MANAGER_MESSAGES_COLLECTION = 'manager_messages';
 
 export function AuthorizationProvider({ children }: { children: React.ReactNode }) {
@@ -80,6 +81,12 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
     } catch {
       localStorage.removeItem(AUTHZ_CACHE_KEY);
+    }
+    if (localStorage.getItem(AUTHZ_DIRTY_KEY) === '1') {
+      pendingRemoteWriteRef.current = true;
+      if (!pendingActionNonceRef.current) {
+        pendingActionNonceRef.current = crypto.randomUUID();
+      }
     }
   }, []);
 
@@ -169,8 +176,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current;
-    if (!actionNonce) return;
+    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
     pendingActionNonceRef.current = '';
     const serialized = serializeState({
       policy,
@@ -179,23 +185,33 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     });
     if (serialized === lastSyncedStateRef.current) return;
     lastSyncedStateRef.current = serialized;
-    void setDoc(
-      AUTHZ_STATE_REF,
-      {
-        policy,
-        approvals,
-        auditLog,
-        writeToken: 'action_v1',
-        clientActionNonce: actionNonce,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    void (async () => {
+      try {
+        await setDoc(
+          AUTHZ_STATE_REF,
+          {
+            policy,
+            approvals,
+            auditLog,
+            writeToken: 'action_v1',
+            clientActionNonce: actionNonce,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        localStorage.removeItem(AUTHZ_DIRTY_KEY);
+      } catch {
+        pendingRemoteWriteRef.current = true;
+        pendingActionNonceRef.current = crypto.randomUUID();
+        localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
+      }
+    })();
   }, [approvals, auditLog, hydrated, policy, user]);
 
   const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
+    localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
     const record: AuthorizationAuditEntry = {
       ...entry,
       id: crypto.randomUUID(),
