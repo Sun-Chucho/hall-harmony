@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { UserRole } from '@/types/auth';
@@ -57,8 +57,8 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     }
 
     const roleQuery = user.role === 'manager'
-      ? query(collection(db, COLLECTION), where('toRole', '==', 'manager'), orderBy('createdAt', 'desc'))
-      : query(collection(db, COLLECTION), where('fromUserId', '==', user.id), orderBy('createdAt', 'desc'));
+      ? query(collection(db, COLLECTION), where('toRole', '==', 'manager'), orderBy('createdAt', 'desc'), limit(200))
+      : query(collection(db, COLLECTION), where('fromUserId', '==', user.id), orderBy('createdAt', 'desc'), limit(200));
 
     const unsub = onSnapshot(
       roleQuery,

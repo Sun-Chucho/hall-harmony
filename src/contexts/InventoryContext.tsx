@@ -78,12 +78,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     } catch {
       localStorage.removeItem(INVENTORY_CACHE_KEY);
     }
-    if (localStorage.getItem(INVENTORY_DIRTY_KEY) === '1') {
-      pendingRemoteWriteRef.current = true;
-      if (!pendingActionNonceRef.current) {
-        pendingActionNonceRef.current = crypto.randomUUID();
-      }
-    }
   }, []);
 
   useEffect(() => {
@@ -190,8 +184,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         );
         localStorage.removeItem(INVENTORY_DIRTY_KEY);
       } catch {
-        pendingRemoteWriteRef.current = true;
-        pendingActionNonceRef.current = crypto.randomUUID();
         localStorage.setItem(INVENTORY_DIRTY_KEY, '1');
       }
     })();

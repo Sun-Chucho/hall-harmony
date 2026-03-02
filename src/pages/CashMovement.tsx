@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
+import { useToast } from '@/hooks/use-toast';
 
 function statusLabel(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -14,6 +15,7 @@ function statusLabel(value: string) {
 
 export default function CashMovement() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { sendManagerAlert } = useMessages();
   const { payments } = usePayments();
   const {
@@ -38,6 +40,7 @@ export default function CashMovement() {
   const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+  const lastActionAtRef = useRef(0);
 
   const refreshPageAfterSend = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -47,6 +50,11 @@ export default function CashMovement() {
         window.location.reload();
       }, 1600);
     }
+  };
+  const canRunAction = () => {
+    if (Date.now() - lastActionAtRef.current < 900) return false;
+    lastActionAtRef.current = Date.now();
+    return true;
   };
 
   const pendingRequests = useMemo(
@@ -229,9 +237,21 @@ export default function CashMovement() {
                                 disabled={isSubmitting || isRefreshingPage}
                                 onClick={() => {
                                   if (isSubmitting || isRefreshingPage) return;
+                                  if (!canRunAction()) return;
+                                  if (!(receiveComment[item.id] ?? '').trim()) {
+                                    const invalidMessage = 'Receive comment is required before confirming.';
+                                    setMessage(invalidMessage);
+                                    toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
+                                    return;
+                                  }
                                   setIsSubmitting(true);
-                                  const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '');
+                                  const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
                                   setMessage(result.message);
+                                  toast({
+                                    title: result.ok ? 'Receipt submitted' : 'Receipt failed',
+                                    description: result.message,
+                                    variant: result.ok ? 'default' : 'destructive',
+                                  });
                                   if (result.ok) {
                                     refreshPageAfterSend('Cash received confirmation sent. Refreshing page...');
                                   }
@@ -259,13 +279,26 @@ export default function CashMovement() {
                         disabled={isSubmitting || isRefreshingPage}
                         onClick={() => {
                           if (isSubmitting || isRefreshingPage) return;
+                          if (!canRunAction()) return;
                           if (!Number.isFinite(requestAmount) || requestAmount <= 0) {
                             setMessage('Enter a valid requested amount greater than zero.');
+                            toast({ title: 'Invalid amount', description: 'Enter a valid requested amount greater than zero.', variant: 'destructive' });
+                            return;
+                          }
+                          if (!requestComment.trim()) {
+                            const invalidMessage = 'Reason is required before sending request.';
+                            setMessage(invalidMessage);
+                            toast({ title: 'Missing reason', description: invalidMessage, variant: 'destructive' });
                             return;
                           }
                           setIsSubmitting(true);
-                          const result = requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment });
+                          const result = requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment, actionId: crypto.randomUUID() });
                           setMessage(result.message);
+                          toast({
+                            title: result.ok ? 'Request submitted' : 'Request failed',
+                            description: result.message,
+                            variant: result.ok ? 'default' : 'destructive',
+                          });
                           if (result.ok) {
                             setRequestAmount(0);
                             setRequestComment('');
@@ -359,13 +392,26 @@ export default function CashMovement() {
                     disabled={isSubmitting || isRefreshingPage}
                     onClick={() => {
                       if (isSubmitting || isRefreshingPage) return;
+                      if (!canRunAction()) return;
                       if (!Number.isFinite(moveCashAmount) || moveCashAmount <= 0) {
                         setMessage('Enter a valid amount greater than zero.');
+                        toast({ title: 'Invalid amount', description: 'Enter a valid amount greater than zero.', variant: 'destructive' });
+                        return;
+                      }
+                      if (!moveCashComment.trim()) {
+                        const invalidMessage = 'Comment is required before sending cash.';
+                        setMessage(invalidMessage);
+                        toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
                         return;
                       }
                       setIsSubmitting(true);
-                      const result = sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment });
+                      const result = sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment, actionId: crypto.randomUUID() });
                       setMessage(result.message);
+                      toast({
+                        title: result.ok ? 'Cash sent' : 'Send failed',
+                        description: result.message,
+                        variant: result.ok ? 'default' : 'destructive',
+                      });
                       if (result.ok) {
                         setMoveCashAmount(0);
                         setMoveCashComment('');
@@ -416,14 +462,27 @@ export default function CashMovement() {
                             disabled={isSubmitting}
                             onClick={() => {
                               if (isSubmitting) return;
+                              if (!canRunAction()) return;
                               const amount = decisionAmount[item.id] || 0;
                               if (!Number.isFinite(amount) || amount <= 0) {
                                 setMessage('Enter a valid approved amount greater than zero.');
+                                toast({ title: 'Invalid approved amount', description: 'Enter a valid approved amount greater than zero.', variant: 'destructive' });
+                                return;
+                              }
+                              if (!(decisionComment[item.id] ?? '').trim()) {
+                                const invalidMessage = 'Decision comment is required.';
+                                setMessage(invalidMessage);
+                                toast({ title: 'Missing decision comment', description: invalidMessage, variant: 'destructive' });
                                 return;
                               }
                               setIsSubmitting(true);
-                              const result = approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '');
+                              const result = approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '', crypto.randomUUID());
                               setMessage(result.message);
+                              toast({
+                                title: result.ok ? 'Request approved' : 'Approval failed',
+                                description: result.message,
+                                variant: result.ok ? 'default' : 'destructive',
+                              });
                               setIsSubmitting(false);
                             }}
                           >
@@ -435,9 +494,21 @@ export default function CashMovement() {
                             disabled={isSubmitting}
                             onClick={() => {
                               if (isSubmitting) return;
+                              if (!canRunAction()) return;
+                              if (!(decisionComment[item.id] ?? '').trim()) {
+                                const invalidMessage = 'Decision comment is required.';
+                                setMessage(invalidMessage);
+                                toast({ title: 'Missing decision comment', description: invalidMessage, variant: 'destructive' });
+                                return;
+                              }
                               setIsSubmitting(true);
-                              const result = declineCashTransferRequest(item.id, decisionComment[item.id] ?? '');
+                              const result = declineCashTransferRequest(item.id, decisionComment[item.id] ?? '', crypto.randomUUID());
                               setMessage(result.message);
+                              toast({
+                                title: result.ok ? 'Request declined' : 'Decline failed',
+                                description: result.message,
+                                variant: result.ok ? 'default' : 'destructive',
+                              });
                               setIsSubmitting(false);
                             }}
                           >

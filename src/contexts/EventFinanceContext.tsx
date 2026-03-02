@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
@@ -18,18 +18,21 @@ import {
 } from '@/types/eventFinance';
 
 interface BudgetInput {
+  actionId?: string;
   bookingId: string;
   notes?: string;
   categories: Record<BudgetCategory, number>;
 }
 
 interface AllocationInput {
+  actionId?: string;
   budgetId: string;
   requestedAmount: number;
   purpose: string;
 }
 
 interface DistributionInput {
+  actionId?: string;
   allocationRequestId: string;
   category: BudgetCategory;
   amount: number;
@@ -54,21 +57,24 @@ interface EventFinanceContextValue {
   ) => { ok: boolean; message: string };
   releaseFunds: (requestId: string, releaseReference: string) => { ok: boolean; message: string };
   addDistribution: (input: DistributionInput) => { ok: boolean; message: string; distributionId?: string };
-  requestCashTransferFromCashier2: (input: { amount: number; comment: string }) => { ok: boolean; message: string; requestId?: string };
-  sendCashToCashier2: (input: { amount: number; comment: string }) => { ok: boolean; message: string; transferId?: string };
+  requestCashTransferFromCashier2: (input: { amount: number; comment: string; actionId?: string }) => { ok: boolean; message: string; requestId?: string };
+  sendCashToCashier2: (input: { amount: number; comment: string; actionId?: string }) => { ok: boolean; message: string; transferId?: string };
   approveCashTransferRequest: (
     transferId: string,
     approvedAmount: number,
     decisionComment: string,
+    actionId?: string,
   ) => { ok: boolean; message: string };
-  declineCashTransferRequest: (transferId: string, decisionComment: string) => { ok: boolean; message: string };
-  confirmCashTransferReceived: (transferId: string, receiveComment: string) => { ok: boolean; message: string };
+  declineCashTransferRequest: (transferId: string, decisionComment: string, actionId?: string) => { ok: boolean; message: string };
+  confirmCashTransferReceived: (transferId: string, receiveComment: string, actionId?: string) => { ok: boolean; message: string };
   recordManagingDirectorTransfer: (input: {
+    actionId?: string;
     amount: number;
     reference?: string;
     notes?: string;
   }) => { ok: boolean; message: string; transferId?: string };
   recordCashDistribution: (input: {
+    actionId?: string;
     category: CashDistributionCategory;
     amount: number;
     reason: string;
@@ -80,6 +86,7 @@ interface EventFinanceContextValue {
 
 const EventFinanceContext = createContext<EventFinanceContextValue | undefined>(undefined);
 const EVENT_FINANCE_STATE_REF = doc(db, 'system_state', 'event_finance');
+const CASH_TRANSFERS_COLLECTION = 'cash_transfers';
 const EVENT_FINANCE_CACHE_KEY = 'kuringe_event_finance_cache_v1';
 const EVENT_FINANCE_DIRTY_KEY = 'kuringe_event_finance_dirty_v1';
 
@@ -91,6 +98,10 @@ function generateReference(prefix: string) {
   return `${prefix}-${Date.now()}`;
 }
 
+function normalizeActionId(value?: string): string {
+  return (value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+}
+
 export function EventFinanceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { bookings } = useBookings();
@@ -100,6 +111,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   const [allocations, setAllocations] = useState<AllocationRequest[]>([]);
   const [distributions, setDistributions] = useState<ExpenseDistribution[]>([]);
   const [cashTransfers, setCashTransfers] = useState<CashTransfer[]>([]);
+  const [legacyCashTransfers, setLegacyCashTransfers] = useState<CashTransfer[]>([]);
   const [mdTransfers, setMdTransfers] = useState<ManagingDirectorTransfer[]>([]);
   const [cashDistributions, setCashDistributions] = useState<CashDistributionRecord[]>([]);
   const [logs, setLogs] = useState<EventFinanceLog[]>([]);
@@ -107,6 +119,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
   const pendingActionNonceRef = useRef('');
+  const usingEventCashTransfersRef = useRef(false);
 
   const serializeState = useCallback((input: {
     budgets: EventBudget[];
@@ -134,18 +147,14 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       setBudgets(Array.isArray(data.budgets) ? data.budgets : []);
       setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
       setDistributions(Array.isArray(data.distributions) ? data.distributions : []);
-      setCashTransfers(Array.isArray(data.cashTransfers) ? data.cashTransfers : []);
+      const cachedCashTransfers = Array.isArray(data.cashTransfers) ? data.cashTransfers : [];
+      setLegacyCashTransfers(cachedCashTransfers);
+      setCashTransfers(cachedCashTransfers);
       setMdTransfers(Array.isArray(data.mdTransfers) ? data.mdTransfers : []);
       setCashDistributions(Array.isArray(data.cashDistributions) ? data.cashDistributions : []);
       setLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch {
       localStorage.removeItem(EVENT_FINANCE_CACHE_KEY);
-    }
-    if (localStorage.getItem(EVENT_FINANCE_DIRTY_KEY) === '1') {
-      pendingRemoteWriteRef.current = true;
-      if (!pendingActionNonceRef.current) {
-        pendingActionNonceRef.current = crypto.randomUUID();
-      }
     }
   }, []);
 
@@ -170,6 +179,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       setAllocations([]);
       setDistributions([]);
       setCashTransfers([]);
+      setLegacyCashTransfers([]);
       setMdTransfers([]);
       setCashDistributions([]);
       setLogs([]);
@@ -204,7 +214,10 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
           setBudgets(nextState.budgets);
           setAllocations(nextState.allocations);
           setDistributions(nextState.distributions);
-          setCashTransfers(nextState.cashTransfers);
+          setLegacyCashTransfers(nextState.cashTransfers);
+          if (!usingEventCashTransfersRef.current) {
+            setCashTransfers(nextState.cashTransfers);
+          }
           setMdTransfers(nextState.mdTransfers);
           setCashDistributions(nextState.cashDistributions);
           setLogs(nextState.logs);
@@ -228,7 +241,11 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
             setBudgets(Array.isArray(data.budgets) ? data.budgets : []);
             setAllocations(Array.isArray(data.allocations) ? data.allocations : []);
             setDistributions(Array.isArray(data.distributions) ? data.distributions : []);
-            setCashTransfers(Array.isArray(data.cashTransfers) ? data.cashTransfers : []);
+            const cachedCashTransfers = Array.isArray(data.cashTransfers) ? data.cashTransfers : [];
+            setLegacyCashTransfers(cachedCashTransfers);
+            if (!usingEventCashTransfersRef.current) {
+              setCashTransfers(cachedCashTransfers);
+            }
             setMdTransfers(Array.isArray(data.mdTransfers) ? data.mdTransfers : []);
             setCashDistributions(Array.isArray(data.cashDistributions) ? data.cashDistributions : []);
             setLogs(Array.isArray(data.logs) ? data.logs : []);
@@ -242,6 +259,29 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
     return () => unsub();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, CASH_TRANSFERS_COLLECTION), orderBy('requestedAt', 'desc'), limit(2000));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) {
+          if (!usingEventCashTransfersRef.current) {
+            setCashTransfers(legacyCashTransfers);
+          }
+          return;
+        }
+        const nextTransfers = snapshot.docs.map((item) => item.data() as CashTransfer);
+        usingEventCashTransfersRef.current = true;
+        setCashTransfers(nextTransfers);
+      },
+      () => {
+        // Keep current source on listener errors.
+      },
+    );
+    return () => unsub();
+  }, [legacyCashTransfers, user]);
 
   useEffect(() => {
     if (!user || !hydrated) return;
@@ -280,8 +320,6 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
         );
         localStorage.removeItem(EVENT_FINANCE_DIRTY_KEY);
       } catch {
-        pendingRemoteWriteRef.current = true;
-        pendingActionNonceRef.current = crypto.randomUUID();
         localStorage.setItem(EVENT_FINANCE_DIRTY_KEY, '1');
       }
     })();
@@ -311,23 +349,23 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     localStorage.setItem(EVENT_FINANCE_CACHE_KEY, JSON.stringify(payload));
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, logs, mdTransfers]);
 
+  const persistCashTransferEvent = useCallback((transfer: CashTransfer) => {
+    void setDoc(
+      doc(db, CASH_TRANSFERS_COLLECTION, transfer.id),
+      {
+        ...transfer,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }, []);
+
   const appendLog = useCallback((action: string, referenceId: string, detail: string) => {
-    if (!user) return;
-    if (!pendingActionNonceRef.current) {
-      pendingActionNonceRef.current = crypto.randomUUID();
-    }
-    pendingRemoteWriteRef.current = true;
-    const entry: EventFinanceLog = {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      actorUserId: user.id,
-      actorRole: user.role,
-      action,
-      referenceId,
-      detail,
-    };
-    setLogs((prev) => [entry, ...prev]);
-  }, [user]);
+    // Event finance audit logs intentionally disabled to reduce write volume.
+    void action;
+    void referenceId;
+    void detail;
+  }, []);
 
   const findBooking = useCallback((bookingId: string) => {
     return bookings.find((booking) => booking.id === bookingId);
@@ -350,6 +388,11 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
     const totalAmount = sumBudget(input.categories);
     if (totalAmount <= 0) return { ok: false, message: 'Budget total must be greater than zero.' };
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateBudget = budgets.find((entry) => entry.clientActionId === actionId);
+    if (duplicateBudget) {
+      return { ok: true, message: 'Budget already submitted.', budgetId: duplicateBudget.id };
+    }
 
     const existing = budgets.find((item) => item.bookingId === input.bookingId);
     if (existing) {
@@ -359,13 +402,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
         totalAmount,
         notes: input.notes?.trim() ?? '',
       };
-      setBudgets((prev) => prev.map((item) => (item.id === existing.id ? updated : item)));
+      const nextBudgets = budgets.map((item) => (item.id === existing.id ? updated : item));
+      setBudgets(nextBudgets);
+      persistFinanceState({ budgets: nextBudgets });
       appendLog('budget.updated', existing.id, `Budget updated for booking ${input.bookingId}`);
       return { ok: true, message: 'Event budget updated.', budgetId: existing.id };
     }
 
     const budget: EventBudget = {
       id: `BUD-${Date.now()}`,
+      clientActionId: actionId,
       bookingId: input.bookingId,
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
@@ -373,10 +419,12 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       totalAmount,
       notes: input.notes?.trim() ?? '',
     };
-    setBudgets((prev) => [budget, ...prev]);
+    const nextBudgets = [budget, ...budgets];
+    setBudgets(nextBudgets);
+    persistFinanceState({ budgets: nextBudgets });
     appendLog('budget.created', budget.id, `Budget created for booking ${input.bookingId}`);
     return { ok: true, message: 'Event budget created.', budgetId: budget.id };
-  }, [appendLog, budgets, findBooking, policy.transactionsFrozen, user]);
+  }, [appendLog, budgets, findBooking, persistFinanceState, policy.transactionsFrozen, user]);
 
   const requestAllocation = useCallback((input: AllocationInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -390,6 +438,11 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (!budget) return { ok: false, message: 'Budget not found.' };
     if (input.requestedAmount <= 0) return { ok: false, message: 'Requested amount must be greater than zero.' };
     if (!input.purpose.trim()) return { ok: false, message: 'Purpose is required.' };
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateRequest = allocations.find((entry) => entry.clientActionId === actionId);
+    if (duplicateRequest) {
+      return { ok: true, message: 'Allocation already submitted.', requestId: duplicateRequest.id };
+    }
 
     const approval = createApprovalRequest({
       level: 'final',
@@ -403,6 +456,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
     const request: AllocationRequest = {
       id: `ALLOC-${Date.now()}`,
+      clientActionId: actionId,
       budgetId: budget.id,
       bookingId: budget.bookingId,
       requestedAmount: input.requestedAmount,
@@ -412,10 +466,12 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       status: 'pending_controller',
       approvalId: approval.requestId,
     };
-    setAllocations((prev) => [request, ...prev]);
+    const nextAllocations = [request, ...allocations];
+    setAllocations(nextAllocations);
+    persistFinanceState({ allocations: nextAllocations });
     appendLog('allocation.requested', request.id, `Allocation requested for ${budget.bookingId}`);
     return { ok: true, message: 'Allocation request submitted for controller approval.', requestId: request.id };
-  }, [appendLog, budgets, createApprovalRequest, policy.transactionsFrozen, user]);
+  }, [allocations, appendLog, budgets, createApprovalRequest, persistFinanceState, policy.transactionsFrozen, user]);
 
   const controllerDecision = useCallback((
     requestId: string,
@@ -432,25 +488,25 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     const review = reviewApproval(request.approvalId, decision, comment || 'Controller decision');
     if (!review.ok) return { ok: false, message: review.message };
 
-    setAllocations((prev) =>
-      prev.map((item) =>
-        item.id === requestId
-          ? {
-              ...item,
-              status: decision === 'approved' ? 'approved_controller' : 'rejected_controller',
-              controllerDecisionAt: new Date().toISOString(),
-              controllerComment: comment.trim(),
-            }
-          : item,
-      ),
+    const nextAllocations = allocations.map((item) =>
+      item.id === requestId
+        ? {
+            ...item,
+            status: decision === 'approved' ? 'approved_controller' : 'rejected_controller',
+            controllerDecisionAt: new Date().toISOString(),
+            controllerComment: comment.trim(),
+          }
+        : item,
     );
+    setAllocations(nextAllocations);
+    persistFinanceState({ allocations: nextAllocations });
     appendLog(
       decision === 'approved' ? 'allocation.approved' : 'allocation.rejected',
       requestId,
       comment || 'Controller decision recorded',
     );
     return { ok: true, message: `Allocation ${decision} by controller.` };
-  }, [allocations, appendLog, reviewApproval, user]);
+  }, [allocations, appendLog, persistFinanceState, reviewApproval, user]);
 
   const releaseFunds = useCallback((requestId: string, releaseReference: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -470,22 +526,22 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       return { ok: false, message: 'Insufficient received funds for this release.' };
     }
 
-    setAllocations((prev) =>
-      prev.map((item) =>
-        item.id === requestId
-          ? {
-              ...item,
-              status: 'funds_released',
-              releasedAt: new Date().toISOString(),
-              releasedByUserId: user.id,
-              releaseReference: releaseReference.trim(),
-            }
-          : item,
-      ),
+    const nextAllocations = allocations.map((item) =>
+      item.id === requestId
+        ? {
+            ...item,
+            status: 'funds_released',
+            releasedAt: new Date().toISOString(),
+            releasedByUserId: user.id,
+            releaseReference: releaseReference.trim(),
+          }
+        : item,
     );
+    setAllocations(nextAllocations);
+    persistFinanceState({ allocations: nextAllocations });
     appendLog('allocation.released', requestId, `Funds released with reference ${releaseReference.trim()}`);
     return { ok: true, message: 'Funds released to Cashier 2 for distribution.' };
-  }, [allocations, appendLog, getBookingFinancials, user]);
+  }, [allocations, appendLog, getBookingFinancials, persistFinanceState, user]);
 
   const getAllocationSummary = useCallback((requestId: string) => {
     const request = allocations.find((item) => item.id === requestId);
@@ -515,6 +571,11 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     }
     if (input.amount <= 0) return { ok: false, message: 'Distribution amount must be greater than zero.' };
     if (!input.description.trim()) return { ok: false, message: 'Distribution description is required.' };
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateDistribution = distributions.find((entry) => entry.clientActionId === actionId);
+    if (duplicateDistribution) {
+      return { ok: true, message: 'Distribution already recorded.', distributionId: duplicateDistribution.id };
+    }
 
     const summary = getAllocationSummary(request.id);
     if (input.amount > summary.remaining) {
@@ -523,6 +584,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
     const distribution: ExpenseDistribution = {
       id: `DIST-${Date.now()}`,
+      clientActionId: actionId,
       allocationRequestId: request.id,
       bookingId: request.bookingId,
       category: input.category,
@@ -532,20 +594,22 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       distributedAt: new Date().toISOString(),
       distributedByUserId: user.id,
     };
-    setDistributions((prev) => [distribution, ...prev]);
+    const nextDistributions = [distribution, ...distributions];
+    let nextAllocations = allocations;
+    setDistributions(nextDistributions);
 
     const newRemaining = summary.remaining - input.amount;
     if (newRemaining <= 0) {
-      setAllocations((prev) =>
-        prev.map((item) => (item.id === request.id ? { ...item, status: 'closed' } : item)),
-      );
+      nextAllocations = allocations.map((item) => (item.id === request.id ? { ...item, status: 'closed' } : item));
+      setAllocations(nextAllocations);
     }
+    persistFinanceState({ distributions: nextDistributions, allocations: nextAllocations });
 
     appendLog('distribution.recorded', distribution.id, `Expense distribution added to ${input.category}`);
     return { ok: true, message: 'Expense distribution recorded.', distributionId: distribution.id };
-  }, [allocations, appendLog, getAllocationSummary, policy.transactionsFrozen, user]);
+  }, [allocations, appendLog, distributions, getAllocationSummary, persistFinanceState, policy.transactionsFrozen, user]);
 
-  const requestCashTransferFromCashier2 = useCallback((input: { amount: number; comment: string }) => {
+  const requestCashTransferFromCashier2 = useCallback((input: { amount: number; comment: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_2' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 2 or Controller can request cash.' };
@@ -553,10 +617,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       return { ok: false, message: 'Requested amount must be greater than zero.' };
     }
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateTransfer = cashTransfers.find((entry) => entry.clientActionId === actionId);
+    if (duplicateTransfer) {
+      return { ok: true, message: 'Cash request already submitted.', requestId: duplicateTransfer.id };
+    }
     const requestedAmount = Math.round(input.amount);
 
     const transfer: CashTransfer = {
-      id: `CASH-MOVE-${crypto.randomUUID()}`,
+      id: actionId ? `CASH-MOVE-ACT-${actionId}` : `CASH-MOVE-${crypto.randomUUID()}`,
+      clientActionId: actionId,
       requestedAmount,
       approvedAmount: 0,
       requestComment: input.comment.trim(),
@@ -570,20 +640,27 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     const nextCashTransfers = [transfer, ...cashTransfers];
     setCashTransfers(nextCashTransfers);
     persistFinanceState({ cashTransfers: nextCashTransfers });
+    persistCashTransferEvent(transfer);
     appendLog('cash_move.requested', transfer.id, `Cashier 2 requested TZS ${requestedAmount.toLocaleString()}`);
     return { ok: true, message: 'Cash request sent to Cashier 1.', requestId: transfer.id };
-  }, [appendLog, cashTransfers, persistFinanceState, user]);
+  }, [appendLog, cashTransfers, persistCashTransferEvent, persistFinanceState, user]);
 
-  const sendCashToCashier2 = useCallback((input: { amount: number; comment: string }) => {
+  const sendCashToCashier2 = useCallback((input: { amount: number; comment: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can send cash to Cashier 2.' };
     }
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateTransfer = cashTransfers.find((entry) => entry.clientActionId === actionId);
+    if (duplicateTransfer) {
+      return { ok: true, message: 'Cash transfer already submitted.', transferId: duplicateTransfer.id };
+    }
     const requestedAmount = Math.round(input.amount);
 
     const transfer: CashTransfer = {
-      id: `CASH-MOVE-${crypto.randomUUID()}`,
+      id: actionId ? `CASH-MOVE-ACT-${actionId}` : `CASH-MOVE-${crypto.randomUUID()}`,
+      clientActionId: actionId,
       requestedAmount,
       approvedAmount: requestedAmount,
       requestComment: input.comment.trim(),
@@ -601,11 +678,12 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     const nextCashTransfers = [transfer, ...cashTransfers];
     setCashTransfers(nextCashTransfers);
     persistFinanceState({ cashTransfers: nextCashTransfers });
+    persistCashTransferEvent(transfer);
     appendLog('cash_move.sent', transfer.id, `Cashier 1 sent TZS ${requestedAmount.toLocaleString()} to Cashier 2`);
     return { ok: true, message: 'Cash sent. Waiting for Cashier 2 confirmation.', transferId: transfer.id };
-  }, [appendLog, cashTransfers, persistFinanceState, user]);
+  }, [appendLog, cashTransfers, persistCashTransferEvent, persistFinanceState, user]);
 
-  const approveCashTransferRequest = useCallback((transferId: string, approvedAmount: number, decisionComment: string) => {
+  const approveCashTransferRequest = useCallback((transferId: string, approvedAmount: number, decisionComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can approve cash requests.' };
@@ -618,11 +696,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (target.status !== 'pending_cashier_1_approval') {
       return { ok: false, message: 'Only pending requests can be approved.' };
     }
+    const normalizedActionId = normalizeActionId(actionId);
+    if (normalizedActionId && cashTransfers.some((entry) => entry.clientActionId === normalizedActionId)) {
+      return { ok: true, message: 'Approval already submitted.' };
+    }
 
     const nextCashTransfers = cashTransfers.map((item) =>
       item.id === transferId
         ? {
             ...item,
+            clientActionId: normalizedActionId || item.clientActionId,
             approvedAmount: normalizedApprovedAmount,
             decisionComment: decisionComment.trim(),
             decidedAt: new Date().toISOString(),
@@ -635,11 +718,13 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     );
     setCashTransfers(nextCashTransfers);
     persistFinanceState({ cashTransfers: nextCashTransfers });
+    const updatedTransfer = nextCashTransfers.find((item) => item.id === transferId);
+    if (updatedTransfer) persistCashTransferEvent(updatedTransfer);
     appendLog('cash_move.approved', transferId, `Cash request approved for TZS ${normalizedApprovedAmount.toLocaleString()}`);
     return { ok: true, message: 'Request approved and cash sent to Cashier 2.' };
-  }, [appendLog, cashTransfers, persistFinanceState, user]);
+  }, [appendLog, cashTransfers, persistCashTransferEvent, persistFinanceState, user]);
 
-  const declineCashTransferRequest = useCallback((transferId: string, decisionComment: string) => {
+  const declineCashTransferRequest = useCallback((transferId: string, decisionComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can decline cash requests.' };
@@ -650,11 +735,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (target.status !== 'pending_cashier_1_approval') {
       return { ok: false, message: 'Only pending requests can be declined.' };
     }
+    const normalizedActionId = normalizeActionId(actionId);
+    if (normalizedActionId && cashTransfers.some((entry) => entry.clientActionId === normalizedActionId)) {
+      return { ok: true, message: 'Decline already submitted.' };
+    }
 
     const nextCashTransfers = cashTransfers.map((item) =>
       item.id === transferId
         ? {
             ...item,
+            clientActionId: normalizedActionId || item.clientActionId,
             decisionComment: decisionComment.trim(),
             decidedAt: new Date().toISOString(),
             decidedByUserId: user.id,
@@ -664,11 +754,13 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     );
     setCashTransfers(nextCashTransfers);
     persistFinanceState({ cashTransfers: nextCashTransfers });
+    const updatedTransfer = nextCashTransfers.find((item) => item.id === transferId);
+    if (updatedTransfer) persistCashTransferEvent(updatedTransfer);
     appendLog('cash_move.declined', transferId, 'Cash request declined by Cashier 1');
     return { ok: true, message: 'Request declined.' };
-  }, [appendLog, cashTransfers, persistFinanceState, user]);
+  }, [appendLog, cashTransfers, persistCashTransferEvent, persistFinanceState, user]);
 
-  const confirmCashTransferReceived = useCallback((transferId: string, receiveComment: string) => {
+  const confirmCashTransferReceived = useCallback((transferId: string, receiveComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_2' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 2 or Controller can confirm receipt.' };
@@ -679,11 +771,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (target.status !== 'sent_to_cashier_2') {
       return { ok: false, message: 'Transfer is not awaiting receipt confirmation.' };
     }
+    const normalizedActionId = normalizeActionId(actionId);
+    if (normalizedActionId && cashTransfers.some((entry) => entry.clientActionId === normalizedActionId)) {
+      return { ok: true, message: 'Receipt confirmation already submitted.' };
+    }
 
     const nextCashTransfers = cashTransfers.map((item) =>
       item.id === transferId
         ? {
             ...item,
+            clientActionId: normalizedActionId || item.clientActionId,
             receiveComment: receiveComment.trim(),
             receivedAt: new Date().toISOString(),
             receivedByUserId: user.id,
@@ -693,21 +790,29 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     );
     setCashTransfers(nextCashTransfers);
     persistFinanceState({ cashTransfers: nextCashTransfers });
+    const updatedTransfer = nextCashTransfers.find((item) => item.id === transferId);
+    if (updatedTransfer) persistCashTransferEvent(updatedTransfer);
     appendLog('cash_move.received', transferId, 'Cashier 2 confirmed receipt');
     return { ok: true, message: 'Cash receipt confirmed.' };
-  }, [appendLog, cashTransfers, persistFinanceState, user]);
+  }, [appendLog, cashTransfers, persistCashTransferEvent, persistFinanceState, user]);
 
-  const recordManagingDirectorTransfer = useCallback((input: { amount: number; reference?: string; notes?: string }) => {
+  const recordManagingDirectorTransfer = useCallback((input: { amount: number; reference?: string; notes?: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can record MD transfers.' };
     }
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateTransfer = mdTransfers.find((entry) => entry.clientActionId === actionId);
+    if (duplicateTransfer) {
+      return { ok: true, message: 'Managing Director transfer already submitted.', transferId: duplicateTransfer.id };
+    }
     const amount = Math.round(input.amount);
     const reference = input.reference?.trim() || generateReference('MDTRF');
 
     const transfer: ManagingDirectorTransfer = {
       id: generateReference('MD-TRANSFER'),
+      clientActionId: actionId,
       amount,
       reference,
       notes: input.notes?.trim() ?? '',
@@ -722,6 +827,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   }, [appendLog, mdTransfers, persistFinanceState, user]);
 
   const recordCashDistribution = useCallback((input: {
+    actionId?: string;
     category: CashDistributionCategory;
     amount: number;
     reason: string;
@@ -734,6 +840,11 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (policy.transactionsFrozen && user.role !== 'controller') {
       return { ok: false, message: 'Transactions are frozen by controller.' };
     }
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicateDistribution = cashDistributions.find((entry) => entry.clientActionId === actionId);
+    if (duplicateDistribution) {
+      return { ok: true, message: 'Cash distribution already submitted.', distributionId: duplicateDistribution.id };
+    }
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
     const amount = Math.round(input.amount);
     if (!input.reason.trim()) return { ok: false, message: 'Reason is required.' };
@@ -744,6 +855,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
     const record: CashDistributionRecord = {
       id: `CDIST-${Date.now()}`,
+      clientActionId: actionId,
       category: input.category,
       customCategoryLabel: customCategoryLabel || undefined,
       amount,

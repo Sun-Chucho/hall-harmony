@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 
@@ -129,7 +129,7 @@ export default function Documents() {
       return;
     }
 
-    const q = query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc'));
+    const q = query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc'), limit(300));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
@@ -162,7 +162,7 @@ export default function Documents() {
       return;
     }
 
-    const q = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'));
+    const q = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'), limit(300));
     const unsub = onSnapshot(
       q,
       (snapshot) => {

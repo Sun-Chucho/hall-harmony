@@ -19,6 +19,14 @@ service cloud.firestore {
       allow read, update, delete: if isSignedIn();
     }
 
+    match /payments/{paymentId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cash_transfers/{transferId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /staff_users/{userId} {
       allow read: if true;
       allow write: if isSignedIn();

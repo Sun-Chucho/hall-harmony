@@ -22,6 +22,7 @@ export type BookingCarType = 'none' | 'range_rover' | 'lexus' | 'bmw';
 
 export interface BookingRecord {
   id: string;
+  clientActionId?: string;
   customerName: string;
   customerPhone: string;
   eventName: string;

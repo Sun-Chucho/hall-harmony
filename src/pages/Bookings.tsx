@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
+import { useToast } from '@/hooks/use-toast';
 import { BookingCarType, CreateBookingInput } from '@/types/booking';
 import { PaymentMethod } from '@/types/payment';
 
@@ -75,8 +76,30 @@ function getDefaultPaidDateTime() {
   return local.toISOString().slice(0, 16);
 }
 
+function toMinutes(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return -1;
+  return h * 60 + m;
+}
+
+function toTimeString(minutes: number): string {
+  const clamped = Math.max(0, Math.min(minutes, 23 * 60 + 59));
+  const h = String(Math.floor(clamped / 60)).padStart(2, '0');
+  const m = String(clamped % 60).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function ensureEndAfterStart(startTime: string, endTime: string): string {
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+  if (startMinutes < 0) return endTime;
+  if (endMinutes > startMinutes) return endTime;
+  return toTimeString(startMinutes + 60);
+}
+
 export default function Bookings() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const {
     bookings,
     createBooking,
@@ -110,6 +133,9 @@ export default function Bookings() {
     ...initialForm,
     date: getTodayIso(),
   });
+  const lastBookingActionAtRef = useRef(0);
+  const lastPastBookingActionAtRef = useRef(0);
+  const lastPaymentActionAtRef = useRef(0);
 
   const refreshPageAfterUpdate = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -146,11 +172,53 @@ export default function Bookings() {
   const conflict = form.hall && form.date && form.startTime && form.endTime
     ? hasConflict(form)
     : false;
+  const isBookingFormComplete = Boolean(
+    form.customerName.trim()
+      && form.customerPhone.trim()
+      && form.eventName.trim()
+      && form.eventType.trim()
+      && form.hall
+      && form.date
+      && form.startTime
+      && form.endTime
+      && Number.isFinite(form.expectedGuests)
+      && form.expectedGuests > 0
+      && Number.isFinite(form.quotedAmount)
+      && form.quotedAmount > 0,
+  );
+  const isPastFormComplete = Boolean(
+    pastForm.customerName.trim()
+      && pastForm.customerPhone.trim()
+      && pastForm.eventName.trim()
+      && pastForm.eventType.trim()
+      && pastForm.hall
+      && pastForm.date
+      && pastForm.startTime
+      && pastForm.endTime
+      && Number.isFinite(pastForm.expectedGuests)
+      && pastForm.expectedGuests > 0
+      && Number.isFinite(pastForm.quotedAmount)
+      && pastForm.quotedAmount > 0,
+  );
 
   const onChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
     if (field === 'carType') {
       const nextType = value as BookingCarType;
       setForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
+      return;
+    }
+    if (field === 'carPrice') {
+      const numeric = Number(value);
+      setForm((prev) => ({ ...prev, carPrice: Number.isFinite(numeric) && numeric >= 0 ? numeric : 0 }));
+      return;
+    }
+    if (field === 'startTime') {
+      const nextStart = String(value);
+      setForm((prev) => ({
+        ...prev,
+        startTime: nextStart,
+        endTime: ensureEndAfterStart(nextStart, prev.endTime),
+      }));
       return;
     }
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -162,22 +230,48 @@ export default function Bookings() {
       setPastForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
       return;
     }
+    if (field === 'carPrice') {
+      const numeric = Number(value);
+      setPastForm((prev) => ({ ...prev, carPrice: Number.isFinite(numeric) && numeric >= 0 ? numeric : 0 }));
+      return;
+    }
+    if (field === 'startTime') {
+      const nextStart = String(value);
+      setPastForm((prev) => ({
+        ...prev,
+        startTime: nextStart,
+        endTime: ensureEndAfterStart(nextStart, prev.endTime),
+      }));
+      return;
+    }
     setPastForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCreateBooking = async (assistantFlow = false) => {
     if (isSavingBooking) return;
+    if (Date.now() - lastBookingActionAtRef.current < 900) return;
+    if (!isBookingFormComplete) {
+      const invalidMessage = 'Complete all required booking fields before submitting.';
+      setMessage(invalidMessage);
+      toast({ title: 'Incomplete booking form', description: invalidMessage, variant: 'destructive' });
+      return;
+    }
     setIsSavingBooking(true);
     const editingId = editingBookingId;
     try {
       const result = editingBookingId
         ? await updateBooking(editingBookingId, form)
-        : await createBooking(form);
+        : await createBooking(form, { actionId: crypto.randomUUID() });
       if (assistantFlow && result.ok && !editingBookingId) {
         setMessage('Booked and sent to Cashier 1 dashboard.');
       } else {
         setMessage(result.message);
       }
+      toast({
+        title: result.ok ? 'Booking submitted' : 'Booking failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      });
       if (result.ok) {
         if (editingId) {
           await sendManagerAlert({
@@ -191,6 +285,7 @@ export default function Bookings() {
         refreshPageAfterUpdate('Booking update saved. Refreshing page...');
       }
     } finally {
+      lastBookingActionAtRef.current = Date.now();
       setIsSavingBooking(false);
     }
   };
@@ -214,6 +309,10 @@ export default function Bookings() {
       notes: target.notes,
     });
     setEditingBookingId(bookingId);
+    setMessage(`Editing booking ${bookingId}. Update details, then click Save Booking Changes.`);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
@@ -252,10 +351,22 @@ export default function Bookings() {
 
   const handleRecordPastBooking = async () => {
     if (isSavingPastBooking) return;
+    if (Date.now() - lastPastBookingActionAtRef.current < 900) return;
+    if (!isPastFormComplete) {
+      const invalidMessage = 'Complete all required past booking fields before submitting.';
+      setMessage(invalidMessage);
+      toast({ title: 'Incomplete past booking form', description: invalidMessage, variant: 'destructive' });
+      return;
+    }
     setIsSavingPastBooking(true);
     try {
-      const result = await createPastBooking(pastForm);
+      const result = await createPastBooking(pastForm, { actionId: crypto.randomUUID() });
       setMessage(result.message);
+      toast({
+        title: result.ok ? 'Past booking submitted' : 'Past booking failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      });
       if (result.ok) {
         setPastForm({
           ...initialForm,
@@ -264,6 +375,7 @@ export default function Bookings() {
         refreshPageAfterUpdate('Past booking recorded. Refreshing page...');
       }
     } finally {
+      lastPastBookingActionAtRef.current = Date.now();
       setIsSavingPastBooking(false);
     }
   };
@@ -350,13 +462,19 @@ export default function Bookings() {
                             <option key={car.value} value={car.value}>{car.label}</option>
                           ))}
                         </select>
-                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
+                        <input
+                          type="number"
+                          placeholder="Car Amount (TZS)"
+                          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                          value={Number(form.carPrice) || 0}
+                          onChange={(event) => onChange('carPrice', Number(event.target.value))}
+                        />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button size="sm" disabled={isSavingBooking} onClick={() => void handleCreateBooking(true)}>
+                    <Button size="sm" disabled={isSavingBooking || isRefreshingPage || !isBookingFormComplete} onClick={() => void handleCreateBooking(true)}>
                       {isSavingBooking
                         ? 'Saving...'
                         : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
@@ -445,11 +563,17 @@ export default function Bookings() {
                         <option key={car.value} value={car.value}>{car.label}</option>
                       ))}
                     </select>
-                    <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(pastForm.carPrice) || 0} readOnly />
+                    <input
+                      type="number"
+                      placeholder="Car Amount (TZS)"
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={Number(pastForm.carPrice) || 0}
+                      onChange={(event) => onPastChange('carPrice', Number(event.target.value))}
+                    />
                     <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={pastForm.notes} onChange={(event) => onPastChange('notes', event.target.value)} />
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button size="sm" disabled={isSavingPastBooking} onClick={() => void handleRecordPastBooking()}>
+                    <Button size="sm" disabled={isSavingPastBooking || isRefreshingPage || !isPastFormComplete} onClick={() => void handleRecordPastBooking()}>
                       {isSavingPastBooking ? 'Saving...' : 'Record Past Booking'}
                     </Button>
                     <span className="text-xs text-slate-500">Allowed date range: {getYearStartIso()} to {getTodayIso()}</span>
@@ -565,6 +689,7 @@ export default function Bookings() {
                           size="sm"
                           disabled={isRefreshingPage}
                           onClick={async () => {
+                            if (Date.now() - lastPaymentActionAtRef.current < 900) return;
                             const amount = Number.isFinite(pastApprovalAmount[entry.id])
                               ? Number(pastApprovalAmount[entry.id])
                               : Number(entry.quotedAmount);
@@ -573,6 +698,7 @@ export default function Bookings() {
                               return;
                             }
                             const paymentResult = recordPayment({
+                              actionId: crypto.randomUUID(),
                               bookingId: entry.id,
                               amount,
                               method: pastApprovalMethod[entry.id] ?? 'cash',
@@ -581,11 +707,18 @@ export default function Bookings() {
                             });
                             if (!paymentResult.ok) {
                               setMessage(paymentResult.message);
+                              toast({ title: 'Payment failed', description: paymentResult.message, variant: 'destructive' });
                               return;
                             }
                             const reviewResult = await reviewPastBooking(entry.id, 'approved_cashier_1');
                             setMessage(reviewResult.message);
+                            toast({
+                              title: reviewResult.ok ? 'Past booking approved' : 'Past booking approval failed',
+                              description: reviewResult.message,
+                              variant: reviewResult.ok ? 'default' : 'destructive',
+                            });
                             if (reviewResult.ok) {
+                              lastPaymentActionAtRef.current = Date.now();
                               refreshPageAfterUpdate('Past booking payment recorded and approved. Refreshing page...');
                             }
                           }}
@@ -692,33 +825,47 @@ export default function Bookings() {
                     />
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Button
-                      size="sm"
-                      disabled={isRecordingPayment || isRefreshingPage}
-                      onClick={() => {
-                        if (isRecordingPayment || isRefreshingPage) return;
-                        if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
-                          setMessage('Enter a valid payment amount greater than zero.');
-                          return;
-                        }
-                        const currentBalance = financials?.balance ?? 0;
-                        setIsRecordingPayment(true);
-                        const result = recordPayment({
-                          bookingId: selected.id,
-                          amount: paidAmount,
-                          method: paymentMethod,
-                          receivedAt: paidDateTime || undefined,
-                          notes: paymentNotes,
-                        });
-                        setMessage(result.message);
-                        if (result.ok) {
-                          const remainingBalance = Math.max(currentBalance - paidAmount, 0);
-                          setPaidAmount(0);
-                          setPaidDateTime(getDefaultPaidDateTime());
-                          setPaymentNotes('');
-                          refreshPageAfterUpdate(
-                            `Payment recorded successfully. Remaining balance: TZS ${remainingBalance.toLocaleString()}. Refreshing page...`,
-                          );
+                        <Button
+                          size="sm"
+                          disabled={isRecordingPayment || isRefreshingPage || !Number.isFinite(paidAmount) || paidAmount <= 0 || !paidDateTime}
+                          onClick={() => {
+                            if (isRecordingPayment || isRefreshingPage) return;
+                            if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                            if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+                              setMessage('Enter a valid payment amount greater than zero.');
+                              toast({ title: 'Invalid payment amount', description: 'Enter a valid payment amount greater than zero.', variant: 'destructive' });
+                              return;
+                            }
+                            if (!paidDateTime) {
+                              setMessage('Enter paid date and time before submitting.');
+                              toast({ title: 'Missing paid date/time', description: 'Enter paid date and time before submitting.', variant: 'destructive' });
+                              return;
+                            }
+                            const currentBalance = financials?.balance ?? 0;
+                            setIsRecordingPayment(true);
+                            const result = recordPayment({
+                              actionId: crypto.randomUUID(),
+                              bookingId: selected.id,
+                              amount: paidAmount,
+                              method: paymentMethod,
+                              receivedAt: paidDateTime || undefined,
+                              notes: paymentNotes,
+                            });
+                            setMessage(result.message);
+                            toast({
+                              title: result.ok ? 'Payment submitted' : 'Payment failed',
+                              description: result.message,
+                              variant: result.ok ? 'default' : 'destructive',
+                            });
+                            if (result.ok) {
+                              const remainingBalance = Math.max(currentBalance - paidAmount, 0);
+                              setPaidAmount(0);
+                              setPaidDateTime(getDefaultPaidDateTime());
+                              setPaymentNotes('');
+                              lastPaymentActionAtRef.current = Date.now();
+                              refreshPageAfterUpdate(
+                                `Payment recorded successfully. Remaining balance: TZS ${remainingBalance.toLocaleString()}. Refreshing page...`,
+                              );
                         }
                         setIsRecordingPayment(false);
                       }}
@@ -783,6 +930,11 @@ export default function Bookings() {
           {canCreateBooking ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Create Booking Request</p>
+              {editingBookingId ? (
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                  Editing booking {editingBookingId}
+                </p>
+              ) : null}
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <input type="text" placeholder="Customer Name" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerName} onChange={(event) => onChange('customerName', event.target.value)} />
                 <input type="text" placeholder="Customer Phone" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerPhone} onChange={(event) => onChange('customerPhone', event.target.value)} />
@@ -804,13 +956,33 @@ export default function Bookings() {
                     <option key={car.value} value={car.value}>{car.label}</option>
                   ))}
                 </select>
-                <input type="number" className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
+                <input
+                  type="number"
+                  placeholder="Car Amount (TZS)"
+                  className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                  value={Number(form.carPrice) || 0}
+                  onChange={(event) => onChange('carPrice', Number(event.target.value))}
+                />
                 <input type="text" placeholder="Notes" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button size="sm" disabled={isSavingBooking || isRefreshingPage} onClick={() => void handleCreateBooking()}>
-                  {isSavingBooking ? 'Saving...' : 'Submit Booking'}
+                <Button size="sm" disabled={isSavingBooking || isRefreshingPage || !isBookingFormComplete} onClick={() => void handleCreateBooking()}>
+                  {isSavingBooking ? 'Saving...' : editingBookingId ? 'Save Booking Changes' : 'Submit Booking'}
                 </Button>
+                {editingBookingId ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isSavingBooking || isRefreshingPage}
+                    onClick={() => {
+                      setEditingBookingId(null);
+                      setForm(initialForm);
+                      setMessage('Edit cancelled.');
+                    }}
+                  >
+                    Cancel Edit
+                  </Button>
+                ) : null}
                 {conflict ? <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge> : <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>}
                 {message ? <span className="text-xs text-slate-600">{message}</span> : null}
               </div>

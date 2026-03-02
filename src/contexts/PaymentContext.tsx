@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
@@ -23,12 +23,19 @@ interface PaymentContextValue {
 
 const DEPOSIT_RATIO = 0.3;
 const PAYMENT_STATE_REF = doc(db, 'system_state', 'payments');
+const PAYMENTS_COLLECTION = 'payments';
 const PAYMENT_CACHE_KEY = 'kuringe_payments_cache_v1';
 const PAYMENT_DIRTY_KEY = 'kuringe_payments_dirty_v1';
 
 function generateReference(prefix: string) {
   const stamp = Date.now().toString();
   return `${prefix}-${stamp}`;
+}
+
+function normalizeActionId(value?: string) {
+  const normalized = (value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!normalized) return '';
+  return normalized.slice(0, 64);
 }
 
 const PaymentContext = createContext<PaymentContextValue | undefined>(undefined);
@@ -38,11 +45,13 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const { bookings } = useBookings();
   const { policy } = useAuthorization();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [legacyPayments, setLegacyPayments] = useState<PaymentRecord[]>([]);
   const [statusOverride, setStatusOverride] = useState<Record<string, BookingPaymentStatus>>({});
   const [hydrated, setHydrated] = useState(false);
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
   const pendingActionNonceRef = useRef('');
+  const usingEventPaymentsRef = useRef(false);
 
   const serializeState = useCallback((nextPayments: PaymentRecord[], nextStatusOverride: Record<string, BookingPaymentStatus>) => {
     return JSON.stringify({
@@ -59,16 +68,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         payments?: PaymentRecord[];
         statusOverride?: Record<string, BookingPaymentStatus>;
       };
-      setPayments(Array.isArray(data.payments) ? data.payments : []);
+      const cachedPayments = Array.isArray(data.payments) ? data.payments : [];
+      setPayments(cachedPayments);
+      setLegacyPayments(cachedPayments);
       setStatusOverride(data.statusOverride ?? {});
     } catch {
       localStorage.removeItem(PAYMENT_CACHE_KEY);
-    }
-    if (localStorage.getItem(PAYMENT_DIRTY_KEY) === '1') {
-      pendingRemoteWriteRef.current = true;
-      if (!pendingActionNonceRef.current) {
-        pendingActionNonceRef.current = crypto.randomUUID();
-      }
     }
   }, []);
 
@@ -102,7 +107,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         const nextStatusOverride = data?.statusOverride ?? {};
         const serialized = serializeState(nextPayments, nextStatusOverride);
         if (serialized !== lastSyncedStateRef.current) {
-          setPayments(nextPayments);
+          setLegacyPayments(nextPayments);
+          if (!usingEventPaymentsRef.current) {
+            setPayments(nextPayments);
+          }
           setStatusOverride(nextStatusOverride);
           lastSyncedStateRef.current = serialized;
         }
@@ -116,7 +124,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
               payments?: PaymentRecord[];
               statusOverride?: Record<string, BookingPaymentStatus>;
             };
-            setPayments(Array.isArray(data.payments) ? data.payments : []);
+            const cachedPayments = Array.isArray(data.payments) ? data.payments : [];
+            setLegacyPayments(cachedPayments);
+            if (!usingEventPaymentsRef.current) {
+              setPayments(cachedPayments);
+            }
             setStatusOverride(data.statusOverride ?? {});
           } catch {
             localStorage.removeItem(PAYMENT_CACHE_KEY);
@@ -128,6 +140,29 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsub();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, PAYMENTS_COLLECTION), orderBy('receivedAt', 'desc'), limit(2000));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        if (snapshot.empty) {
+          if (!usingEventPaymentsRef.current) {
+            setPayments(legacyPayments);
+          }
+          return;
+        }
+        const nextPayments = snapshot.docs.map((item) => item.data() as PaymentRecord);
+        usingEventPaymentsRef.current = true;
+        setPayments(nextPayments);
+      },
+      () => {
+        // Keep current payment source on listener errors.
+      },
+    );
+    return () => unsub();
+  }, [legacyPayments, user]);
 
   useEffect(() => {
     if (!user || !hydrated) return;
@@ -153,8 +188,6 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         );
         localStorage.removeItem(PAYMENT_DIRTY_KEY);
       } catch {
-        pendingRemoteWriteRef.current = true;
-        pendingActionNonceRef.current = crypto.randomUUID();
         localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
       }
     })();
@@ -207,7 +240,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
     }
-    const paymentId = generateReference('PAY');
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicate = payments.find((entry) => entry.clientActionId === actionId);
+    if (duplicate) {
+      return { ok: true, message: 'This payment was already submitted.', paymentId: duplicate.id };
+    }
+    const paymentId = actionId ? `PAY-ACT-${actionId}` : generateReference('PAY');
     const receiptNumber = generateReference('RCT');
     const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
     const amount = Math.round(input.amount);
@@ -218,6 +256,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
     const record: PaymentRecord = {
       id: paymentId,
+      clientActionId: actionId,
       bookingId: input.bookingId,
       amount,
       method: input.method,
@@ -242,6 +281,14 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         payments: nextPayments,
         statusOverride: nextStatusOverride,
       }),
+    );
+    void setDoc(
+      doc(db, PAYMENTS_COLLECTION, record.id),
+      {
+        ...record,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
     );
     return { ok: true, message: 'Payment recorded successfully.', paymentId };
   }, [bookings, payments, policy.transactionsFrozen, statusOverride, user]);

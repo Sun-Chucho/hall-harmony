@@ -8,6 +8,7 @@ export type BookingPaymentStatus =
 
 export interface PaymentRecord {
   id: string;
+  clientActionId?: string;
   bookingId: string;
   amount: number;
   method: PaymentMethod;
@@ -19,6 +20,7 @@ export interface PaymentRecord {
 }
 
 export interface CreatePaymentInput {
+  actionId?: string;
   bookingId: string;
   amount: number;
   method: PaymentMethod;

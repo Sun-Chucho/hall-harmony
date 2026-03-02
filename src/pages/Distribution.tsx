@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { CashDistributionCategory } from '@/types/eventFinance';
+import { useToast } from '@/hooks/use-toast';
 
 const categories: { value: CashDistributionCategory; label: string }[] = [
   { value: 'cleaning', label: 'Cleaning' },
@@ -22,6 +23,7 @@ const categories: { value: CashDistributionCategory; label: string }[] = [
 
 export default function Distribution() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { cashDistributions, recordCashDistribution } = useEventFinance();
   const [category, setCategory] = useState<CashDistributionCategory>('cleaning');
   const [amount, setAmount] = useState(0);
@@ -30,6 +32,7 @@ export default function Distribution() {
   const [message, setMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+  const lastActionAtRef = useRef(0);
 
   const refreshPageAfterSave = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -109,29 +112,40 @@ export default function Distribution() {
                 disabled={isSaving || isRefreshingPage}
                 onClick={() => {
                   if (isSaving || isRefreshingPage) return;
+                  if (Date.now() - lastActionAtRef.current < 900) return;
                   if (!canRecordDistribution) {
                     setMessage('This role cannot record distributions.');
+                    toast({ title: 'Permission denied', description: 'This role cannot record distributions.', variant: 'destructive' });
                     return;
                   }
                   if (!Number.isFinite(amount) || amount <= 0) {
                     setMessage('Enter a valid amount greater than zero.');
+                    toast({ title: 'Invalid amount', description: 'Enter a valid amount greater than zero.', variant: 'destructive' });
                     return;
                   }
                   if (!reason.trim()) {
                     setMessage('Reason is required.');
+                    toast({ title: 'Missing reason', description: 'Reason is required.', variant: 'destructive' });
                     return;
                   }
                   if (category === 'other' && !otherDetails.trim()) {
                     setMessage('Enter details for Others category.');
+                    toast({ title: 'Missing others details', description: 'Enter details for Others category.', variant: 'destructive' });
                     return;
                   }
                   setIsSaving(true);
-                  const result = recordCashDistribution({ category, amount, reason, otherDetails });
+                  const result = recordCashDistribution({ actionId: crypto.randomUUID(), category, amount, reason, otherDetails });
                   setMessage(result.message);
+                  toast({
+                    title: result.ok ? 'Distribution submitted' : 'Distribution failed',
+                    description: result.message,
+                    variant: result.ok ? 'default' : 'destructive',
+                  });
                   if (result.ok) {
                     setAmount(0);
                     setOtherDetails('');
                     setReason('');
+                    lastActionAtRef.current = Date.now();
                     refreshPageAfterSave('Distribution recorded. Refreshing page...');
                   }
                   setIsSaving(false);

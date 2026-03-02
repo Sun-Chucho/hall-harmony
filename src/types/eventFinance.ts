@@ -15,6 +15,7 @@ export type AllocationRequestStatus =
 
 export interface EventBudget {
   id: string;
+  clientActionId?: string;
   bookingId: string;
   createdAt: string;
   createdByUserId: string;
@@ -25,6 +26,7 @@ export interface EventBudget {
 
 export interface AllocationRequest {
   id: string;
+  clientActionId?: string;
   budgetId: string;
   bookingId: string;
   requestedAmount: number;
@@ -42,6 +44,7 @@ export interface AllocationRequest {
 
 export interface ExpenseDistribution {
   id: string;
+  clientActionId?: string;
   allocationRequestId: string;
   bookingId: string;
   category: BudgetCategory;
@@ -70,6 +73,7 @@ export type CashTransferStatus =
 
 export interface CashTransfer {
   id: string;
+  clientActionId?: string;
   requestedAmount: number;
   approvedAmount: number;
   requestComment: string;
@@ -89,6 +93,7 @@ export interface CashTransfer {
 
 export interface ManagingDirectorTransfer {
   id: string;
+  clientActionId?: string;
   amount: number;
   reference: string;
   notes: string;
@@ -111,6 +116,7 @@ export type CashDistributionCategory =
 
 export interface CashDistributionRecord {
   id: string;
+  clientActionId?: string;
   category: CashDistributionCategory;
   customCategoryLabel?: string;
   amount: number;

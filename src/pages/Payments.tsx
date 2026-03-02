@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
@@ -6,6 +6,7 @@ import { usePayments } from '@/contexts/PaymentContext';
 import { BookingPaymentStatus, CreatePaymentInput, PaymentMethod } from '@/types/payment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 function getDefaultPaidDateTime() {
   const now = new Date();
@@ -57,6 +58,7 @@ export default function Payments() {
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+  const lastActionAtRef = useRef(0);
 
   const refreshPageAfterUpdate = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -74,6 +76,15 @@ export default function Payments() {
   );
 
   const selectedFinancials = form.bookingId ? getBookingFinancials(form.bookingId) : null;
+  const canSubmitPayment = Boolean(
+    form.bookingId
+      && Number.isFinite(form.amount)
+      && form.amount > 0
+      && form.method
+      && form.receivedAt
+      && !isSubmitting
+      && !isRefreshingPage,
+  );
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -103,9 +114,21 @@ export default function Payments() {
 
   const handleRecordPayment = () => {
     if (isSubmitting || isRefreshingPage) return;
+    if (Date.now() - lastActionAtRef.current < 900) return;
+    if (!form.bookingId || !form.receivedAt || !form.method || !Number.isFinite(form.amount) || form.amount <= 0) {
+      const invalidMessage = 'Complete booking, amount, method and paid date/time before submitting.';
+      setMessage(invalidMessage);
+      toast({ title: 'Incomplete payment form', description: invalidMessage, variant: 'destructive' });
+      return;
+    }
     setIsSubmitting(true);
-    const result = recordPayment(form);
+    const result = recordPayment({ ...form, actionId: crypto.randomUUID() });
     setMessage(result.message);
+    toast({
+      title: result.ok ? 'Payment submitted' : 'Payment failed',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
     if (result.ok) {
       setForm((prev) => ({ ...initialForm, method: prev.method, receivedAt: getDefaultPaidDateTime() }));
       if (result.paymentId) {
@@ -116,19 +139,28 @@ export default function Payments() {
       }
       refreshPageAfterUpdate('Payment recorded. Refreshing page...');
     }
+    lastActionAtRef.current = Date.now();
     setIsSubmitting(false);
   };
 
   const handleSetStatus = () => {
     if (isSubmitting || isRefreshingPage) return;
+    if (Date.now() - lastActionAtRef.current < 900) return;
     if (!statusBookingId) {
       setMessage('Select a booking first.');
+      toast({ title: 'Missing booking', description: 'Select a booking first.', variant: 'destructive' });
       return;
     }
     setIsSubmitting(true);
     const result = setBookingPaymentStatus(statusBookingId, statusValue);
     setMessage(result.message);
+    toast({
+      title: result.ok ? 'Status submitted' : 'Status failed',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
     if (result.ok) {
+      lastActionAtRef.current = Date.now();
       refreshPageAfterUpdate('Booking payment status updated. Refreshing page...');
     }
     setIsSubmitting(false);
@@ -190,8 +222,8 @@ export default function Payments() {
               />
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button size="sm" onClick={handleRecordPayment} disabled={!canRecordPayments || isSubmitting || isRefreshingPage}>
-                Record Payment
+              <Button size="sm" onClick={handleRecordPayment} disabled={!canRecordPayments || !canSubmitPayment}>
+                {isSubmitting ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Record Payment'}
               </Button>
               {selectedFinancials ? (
                 <Badge className="bg-slate-100 text-slate-700">
@@ -234,7 +266,7 @@ export default function Payments() {
                 ))}
               </select>
               <Button size="sm" onClick={handleSetStatus} disabled={!canRecordPayments || isSubmitting || isRefreshingPage}>
-                Mark Status
+                {isSubmitting ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Mark Status'}
               </Button>
             </div>
           </div>
@@ -295,3 +327,4 @@ export default function Payments() {
     />
   );
 }
+  const { toast } = useToast();

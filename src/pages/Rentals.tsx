@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Rentals() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { bookings } = useBookings();
   const {
     items,
@@ -55,6 +57,8 @@ export default function Rentals() {
     quantity: 0,
     notes: '',
   });
+  const [isSavingAction, setIsSavingAction] = useState(false);
+  const lastInventoryActionAtRef = useRef(0);
 
   const report = getReport();
   const approvedEvents = useMemo(
@@ -66,6 +70,106 @@ export default function Rentals() {
   const stockInMovements = movements.filter((movement) => movement.type === 'stock_in');
   const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
   const canManage = user?.role === 'store_keeper' || user?.role === 'controller';
+
+  const runInventoryAction = (
+    action: () => { ok: boolean; message: string },
+    successTitle: string,
+    failureTitle: string,
+    onSuccess?: () => void,
+  ) => {
+    if (isSavingAction) return;
+    const now = Date.now();
+    if (now - lastInventoryActionAtRef.current < 900) return;
+    setIsSavingAction(true);
+    const result = action();
+    setMessage(result.message);
+    toast({
+      title: result.ok ? successTitle : failureTitle,
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
+    if (result.ok) onSuccess?.();
+    lastInventoryActionAtRef.current = now;
+    window.setTimeout(() => setIsSavingAction(false), 700);
+  };
+
+  const handleAddItem = () => {
+    if (!itemForm.name.trim() || !itemForm.unit.trim()) {
+      setMessage('Item name and unit are required.');
+      toast({ title: 'Missing fields', description: 'Item name and unit are required.', variant: 'destructive' });
+      return;
+    }
+    runInventoryAction(
+      () => addItem(itemForm.name, itemForm.unit, itemForm.openingQuantity, itemForm.reorderLevel),
+      'Inventory item saved',
+      'Save failed',
+      () => setItemForm({ name: '', unit: '', openingQuantity: 0, reorderLevel: 0 }),
+    );
+  };
+
+  const handleStockIn = () => {
+    if (!stockInForm.itemId || stockInForm.quantity <= 0) {
+      setMessage('Select item and enter stock in quantity.');
+      toast({ title: 'Incomplete stock in', description: 'Select item and enter stock in quantity.', variant: 'destructive' });
+      return;
+    }
+    runInventoryAction(
+      () => stockIn(stockInForm.itemId, stockInForm.quantity, stockInForm.reference, stockInForm.notes),
+      'Stock in saved',
+      'Stock in failed',
+      () => setStockInForm({ itemId: '', quantity: 0, reference: '', notes: '' }),
+    );
+  };
+
+  const handleStockOut = () => {
+    if (!stockOutForm.itemId || stockOutForm.quantity <= 0) {
+      setMessage('Select item and enter stock out quantity.');
+      toast({ title: 'Incomplete stock out', description: 'Select item and enter stock out quantity.', variant: 'destructive' });
+      return;
+    }
+    runInventoryAction(
+      () => stockOut(stockOutForm.itemId, stockOutForm.quantity, stockOutForm.reference, stockOutForm.notes),
+      'Stock out saved',
+      'Stock out failed',
+      () => setStockOutForm({ itemId: '', quantity: 0, reference: '', notes: '' }),
+    );
+  };
+
+  const handleRecordDamage = () => {
+    if (!damageForm.itemId || damageForm.quantity <= 0 || !damageForm.reason.trim()) {
+      setMessage('Select item, quantity, and reason for damage.');
+      toast({ title: 'Incomplete damage form', description: 'Select item, quantity, and reason for damage.', variant: 'destructive' });
+      return;
+    }
+    runInventoryAction(
+      () => recordDamage(damageForm.itemId, damageForm.quantity, damageForm.reason, damageForm.bookingId || undefined),
+      'Damage saved',
+      'Damage save failed',
+      () => setDamageForm({ itemId: '', quantity: 0, reason: '', bookingId: '' }),
+    );
+  };
+
+  const handleAllocateItem = () => {
+    if (!allocationForm.bookingId || !allocationForm.itemId || allocationForm.quantity <= 0) {
+      setMessage('Select event, item, and quantity before allocation.');
+      toast({ title: 'Incomplete allocation form', description: 'Select event, item, and quantity before allocation.', variant: 'destructive' });
+      return;
+    }
+    runInventoryAction(
+      () => allocateToEvent(allocationForm.bookingId, allocationForm.itemId, allocationForm.quantity, allocationForm.notes),
+      'Allocation saved',
+      'Allocation failed',
+      () => setAllocationForm({ bookingId: '', itemId: '', quantity: 0, notes: '' }),
+    );
+  };
+
+  const handleReturnAllocation = (allocationId: string) => {
+    runInventoryAction(
+      () => returnFromEvent(allocationId),
+      'Return saved',
+      'Return failed',
+    );
+  };
 
   const stats = [
     { title: 'Stock Items', value: `${report.totalItems}`, description: 'registered inventory records' },
@@ -431,13 +535,13 @@ export default function Rentals() {
                       />
                     </div>
                     <div className="mt-4">
-                      <Button
-                        size="sm"
-                        disabled={!canManage}
-                        onClick={() => setMessage(addItem(itemForm.name, itemForm.unit, itemForm.openingQuantity, itemForm.reorderLevel).message)}
-                      >
-                        Add Item
-                      </Button>
+                    <Button
+                      size="sm"
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleAddItem}
+                    >
+                      {isSavingAction ? 'Saving...' : 'Add Item'}
+                    </Button>
                     </div>
                   </div>
 
@@ -481,19 +585,10 @@ export default function Rentals() {
                     <div className="mt-4">
                       <Button
                         size="sm"
-                        disabled={!canManage}
-                        onClick={() =>
-                          setMessage(
-                            stockIn(
-                              stockInForm.itemId,
-                              stockInForm.quantity,
-                              stockInForm.reference,
-                              stockInForm.notes,
-                            ).message,
-                          )
-                        }
+                        disabled={!canManage || isSavingAction}
+                        onClick={handleStockIn}
                       >
-                        Record Stock In
+                        {isSavingAction ? 'Saving...' : 'Record Stock In'}
                       </Button>
                     </div>
                   </div>
@@ -577,19 +672,10 @@ export default function Rentals() {
                     <div className="mt-4">
                       <Button
                         size="sm"
-                        disabled={!canManage}
-                        onClick={() =>
-                          setMessage(
-                            stockOut(
-                              stockOutForm.itemId,
-                              stockOutForm.quantity,
-                              stockOutForm.reference,
-                              stockOutForm.notes,
-                            ).message,
-                          )
-                        }
+                        disabled={!canManage || isSavingAction}
+                        onClick={handleStockOut}
                       >
-                        Record Stock Out
+                        {isSavingAction ? 'Saving...' : 'Record Stock Out'}
                       </Button>
                     </div>
                   </div>
@@ -677,19 +763,10 @@ export default function Rentals() {
                   <div className="mt-4">
                     <Button
                       size="sm"
-                      disabled={!canManage}
-                      onClick={() =>
-                        setMessage(
-                          recordDamage(
-                            damageForm.itemId,
-                            damageForm.quantity,
-                            damageForm.reason,
-                            damageForm.bookingId || undefined,
-                          ).message,
-                        )
-                      }
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleRecordDamage}
                     >
-                      Record Damage
+                      {isSavingAction ? 'Saving...' : 'Record Damage'}
                     </Button>
                   </div>
 
@@ -791,10 +868,10 @@ export default function Rentals() {
                   <div className="mt-4">
                     <Button
                       size="sm"
-                      disabled={!canManage}
-                      onClick={() => setMessage(addItem(itemForm.name, itemForm.unit, itemForm.openingQuantity, itemForm.reorderLevel).message)}
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleAddItem}
                     >
-                      Add Item
+                      {isSavingAction ? 'Saving...' : 'Add Item'}
                     </Button>
                   </div>
                 </div>
@@ -839,19 +916,10 @@ export default function Rentals() {
                   <div className="mt-4">
                     <Button
                       size="sm"
-                      disabled={!canManage}
-                      onClick={() =>
-                        setMessage(
-                          stockIn(
-                            stockInForm.itemId,
-                            stockInForm.quantity,
-                            stockInForm.reference,
-                            stockInForm.notes,
-                          ).message,
-                        )
-                      }
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleStockIn}
                     >
-                      Record Stock In
+                      {isSavingAction ? 'Saving...' : 'Record Stock In'}
                     </Button>
                   </div>
                 </div>
@@ -897,22 +965,13 @@ export default function Rentals() {
                   />
                 </div>
                 <div className="mt-4">
-                  <Button
-                    size="sm"
-                    disabled={!canManage}
-                    onClick={() =>
-                      setMessage(
-                        stockOut(
-                          stockOutForm.itemId,
-                          stockOutForm.quantity,
-                          stockOutForm.reference,
-                          stockOutForm.notes,
-                        ).message,
-                      )
-                    }
-                  >
-                    Record Stock Out
-                  </Button>
+                    <Button
+                      size="sm"
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleStockOut}
+                    >
+                      {isSavingAction ? 'Saving...' : 'Record Stock Out'}
+                    </Button>
                 </div>
               </div>
             </TabsContent>
@@ -961,22 +1020,13 @@ export default function Rentals() {
                   </select>
                 </div>
                 <div className="mt-4">
-                  <Button
-                    size="sm"
-                    disabled={!canManage}
-                    onClick={() =>
-                      setMessage(
-                        recordDamage(
-                          damageForm.itemId,
-                          damageForm.quantity,
-                          damageForm.reason,
-                          damageForm.bookingId || undefined,
-                        ).message,
-                      )
-                    }
-                  >
-                    Record Damage
-                  </Button>
+                    <Button
+                      size="sm"
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleRecordDamage}
+                    >
+                      {isSavingAction ? 'Saving...' : 'Record Damage'}
+                    </Button>
                 </div>
 
                 <div className="mt-4 space-y-2">
@@ -1086,19 +1136,10 @@ export default function Rentals() {
                   <div className="mt-4">
                     <Button
                       size="sm"
-                      disabled={!canManage}
-                      onClick={() =>
-                        setMessage(
-                          allocateToEvent(
-                            allocationForm.bookingId,
-                            allocationForm.itemId,
-                            allocationForm.quantity,
-                            allocationForm.notes,
-                          ).message,
-                        )
-                      }
+                      disabled={!canManage || isSavingAction}
+                      onClick={handleAllocateItem}
                     >
-                      Allocate Item
+                      {isSavingAction ? 'Saving...' : 'Allocate Item'}
                     </Button>
                   </div>
                 </div>
@@ -1115,7 +1156,7 @@ export default function Rentals() {
                           <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                             <div className="flex items-center justify-between">
                               <span>{entry.bookingId} - {item?.name ?? 'Unknown item'} ({entry.quantity})</span>
-                              <Button size="sm" variant="outline" disabled={!canManage} onClick={() => setMessage(returnFromEvent(entry.id).message)}>
+                              <Button size="sm" variant="outline" disabled={!canManage || isSavingAction} onClick={() => handleReturnAllocation(entry.id)}>
                                 Return
                               </Button>
                             </div>

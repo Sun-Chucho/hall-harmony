@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { addDoc, collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   ApprovalLevel,
@@ -49,7 +49,6 @@ const AuthorizationContext = createContext<AuthorizationContextValue | undefined
 const AUTHZ_STATE_REF = doc(db, 'system_state', 'authorization');
 const AUTHZ_CACHE_KEY = 'kuringe_authorization_state_cache_v1';
 const AUTHZ_DIRTY_KEY = 'kuringe_authorization_dirty_v1';
-const MANAGER_MESSAGES_COLLECTION = 'manager_messages';
 
 export function AuthorizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -81,12 +80,6 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
     } catch {
       localStorage.removeItem(AUTHZ_CACHE_KEY);
-    }
-    if (localStorage.getItem(AUTHZ_DIRTY_KEY) === '1') {
-      pendingRemoteWriteRef.current = true;
-      if (!pendingActionNonceRef.current) {
-        pendingActionNonceRef.current = crypto.randomUUID();
-      }
     }
   }, []);
 
@@ -201,36 +194,31 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
         );
         localStorage.removeItem(AUTHZ_DIRTY_KEY);
       } catch {
-        pendingRemoteWriteRef.current = true;
-        pendingActionNonceRef.current = crypto.randomUUID();
         localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
       }
     })();
   }, [approvals, auditLog, hydrated, policy, user]);
 
   const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
+    // Audit logging intentionally disabled to reduce write volume.
+    void entry;
+  }, []);
+
+  const persistAuthorizationState = useCallback((overrides?: {
+    policy?: SystemPolicy;
+    approvals?: ApprovalRequest[];
+    auditLog?: AuthorizationAuditEntry[];
+  }) => {
+    const payload = {
+      policy: overrides?.policy ?? policy,
+      approvals: overrides?.approvals ?? approvals,
+      auditLog: overrides?.auditLog ?? auditLog,
+    };
     pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
-    const record: AuthorizationAuditEntry = {
-      ...entry,
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-    };
-    setAuditLog((prev) => [record, ...prev]);
-
-    // Mirror each audit event into Hall Manager messages for centralized oversight.
-    void addDoc(collection(db, MANAGER_MESSAGES_COLLECTION), {
-      title: `Audit: ${entry.action}`,
-      body: `${entry.module.toUpperCase()} | ${entry.detail}`,
-      fromUserId: entry.actorUserId,
-      fromRole: entry.actorRole,
-      toRole: 'manager',
-      read: false,
-      createdAt: record.timestamp,
-      updatedAt: serverTimestamp(),
-    });
-  }, []);
+    localStorage.setItem(AUTHZ_CACHE_KEY, JSON.stringify(payload));
+  }, [approvals, auditLog, policy]);
 
   const can = useCallback((permission: Permission) => {
     if (!user) return false;
@@ -263,16 +251,11 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       updatedAt: new Date().toISOString(),
     };
 
-    setApprovals((prev) => [request, ...prev]);
-    appendAudit({
-      actorUserId: user.id,
-      actorRole: user.role,
-      action: 'approval.requested',
-      module: input.module,
-      detail: `${input.level} approval requested for ${input.targetReference}`,
-    });
+    const nextApprovals = [request, ...approvals];
+    setApprovals(nextApprovals);
+    persistAuthorizationState({ approvals: nextApprovals });
     return { ok: true, message: 'Approval request created.', requestId: request.id };
-  }, [appendAudit, policy, user]);
+  }, [approvals, persistAuthorizationState, policy, user]);
 
   const reviewApproval = useCallback(
     (
@@ -290,31 +273,23 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
         return { ok: false, message: 'Only pending requests can be reviewed.' };
       }
 
-      setApprovals((prev) =>
-        prev.map((item) =>
-          item.id === requestId
-            ? {
-                ...item,
-                status: decision,
-                decisionComment: comment,
-                reviewedByUserId: user.id,
-                reviewedByRole: user.role,
-                updatedAt: new Date().toISOString(),
-              }
-            : item,
-        ),
+      const nextApprovals = approvals.map((item) =>
+        item.id === requestId
+          ? {
+              ...item,
+              status: decision,
+              decisionComment: comment,
+              reviewedByUserId: user.id,
+              reviewedByRole: user.role,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
       );
-
-      appendAudit({
-        actorUserId: user.id,
-        actorRole: user.role,
-        action: `approval.${decision}`,
-        module: request.module,
-        detail: `${request.targetReference} ${decision}`,
-      });
+      setApprovals(nextApprovals);
+      persistAuthorizationState({ approvals: nextApprovals });
       return { ok: true, message: `Approval ${decision}.` };
     },
-    [appendAudit, approvals, user],
+    [approvals, persistAuthorizationState, user],
   );
 
   const overrideApproval = useCallback(
@@ -327,30 +302,23 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       const request = approvals.find((item) => item.id === requestId);
       if (!request) return { ok: false, message: 'Approval request not found.' };
 
-      setApprovals((prev) =>
-        prev.map((item) =>
-          item.id === requestId
-            ? {
-                ...item,
-                status: 'overridden',
-                overrideByUserId: user.id,
-                overrideByRole: user.role,
-                overrideComment: `${status.toUpperCase()}: ${comment}`,
-                updatedAt: new Date().toISOString(),
-              }
-            : item,
-        ),
+      const nextApprovals = approvals.map((item) =>
+        item.id === requestId
+          ? {
+              ...item,
+              status: 'overridden',
+              overrideByUserId: user.id,
+              overrideByRole: user.role,
+              overrideComment: `${status.toUpperCase()}: ${comment}`,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
       );
-      appendAudit({
-        actorUserId: user.id,
-        actorRole: user.role,
-        action: 'approval.overridden',
-        module: request.module,
-        detail: `${request.targetReference} overridden to ${status}`,
-      });
+      setApprovals(nextApprovals);
+      persistAuthorizationState({ approvals: nextApprovals });
       return { ok: true, message: 'Approval overridden by controller.' };
     },
-    [appendAudit, approvals, user],
+    [approvals, persistAuthorizationState, user],
   );
 
   const setTransactionsFrozen = useCallback((frozen: boolean, reason: string) => {
@@ -358,20 +326,15 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     if (user.role !== 'controller') {
       return { ok: false, message: 'Only controller can freeze/unfreeze transactions.' };
     }
-    setPolicy((prev) => ({
-      ...prev,
+    const nextPolicy = {
+      ...policy,
       transactionsFrozen: frozen,
       freezeReason: reason.trim(),
-    }));
-    appendAudit({
-      actorUserId: user.id,
-      actorRole: user.role,
-      action: frozen ? 'system.transactions.frozen' : 'system.transactions.unfrozen',
-      module: 'system',
-      detail: reason.trim() || (frozen ? 'No reason provided' : 'System resumed'),
-    });
+    };
+    setPolicy(nextPolicy);
+    persistAuthorizationState({ policy: nextPolicy });
     return { ok: true, message: frozen ? 'Transactions frozen.' : 'Transactions resumed.' };
-  }, [appendAudit, user]);
+  }, [persistAuthorizationState, policy, user]);
 
   return (
     <AuthorizationContext.Provider

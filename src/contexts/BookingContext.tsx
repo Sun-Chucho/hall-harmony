@@ -1,5 +1,5 @@
 ﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
@@ -7,8 +7,8 @@ import { BookingCarType, BookingRecord, BookingStatus, CreateBookingInput, Event
 
 interface BookingContextValue {
   bookings: BookingRecord[];
-  createBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
-  createPastBooking: (payload: CreateBookingInput) => Promise<{ ok: boolean; message: string }>;
+  createBooking: (payload: CreateBookingInput, options?: { actionId?: string }) => Promise<{ ok: boolean; message: string }>;
+  createPastBooking: (payload: CreateBookingInput, options?: { actionId?: string }) => Promise<{ ok: boolean; message: string }>;
   reviewPastBooking: (
     bookingId: string,
     decision: Extract<PastBookingApprovalStatus, 'approved_cashier_1' | 'rejected_cashier_1'>,
@@ -46,19 +46,23 @@ function overlaps(startA: string, endA: string, startB: string, endB: string): b
   return toMinutes(startA) < toMinutes(endB) && toMinutes(startB) < toMinutes(endA);
 }
 
-function normalizeCarSelection(carType?: BookingCarType) {
+function normalizeCarSelection(carType?: BookingCarType, carPrice?: number) {
   if (!carType || carType === 'none') {
     return { carType: 'none' as BookingCarType, carPrice: 0 };
   }
+  const normalizedPrice = Number.isFinite(carPrice) && Number(carPrice) >= 0
+    ? Math.round(Number(carPrice))
+    : CAR_PRICES[carType as Exclude<BookingCarType, 'none'>] ?? 0;
   return {
     carType,
-    carPrice: CAR_PRICES[carType as Exclude<BookingCarType, 'none'>] ?? 0,
+    carPrice: normalizedPrice,
   };
 }
 
 function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingRecord {
   return {
     id,
+    clientActionId: data.clientActionId,
     customerName: data.customerName ?? '',
     customerPhone: data.customerPhone ?? '',
     eventName: data.eventName ?? '',
@@ -95,6 +99,10 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
 
 function normalizeRequestId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48);
+}
+
+function normalizeActionId(value?: string): string {
+  return (value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
 }
 
 export function BookingProvider({ children }: { children: React.ReactNode }) {
@@ -165,7 +173,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     });
   }, [bookings]);
 
-  const createBooking = useCallback(async (payload: CreateBookingInput) => {
+  const createBooking = useCallback(async (payload: CreateBookingInput, options?: { actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
       return { ok: false, message: 'Customer and event details are required.' };
@@ -186,7 +194,17 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Booking conflict detected for the selected hall and time.' };
     }
 
-    const id = `BOOK-${Date.now()}`;
+    const actionId = normalizeActionId(options?.actionId);
+    const id = actionId ? `BOOK-ACT-${actionId}` : `BOOK-${Date.now()}`;
+    if (actionId && bookings.some((entry) => entry.clientActionId === actionId)) {
+      return { ok: true, message: 'Booking already submitted.' };
+    }
+    if (actionId) {
+      const existing = await getDoc(doc(db, BOOKINGS_COLLECTION, id));
+      if (existing.exists()) {
+        return { ok: true, message: 'Booking already submitted.' };
+      }
+    }
     const bookingApproval = createApprovalRequest({
       level: 'minor',
       module: 'booking',
@@ -209,6 +227,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
     const record: BookingRecord = {
       id,
+      clientActionId: actionId || undefined,
       customerName: payload.customerName.trim(),
       customerPhone: payload.customerPhone.trim(),
       eventName: payload.eventName.trim(),
@@ -219,7 +238,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
-      ...normalizeCarSelection(payload.carType),
+      ...normalizeCarSelection(payload.carType, payload.carPrice),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
@@ -241,7 +260,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => [record, ...prev]);
       return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
     }
-  }, [createApprovalRequest, hasConflict, user]);
+  }, [bookings, createApprovalRequest, hasConflict, user]);
 
   const createPublicBooking = useCallback(async (payload: CreateBookingInput, requestId?: string) => {
     if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
@@ -275,7 +294,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
-      ...normalizeCarSelection(payload.carType),
+      ...normalizeCarSelection(payload.carType, payload.carPrice),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: PUBLIC_BOOKING_USER_ID,
@@ -296,7 +315,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const createPastBooking = useCallback(async (payload: CreateBookingInput) => {
+  const createPastBooking = useCallback(async (payload: CreateBookingInput, options?: { actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'assistant_hall_manager') {
       return { ok: false, message: 'Only Assistant Hall Manager can record past bookings.' };
@@ -327,9 +346,20 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Booking conflict detected for the selected hall and time.' };
     }
 
-    const id = `BOOK-PAST-${Date.now()}`;
+    const actionId = normalizeActionId(options?.actionId);
+    const id = actionId ? `BOOK-PAST-ACT-${actionId}` : `BOOK-PAST-${Date.now()}`;
+    if (actionId && bookings.some((entry) => entry.clientActionId === actionId)) {
+      return { ok: true, message: 'Past booking already submitted.' };
+    }
+    if (actionId) {
+      const existing = await getDoc(doc(db, BOOKINGS_COLLECTION, id));
+      if (existing.exists()) {
+        return { ok: true, message: 'Past booking already submitted.' };
+      }
+    }
     const record: BookingRecord = {
       id,
+      clientActionId: actionId || undefined,
       customerName: payload.customerName.trim(),
       customerPhone: payload.customerPhone.trim(),
       eventName: payload.eventName.trim(),
@@ -340,7 +370,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
-      ...normalizeCarSelection(payload.carType),
+      ...normalizeCarSelection(payload.carType, payload.carPrice),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
@@ -362,7 +392,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => [record, ...prev]);
       return { ok: true, message: 'Past booking saved locally. Cloud sync pending.' };
     }
-  }, [hasConflict, user]);
+  }, [bookings, hasConflict, user]);
 
   const reviewPastBooking = useCallback(async (
     bookingId: string,
@@ -443,7 +473,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
-      ...normalizeCarSelection(payload.carType),
+      ...normalizeCarSelection(payload.carType, payload.carPrice),
       notes: payload.notes?.trim() ?? '',
       lastEditedAt: new Date().toISOString(),
       lastEditedByUserId: user.id,
