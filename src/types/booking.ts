@@ -18,6 +18,8 @@ export type PastBookingApprovalStatus =
   | 'approved_cashier_1'
   | 'rejected_cashier_1';
 
+export type BookingCarType = 'none' | 'range_rover' | 'lexus' | 'bmw';
+
 export interface BookingRecord {
   id: string;
   customerName: string;
@@ -30,6 +32,8 @@ export interface BookingRecord {
   endTime: string;
   expectedGuests: number;
   quotedAmount: number;
+  carType?: BookingCarType;
+  carPrice?: number;
   notes: string;
   createdAt: string;
   createdByUserId: string;
@@ -62,5 +66,7 @@ export interface CreateBookingInput {
   endTime: string;
   expectedGuests: number;
   quotedAmount: number;
+  carType?: BookingCarType;
+  carPrice?: number;
   notes?: string;
 }

@@ -3,7 +3,7 @@ import { collection, deleteDoc, doc, onSnapshot, query, QueryConstraint, serverT
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
-import { BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus, PastBookingApprovalStatus } from '@/types/booking';
+import { BookingCarType, BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus, PastBookingApprovalStatus } from '@/types/booking';
 
 interface BookingContextValue {
   bookings: BookingRecord[];
@@ -31,6 +31,11 @@ const BookingContext = createContext<BookingContextValue | undefined>(undefined)
 const PUBLIC_BOOKING_USER_ID = 'public-web';
 const BOOKINGS_COLLECTION = 'bookings';
 const BOOKING_CACHE_KEY = 'kuringe_bookings_v1';
+const CAR_PRICES: Record<Exclude<BookingCarType, 'none'>, number> = {
+  range_rover: 500000,
+  lexus: 300000,
+  bmw: 300000,
+};
 
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -39,6 +44,16 @@ function toMinutes(value: string): number {
 
 function overlaps(startA: string, endA: string, startB: string, endB: string): boolean {
   return toMinutes(startA) < toMinutes(endB) && toMinutes(startB) < toMinutes(endA);
+}
+
+function normalizeCarSelection(carType?: BookingCarType) {
+  if (!carType || carType === 'none') {
+    return { carType: 'none' as BookingCarType, carPrice: 0 };
+  }
+  return {
+    carType,
+    carPrice: CAR_PRICES[carType as Exclude<BookingCarType, 'none'>] ?? 0,
+  };
 }
 
 function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingRecord {
@@ -54,6 +69,8 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
     endTime: data.endTime ?? '',
     expectedGuests: Number(data.expectedGuests) || 0,
     quotedAmount: Number(data.quotedAmount) || 0,
+    carType: (data.carType as BookingCarType) ?? 'none',
+    carPrice: Number(data.carPrice) || 0,
     notes: data.notes ?? '',
     createdAt: data.createdAt ?? new Date().toISOString(),
     createdByUserId: data.createdByUserId ?? '',
@@ -202,6 +219,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
+      ...normalizeCarSelection(payload.carType),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
@@ -257,6 +275,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
+      ...normalizeCarSelection(payload.carType),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: PUBLIC_BOOKING_USER_ID,
@@ -321,6 +340,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
+      ...normalizeCarSelection(payload.carType),
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
@@ -423,6 +443,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       endTime: payload.endTime,
       expectedGuests: payload.expectedGuests,
       quotedAmount: payload.quotedAmount,
+      ...normalizeCarSelection(payload.carType),
       notes: payload.notes?.trim() ?? '',
       lastEditedAt: new Date().toISOString(),
       lastEditedByUserId: user.id,

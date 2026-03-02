@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
-import { CreateBookingInput } from '@/types/booking';
+import { BookingCarType, CreateBookingInput } from '@/types/booking';
 import { PaymentMethod } from '@/types/payment';
 
 const halls = [
@@ -16,6 +16,20 @@ const halls = [
   'Garden Deck',
   'Hall D',
 ];
+
+const carOptions: { value: BookingCarType; label: string; price: number }[] = [
+  { value: 'none', label: 'No Car', price: 0 },
+  { value: 'range_rover', label: 'Range Rover', price: 500000 },
+  { value: 'lexus', label: 'Lexus', price: 300000 },
+  { value: 'bmw', label: 'BMW', price: 300000 },
+];
+
+const carLabelMap: Record<BookingCarType, string> = {
+  none: 'No Car',
+  range_rover: 'Range Rover',
+  lexus: 'Lexus',
+  bmw: 'BMW',
+};
 
 const initialForm: CreateBookingInput = {
   customerName: '',
@@ -28,6 +42,8 @@ const initialForm: CreateBookingInput = {
   endTime: '',
   expectedGuests: 0,
   quotedAmount: 0,
+  carType: 'none',
+  carPrice: 0,
   notes: '',
 };
 
@@ -41,6 +57,10 @@ function getYearStartIso() {
 
 function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getCarPrice(carType: BookingCarType) {
+  return carOptions.find((entry) => entry.value === carType)?.price ?? 0;
 }
 
 const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -128,10 +148,20 @@ export default function Bookings() {
     : false;
 
   const onChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
+    if (field === 'carType') {
+      const nextType = value as BookingCarType;
+      setForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
+      return;
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const onPastChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
+    if (field === 'carType') {
+      const nextType = value as BookingCarType;
+      setPastForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
+      return;
+    }
     setPastForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -179,6 +209,8 @@ export default function Bookings() {
       endTime: target.endTime,
       expectedGuests: target.expectedGuests,
       quotedAmount: target.quotedAmount,
+      carType: target.carType ?? 'none',
+      carPrice: target.carPrice ?? 0,
       notes: target.notes,
     });
     setEditingBookingId(bookingId);
@@ -313,6 +345,12 @@ export default function Bookings() {
                       <div className="mt-2 grid gap-3 md:grid-cols-2">
                         <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.quotedAmount) || 0} readOnly />
+                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
+                          {carOptions.map((car) => (
+                            <option key={car.value} value={car.value}>{car.label}</option>
+                          ))}
+                        </select>
+                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
                     </div>
@@ -354,7 +392,9 @@ export default function Bookings() {
                             </div>
                           </div>
                           <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
-                          <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
+                          <p className="text-slate-500">
+                            {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
+                          </p>
                           {booking.pastBookingSubmission ? (
                             <p className="text-xs text-violet-700">
                               Past Record: {toShortStatus(booking.pastBookingApprovalStatus ?? 'pending_cashier_1')}
@@ -400,6 +440,12 @@ export default function Bookings() {
                     <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.endTime} onChange={(event) => onPastChange('endTime', event.target.value)} />
                     <input type="number" placeholder="Expected Guests" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.expectedGuests || ''} onChange={(event) => onPastChange('expectedGuests', Number(event.target.value))} />
                     <input type="number" placeholder="Amount Paid / Quoted (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.quotedAmount || ''} onChange={(event) => onPastChange('quotedAmount', Number(event.target.value))} />
+                    <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.carType ?? 'none'} onChange={(event) => onPastChange('carType', event.target.value as BookingCarType)}>
+                      {carOptions.map((car) => (
+                        <option key={car.value} value={car.value}>{car.label}</option>
+                      ))}
+                    </select>
+                    <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(pastForm.carPrice) || 0} readOnly />
                     <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={pastForm.notes} onChange={(event) => onPastChange('notes', event.target.value)} />
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -606,6 +652,7 @@ export default function Bookings() {
                     <p><span className="font-semibold">Date:</span> {selected.date}</p>
                     <p><span className="font-semibold">Time:</span> {selected.startTime} - {selected.endTime}</p>
                     <p><span className="font-semibold">Quoted Amount:</span> TZS {(Number(selected.quotedAmount) || 0).toLocaleString()}</p>
+                    <p><span className="font-semibold">Car:</span> {carLabelMap[selected.carType ?? 'none']} (TZS {(Number(selected.carPrice) || 0).toLocaleString()})</p>
                   </div>
                 </div>
 
@@ -752,6 +799,12 @@ export default function Bookings() {
                 <input type="time" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.endTime} onChange={(event) => onChange('endTime', event.target.value)} />
                 <input type="number" placeholder="Expected Guests" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.expectedGuests || ''} onChange={(event) => onChange('expectedGuests', Number(event.target.value))} />
                 <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
+                <select className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
+                  {carOptions.map((car) => (
+                    <option key={car.value} value={car.value}>{car.label}</option>
+                  ))}
+                </select>
+                <input type="number" className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
                 <input type="text" placeholder="Notes" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -784,7 +837,9 @@ export default function Bookings() {
                       </div>
                     </div>
                     <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
-                    <p className="text-slate-500">{booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()}</p>
+                    <p className="text-slate-500">
+                      {booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
+                    </p>
                     {booking.pastBookingSubmission ? (
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">
                         Past Record: {toShortStatus(booking.pastBookingApprovalStatus ?? 'pending_cashier_1')}
