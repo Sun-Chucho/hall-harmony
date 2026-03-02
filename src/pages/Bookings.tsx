@@ -165,7 +165,7 @@ export default function Bookings() {
 
   if (isAssistantHall && user) {
     const assistantBookings = bookings.filter((entry) => entry.createdByUserId === user.id);
-    const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1').length;
+    const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1' || !entry.assignedToRole).length;
 
     return (
       <ManagementPageTemplate
@@ -301,7 +301,12 @@ export default function Bookings() {
   }
 
   if (isCashier1) {
-    const cashierBookings = bookings.filter((entry) => entry.assignedToRole === 'cashier_1');
+    const cashierBookings = bookings.filter(
+      (entry) =>
+        (entry.assignedToRole === 'cashier_1' || !entry.assignedToRole)
+        && entry.bookingStatus !== 'cancelled'
+        && entry.bookingStatus !== 'rejected',
+    );
     const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const financials = selected ? getBookingFinancials(selected.id) : null;
     const bookingPayments = selected ? payments.filter((item) => item.bookingId === selected.id) : [];

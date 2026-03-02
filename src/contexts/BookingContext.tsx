@@ -98,8 +98,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     const constraints: QueryConstraint[] = [];
     if (user.role === 'assistant_hall_manager') {
       constraints.push(where('createdByUserId', '==', user.id));
-    } else if (user.role === 'cashier_1') {
-      constraints.push(where('assignedToRole', '==', 'cashier_1'));
     }
     // For filtered role views we avoid orderBy here to keep index requirements low.
     // We still sort in-memory after snapshot.
@@ -199,8 +197,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       createdByUserId: user.id,
       bookingStatus: 'pending',
       eventDetailStatus: 'pending_assistant',
-      assignedToRole: user.role === 'assistant_hall_manager' ? 'cashier_1' : undefined,
-      sentToCashier1At: user.role === 'assistant_hall_manager' ? new Date().toISOString() : undefined,
+      assignedToRole: 'cashier_1',
+      sentToCashier1At: new Date().toISOString(),
       bookingApprovalId: bookingApproval.requestId,
       eventApprovalId: eventApproval.requestId,
     };

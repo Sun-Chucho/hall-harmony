@@ -55,7 +55,12 @@ export default function Dashboard() {
     const pendingAllocations = allocations.filter((item) => item.status === 'pending_controller').length;
     const releasedAllocations = allocations.filter((item) => item.status === 'funds_released').length;
     const openAllocations = allocations.filter((item) => item.status !== 'closed' && item.status !== 'rejected_controller').length;
-    const cashierQueue = bookings.filter((item) => item.assignedToRole === 'cashier_1' && item.bookingStatus !== 'cancelled' && item.bookingStatus !== 'rejected').length;
+    const cashierQueue = bookings.filter(
+      (item) =>
+        (item.assignedToRole === 'cashier_1' || !item.assignedToRole)
+        && item.bookingStatus !== 'cancelled'
+        && item.bookingStatus !== 'rejected',
+    ).length;
     const lowStockItems = items.filter((item) => item.currentQuantity <= item.reorderLevel).length;
     const criticalLowStockItems = items.filter((item) => item.currentQuantity === 0).length;
     const recentActivityCount = auditLog.length + logs.length;
