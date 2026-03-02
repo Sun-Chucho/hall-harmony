@@ -86,8 +86,8 @@ export default function Dashboard() {
     () => ({
       manager: [
         { title: "Today's Bookings", value: String(metrics.todayBookings), hint: 'Scheduled for today', icon: Calendar },
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Waiting for review', icon: AlertCircle },
-        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'Recorded payments', icon: DollarSign },
+        { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Payments received today', icon: DollarSign },
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: CheckCircle2 },
         { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'With active bookings', icon: Users },
       ],
       managing_director: [
@@ -149,7 +149,14 @@ export default function Dashboard() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
 
-  const quickLinks = user.role === 'assistant_hall_manager'
+  const quickLinks = user.role === 'manager'
+    ? [
+        { label: 'Customers', path: '/customers' },
+        { label: 'Inventory', path: '/rentals' },
+        { label: 'Reports', path: '/reports' },
+        { label: 'Messages', path: '/messages' },
+      ]
+    : user.role === 'assistant_hall_manager'
     ? [
         { label: 'Bookings', path: '/bookings' },
         { label: 'Inventory', path: '/rentals' },

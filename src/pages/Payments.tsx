@@ -7,11 +7,18 @@ import { BookingPaymentStatus, CreatePaymentInput, PaymentMethod } from '@/types
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+function getDefaultPaidDateTime() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 const initialForm: CreatePaymentInput = {
   bookingId: '',
   amount: 0,
   method: 'cash',
   notes: '',
+  receivedAt: getDefaultPaidDateTime(),
 };
 
 const paymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -86,7 +93,7 @@ export default function Payments() {
     const result = recordPayment(form);
     setMessage(result.message);
     if (result.ok) {
-      setForm((prev) => ({ ...initialForm, method: prev.method }));
+      setForm((prev) => ({ ...initialForm, method: prev.method, receivedAt: getDefaultPaidDateTime() }));
       if (result.paymentId) {
         const receipt = generateReceiptText(result.paymentId);
         if (receipt.ok && receipt.receipt) {
@@ -147,9 +154,15 @@ export default function Payments() {
                 ))}
               </select>
               <input
+                type="datetime-local"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                value={form.receivedAt ?? ''}
+                onChange={(event) => setForm((prev) => ({ ...prev, receivedAt: event.target.value }))}
+              />
+              <input
                 type="text"
                 placeholder="Notes (optional)"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
                 value={form.notes}
                 onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
               />

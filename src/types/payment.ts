@@ -24,4 +24,5 @@ export interface CreatePaymentInput {
   method: PaymentMethod;
   referenceNumber?: string;
   notes?: string;
+  receivedAt?: string;
 }

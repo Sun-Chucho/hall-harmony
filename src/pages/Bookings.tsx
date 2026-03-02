@@ -41,6 +41,12 @@ const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: 'mobile_money', label: 'Mobile Money' },
 ];
 
+function getDefaultPaidDateTime() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function Bookings() {
   const { user } = useAuth();
   const {
@@ -63,6 +69,7 @@ export default function Bookings() {
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paidDateTime, setPaidDateTime] = useState(getDefaultPaidDateTime);
   const [paymentNotes, setPaymentNotes] = useState('');
 
   const refreshPageAfterUpdate = (notice?: string) => {
@@ -431,6 +438,12 @@ export default function Bookings() {
                       onChange={(event) => setPaidAmount(Number(event.target.value))}
                     />
                     <input
+                      type="datetime-local"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={paidDateTime}
+                      onChange={(event) => setPaidDateTime(event.target.value)}
+                    />
+                    <input
                       type="text"
                       placeholder="Notes / Comment"
                       className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
@@ -454,12 +467,14 @@ export default function Bookings() {
                           bookingId: selected.id,
                           amount: paidAmount,
                           method: paymentMethod,
+                          receivedAt: paidDateTime || undefined,
                           notes: paymentNotes,
                         });
                         setMessage(result.message);
                         if (result.ok) {
                           const remainingBalance = Math.max(currentBalance - paidAmount, 0);
                           setPaidAmount(0);
+                          setPaidDateTime(getDefaultPaidDateTime());
                           setPaymentNotes('');
                           refreshPageAfterUpdate(
                             `Payment recorded successfully. Remaining balance: TZS ${remainingBalance.toLocaleString()}. Refreshing page...`,

@@ -169,6 +169,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     const receiptNumber = generateReference('RCT');
     const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
     const amount = Math.round(input.amount);
+    const receivedAt = input.receivedAt ? new Date(input.receivedAt) : new Date();
+    if (Number.isNaN(receivedAt.getTime())) {
+      return { ok: false, message: 'Enter a valid paid date and time.' };
+    }
 
     const record: PaymentRecord = {
       id: paymentId,
@@ -176,7 +180,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       amount,
       method: input.method,
       referenceNumber,
-      receivedAt: new Date().toISOString(),
+      receivedAt: receivedAt.toISOString(),
       receivedByUserId: user.id,
       receiptNumber,
       notes: input.notes?.trim() ?? '',

@@ -65,7 +65,7 @@ const mainNavItems: NavItem[] = [
     title: 'Bookings',
     icon: Calendar,
     path: '/bookings',
-    roles: ['manager', 'assistant_hall_manager', 'accountant'],
+    roles: ['assistant_hall_manager', 'accountant'],
   },
   {
     title: 'Customers',
