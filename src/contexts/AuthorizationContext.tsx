@@ -58,6 +58,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   const [hydrated, setHydrated] = useState(false);
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
+  const pendingActionNonceRef = useRef('');
 
   const serializeState = useCallback((nextState: {
     policy: SystemPolicy;
@@ -168,6 +169,9 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
+    const actionNonce = pendingActionNonceRef.current;
+    if (!actionNonce) return;
+    pendingActionNonceRef.current = '';
     const serialized = serializeState({
       policy,
       approvals,
@@ -182,6 +186,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
         approvals,
         auditLog,
         writeToken: 'action_v1',
+        clientActionNonce: actionNonce,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -189,6 +194,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   }, [approvals, auditLog, hydrated, policy, user]);
 
   const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
+    pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     const record: AuthorizationAuditEntry = {
       ...entry,

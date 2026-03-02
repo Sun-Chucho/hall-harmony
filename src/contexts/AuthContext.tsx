@@ -475,6 +475,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           forcedByUserId: state.user.id,
           forcedByRole: state.user.role,
           writeToken: 'action_v1',
+          clientActionNonce: crypto.randomUUID(),
           updatedAt: serverTimestamp(),
         },
         { merge: true },

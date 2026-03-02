@@ -41,6 +41,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
+  const pendingActionNonceRef = useRef('');
 
   const serializeState = useCallback((nextPayments: PaymentRecord[], nextStatusOverride: Record<string, BookingPaymentStatus>) => {
     return JSON.stringify({
@@ -125,6 +126,9 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
+    const actionNonce = pendingActionNonceRef.current;
+    if (!actionNonce) return;
+    pendingActionNonceRef.current = '';
     const serialized = serializeState(payments, statusOverride);
     if (serialized === lastSyncedStateRef.current) return;
     lastSyncedStateRef.current = serialized;
@@ -134,6 +138,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
         payments,
         statusOverride,
         writeToken: 'action_v1',
+        clientActionNonce: actionNonce,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -211,6 +216,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     const nextStatusOverride = { ...statusOverride };
     delete nextStatusOverride[input.bookingId];
 
+    pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     setPayments(nextPayments);
     setStatusOverride(nextStatusOverride);
@@ -233,6 +239,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Booking not found.' };
     }
     const nextStatusOverride = { ...statusOverride, [bookingId]: status };
+    pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     setStatusOverride(nextStatusOverride);
     localStorage.setItem(

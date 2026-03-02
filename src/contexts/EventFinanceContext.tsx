@@ -105,6 +105,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   const [hydrated, setHydrated] = useState(false);
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
+  const pendingActionNonceRef = useRef('');
 
   const serializeState = useCallback((input: {
     budgets: EventBudget[];
@@ -239,6 +240,9 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
+    const actionNonce = pendingActionNonceRef.current;
+    if (!actionNonce) return;
+    pendingActionNonceRef.current = '';
     const serialized = serializeState({
       budgets,
       allocations,
@@ -261,6 +265,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
         cashDistributions,
         logs,
         writeToken: 'action_v1',
+        clientActionNonce: actionNonce,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -285,12 +290,16 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       cashDistributions: overrides?.cashDistributions ?? cashDistributions,
       logs: overrides?.logs ?? logs,
     };
+    pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     localStorage.setItem(EVENT_FINANCE_CACHE_KEY, JSON.stringify(payload));
   }, [allocations, budgets, cashDistributions, cashTransfers, distributions, logs, mdTransfers]);
 
   const appendLog = useCallback((action: string, referenceId: string, detail: string) => {
     if (!user) return;
+    if (!pendingActionNonceRef.current) {
+      pendingActionNonceRef.current = crypto.randomUUID();
+    }
     pendingRemoteWriteRef.current = true;
     const entry: EventFinanceLog = {
       id: crypto.randomUUID(),

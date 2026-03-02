@@ -8,7 +8,9 @@ service cloud.firestore {
     match /system_state/{docId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn()
-        && request.resource.data.writeToken == 'action_v1';
+        && request.resource.data.writeToken == 'action_v1'
+        && request.resource.data.clientActionNonce is string
+        && request.resource.data.clientActionNonce != resource.data.clientActionNonce;
     }
 
     match /bookings/{bookingId} {

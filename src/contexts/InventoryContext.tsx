@@ -51,6 +51,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const lastSyncedStateRef = useRef('');
   const pendingRemoteWriteRef = useRef(false);
+  const pendingActionNonceRef = useRef('');
 
   const serializeState = useCallback((nextState: {
     items: InventoryItem[];
@@ -155,6 +156,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     if (!user || !hydrated) return;
     if (!pendingRemoteWriteRef.current) return;
     pendingRemoteWriteRef.current = false;
+    const actionNonce = pendingActionNonceRef.current;
+    if (!actionNonce) return;
+    pendingActionNonceRef.current = '';
     const serialized = serializeState({
       items,
       movements,
@@ -171,6 +175,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         damages,
         allocations,
         writeToken: 'action_v1',
+        clientActionNonce: actionNonce,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -189,6 +194,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       damages: overrides?.damages ?? damages,
       allocations: overrides?.allocations ?? allocations,
     };
+    pendingActionNonceRef.current = crypto.randomUUID();
     pendingRemoteWriteRef.current = true;
     localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(payload));
   }, [allocations, damages, items, movements]);
