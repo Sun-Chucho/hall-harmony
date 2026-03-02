@@ -23,7 +23,55 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /payment_status_overrides/{bookingId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /authorization_policy/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /authorization_approvals/{approvalId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /event_budgets/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /event_allocations/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /event_distributions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /cash_transfers/{transferId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /md_transfers/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cash_distributions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /inventory_items/{itemId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /inventory_damages/{damageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /inventory_allocations/{allocationId} {
       allow read, write: if isSignedIn();
     }
 

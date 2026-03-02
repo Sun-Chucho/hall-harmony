@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { collection, deleteDoc, doc, limit, onSnapshot, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
@@ -22,10 +22,8 @@ interface PaymentContextValue {
 }
 
 const DEPOSIT_RATIO = 0.3;
-const PAYMENT_STATE_REF = doc(db, 'system_state', 'payments');
 const PAYMENTS_COLLECTION = 'payments';
-const PAYMENT_CACHE_KEY = 'kuringe_payments_cache_v1';
-const PAYMENT_DIRTY_KEY = 'kuringe_payments_dirty_v1';
+const PAYMENT_STATUS_COLLECTION = 'payment_status_overrides';
 
 function generateReference(prefix: string) {
   const stamp = Date.now().toString();
@@ -45,96 +43,40 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const { bookings } = useBookings();
   const { policy } = useAuthorization();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [legacyPayments, setLegacyPayments] = useState<PaymentRecord[]>([]);
   const [statusOverride, setStatusOverride] = useState<Record<string, BookingPaymentStatus>>({});
-  const [hydrated, setHydrated] = useState(false);
-  const lastSyncedStateRef = useRef('');
-  const pendingRemoteWriteRef = useRef(false);
-  const pendingActionNonceRef = useRef('');
-  const usingEventPaymentsRef = useRef(false);
-
-  const serializeState = useCallback((nextPayments: PaymentRecord[], nextStatusOverride: Record<string, BookingPaymentStatus>) => {
-    return JSON.stringify({
-      payments: nextPayments,
-      statusOverride: nextStatusOverride,
-    });
-  }, []);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(PAYMENT_CACHE_KEY);
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw) as {
-        payments?: PaymentRecord[];
-        statusOverride?: Record<string, BookingPaymentStatus>;
-      };
-      const cachedPayments = Array.isArray(data.payments) ? data.payments : [];
-      setPayments(cachedPayments);
-      setLegacyPayments(cachedPayments);
-      setStatusOverride(data.statusOverride ?? {});
-    } catch {
-      localStorage.removeItem(PAYMENT_CACHE_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      PAYMENT_CACHE_KEY,
-      JSON.stringify({
-        payments,
-        statusOverride,
-      }),
-    );
-  }, [payments, statusOverride]);
 
   useEffect(() => {
     if (!user) {
       setPayments([]);
-      setStatusOverride({});
-      setHydrated(false);
-      lastSyncedStateRef.current = '';
       return;
     }
 
+    const q = query(collection(db, PAYMENTS_COLLECTION), limit(3000));
     const unsub = onSnapshot(
-      PAYMENT_STATE_REF,
+      q,
       (snapshot) => {
-        const data = snapshot.data() as {
-          payments?: PaymentRecord[];
-          statusOverride?: Record<string, BookingPaymentStatus>;
-        } | undefined;
-        const nextPayments = Array.isArray(data?.payments) ? data?.payments : [];
-        const nextStatusOverride = data?.statusOverride ?? {};
-        const serialized = serializeState(nextPayments, nextStatusOverride);
-        if (serialized !== lastSyncedStateRef.current) {
-          setLegacyPayments(nextPayments);
-          if (!usingEventPaymentsRef.current) {
-            setPayments(nextPayments);
-          }
-          setStatusOverride(nextStatusOverride);
-          lastSyncedStateRef.current = serialized;
-        }
-        setHydrated(true);
+        const next = snapshot.docs
+          .map((item) => {
+            const data = item.data() as Partial<PaymentRecord>;
+            return {
+              id: item.id,
+              clientActionId: data.clientActionId,
+              bookingId: data.bookingId ?? '',
+              amount: Number(data.amount) || 0,
+              method: (data.method ?? 'cash') as PaymentRecord['method'],
+              referenceNumber: data.referenceNumber ?? '',
+              receivedAt: data.receivedAt ?? new Date(0).toISOString(),
+              receivedByUserId: data.receivedByUserId ?? '',
+              receiptNumber: data.receiptNumber ?? '',
+              notes: data.notes ?? '',
+            } as PaymentRecord;
+          })
+          .filter((entry) => entry.bookingId)
+          .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+        setPayments(next);
       },
       () => {
-        const raw = localStorage.getItem(PAYMENT_CACHE_KEY);
-        if (raw) {
-          try {
-            const data = JSON.parse(raw) as {
-              payments?: PaymentRecord[];
-              statusOverride?: Record<string, BookingPaymentStatus>;
-            };
-            const cachedPayments = Array.isArray(data.payments) ? data.payments : [];
-            setLegacyPayments(cachedPayments);
-            if (!usingEventPaymentsRef.current) {
-              setPayments(cachedPayments);
-            }
-            setStatusOverride(data.statusOverride ?? {});
-          } catch {
-            localStorage.removeItem(PAYMENT_CACHE_KEY);
-          }
-        }
-        setHydrated(true);
+        setPayments([]);
       },
     );
 
@@ -142,56 +84,31 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, PAYMENTS_COLLECTION), orderBy('receivedAt', 'desc'), limit(2000));
+    if (!user) {
+      setStatusOverride({});
+      return;
+    }
+
+    const q = query(collection(db, PAYMENT_STATUS_COLLECTION), limit(3000));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        if (snapshot.empty) {
-          if (!usingEventPaymentsRef.current) {
-            setPayments(legacyPayments);
+        const next: Record<string, BookingPaymentStatus> = {};
+        snapshot.docs.forEach((item) => {
+          const data = item.data() as { status?: BookingPaymentStatus };
+          if (data.status) {
+            next[item.id] = data.status;
           }
-          return;
-        }
-        const nextPayments = snapshot.docs.map((item) => item.data() as PaymentRecord);
-        usingEventPaymentsRef.current = true;
-        setPayments(nextPayments);
+        });
+        setStatusOverride(next);
       },
       () => {
-        // Keep current payment source on listener errors.
+        setStatusOverride({});
       },
     );
-    return () => unsub();
-  }, [legacyPayments, user]);
 
-  useEffect(() => {
-    if (!user || !hydrated) return;
-    if (!pendingRemoteWriteRef.current) return;
-    pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
-    pendingActionNonceRef.current = '';
-    const serialized = serializeState(payments, statusOverride);
-    if (serialized === lastSyncedStateRef.current) return;
-    lastSyncedStateRef.current = serialized;
-    void (async () => {
-      try {
-        await setDoc(
-          PAYMENT_STATE_REF,
-          {
-            payments,
-            statusOverride,
-            writeToken: 'action_v1',
-            clientActionNonce: actionNonce,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-        localStorage.removeItem(PAYMENT_DIRTY_KEY);
-      } catch {
-        localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
-      }
-    })();
-  }, [hydrated, payments, statusOverride, user]);
+    return () => unsub();
+  }, [user]);
 
   const computeStatus = useCallback((bookingId: string): BookingPaymentStatus => {
     const booking = bookings.find((item) => item.id === bookingId);
@@ -245,7 +162,8 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (duplicate) {
       return { ok: true, message: 'This payment was already submitted.', paymentId: duplicate.id };
     }
-    const paymentId = actionId ? `PAY-ACT-${actionId}` : generateReference('PAY');
+
+    const paymentId = `PAY-ACT-${actionId}`;
     const receiptNumber = generateReference('RCT');
     const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
     const amount = Math.round(input.amount);
@@ -266,22 +184,14 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       receiptNumber,
       notes: input.notes?.trim() ?? '',
     };
-    const nextPayments = [record, ...payments];
-    const nextStatusOverride = { ...statusOverride };
-    delete nextStatusOverride[input.bookingId];
 
-    pendingActionNonceRef.current = crypto.randomUUID();
-    pendingRemoteWriteRef.current = true;
-    localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
-    setPayments(nextPayments);
-    setStatusOverride(nextStatusOverride);
-    localStorage.setItem(
-      PAYMENT_CACHE_KEY,
-      JSON.stringify({
-        payments: nextPayments,
-        statusOverride: nextStatusOverride,
-      }),
-    );
+    setPayments((prev) => [record, ...prev]);
+    setStatusOverride((prev) => {
+      const next = { ...prev };
+      delete next[input.bookingId];
+      return next;
+    });
+
     void setDoc(
       doc(db, PAYMENTS_COLLECTION, record.id),
       {
@@ -290,8 +200,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       },
       { merge: true },
     );
+    void deleteDoc(doc(db, PAYMENT_STATUS_COLLECTION, input.bookingId));
+
     return { ok: true, message: 'Payment recorded successfully.', paymentId };
-  }, [bookings, payments, policy.transactionsFrozen, statusOverride, user]);
+  }, [bookings, payments, policy.transactionsFrozen, user]);
 
   const setBookingPaymentStatus = useCallback((bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -301,20 +213,21 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!bookings.some((item) => item.id === bookingId)) {
       return { ok: false, message: 'Booking not found.' };
     }
-    const nextStatusOverride = { ...statusOverride, [bookingId]: status };
-    pendingActionNonceRef.current = crypto.randomUUID();
-    pendingRemoteWriteRef.current = true;
-    localStorage.setItem(PAYMENT_DIRTY_KEY, '1');
-    setStatusOverride(nextStatusOverride);
-    localStorage.setItem(
-      PAYMENT_CACHE_KEY,
-      JSON.stringify({
-        payments,
-        statusOverride: nextStatusOverride,
-      }),
+
+    setStatusOverride((prev) => ({ ...prev, [bookingId]: status }));
+    void setDoc(
+      doc(db, PAYMENT_STATUS_COLLECTION, bookingId),
+      {
+        bookingId,
+        status,
+        updatedAt: serverTimestamp(),
+        updatedByUserId: user.id,
+      },
+      { merge: true },
     );
+
     return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };
-  }, [bookings, payments, statusOverride, user]);
+  }, [bookings, user]);
 
   const generateReceiptText = useCallback((paymentId: string) => {
     const payment = payments.find((item) => item.id === paymentId);

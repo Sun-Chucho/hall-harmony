@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { collection, doc, limit, onSnapshot, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   ApprovalLevel,
@@ -46,119 +46,29 @@ interface AuthorizationContextValue {
 }
 
 const AuthorizationContext = createContext<AuthorizationContextValue | undefined>(undefined);
-const AUTHZ_STATE_REF = doc(db, 'system_state', 'authorization');
-const AUTHZ_CACHE_KEY = 'kuringe_authorization_state_cache_v1';
-const AUTHZ_DIRTY_KEY = 'kuringe_authorization_dirty_v1';
+const POLICY_REF = doc(db, 'authorization_policy', 'singleton');
+const APPROVALS_COLLECTION = 'authorization_approvals';
 
 export function AuthorizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [policy, setPolicy] = useState<SystemPolicy>(DEFAULT_SYSTEM_POLICY);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-  const [auditLog, setAuditLog] = useState<AuthorizationAuditEntry[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-  const lastSyncedStateRef = useRef('');
-  const pendingRemoteWriteRef = useRef(false);
-  const pendingActionNonceRef = useRef('');
-
-  const serializeState = useCallback((nextState: {
-    policy: SystemPolicy;
-    approvals: ApprovalRequest[];
-    auditLog: AuthorizationAuditEntry[];
-  }) => JSON.stringify(nextState), []);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(AUTHZ_CACHE_KEY);
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw) as {
-        policy?: SystemPolicy;
-        approvals?: ApprovalRequest[];
-        auditLog?: AuthorizationAuditEntry[];
-      };
-      setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
-      setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
-      setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
-    } catch {
-      localStorage.removeItem(AUTHZ_CACHE_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      AUTHZ_CACHE_KEY,
-      JSON.stringify({
-        policy,
-        approvals,
-        auditLog,
-      }),
-    );
-  }, [approvals, auditLog, policy]);
+  const [auditLog] = useState<AuthorizationAuditEntry[]>([]);
 
   useEffect(() => {
     if (!user) {
       setPolicy(DEFAULT_SYSTEM_POLICY);
-      setApprovals([]);
-      setAuditLog([]);
-      setHydrated(false);
-      lastSyncedStateRef.current = '';
       return;
     }
 
     const unsub = onSnapshot(
-      AUTHZ_STATE_REF,
+      POLICY_REF,
       (snapshot) => {
-        const data = snapshot.data() as {
-          policy?: SystemPolicy;
-          approvals?: ApprovalRequest[];
-          auditLog?: AuthorizationAuditEntry[];
-        } | undefined;
-        if (!data) {
-          const emptyState = {
-            policy: DEFAULT_SYSTEM_POLICY,
-            approvals: [],
-            auditLog: [],
-          };
-          const serialized = serializeState(emptyState);
-          if (serialized !== lastSyncedStateRef.current) {
-            setPolicy(emptyState.policy);
-            setApprovals(emptyState.approvals);
-            setAuditLog(emptyState.auditLog);
-            lastSyncedStateRef.current = serialized;
-          }
-          setHydrated(true);
-          return;
-        }
-        const nextState = {
-          policy: { ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) },
-          approvals: Array.isArray(data.approvals) ? data.approvals : [],
-          auditLog: Array.isArray(data.auditLog) ? data.auditLog : [],
-        };
-        const serialized = serializeState(nextState);
-        if (serialized !== lastSyncedStateRef.current) {
-          setPolicy(nextState.policy);
-          setApprovals(nextState.approvals);
-          setAuditLog(nextState.auditLog);
-          lastSyncedStateRef.current = serialized;
-        }
-        setHydrated(true);
+        const data = snapshot.data() as Partial<SystemPolicy> | undefined;
+        setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data ?? {}) });
       },
       () => {
-        const raw = localStorage.getItem(AUTHZ_CACHE_KEY);
-        if (raw) {
-          try {
-            const data = JSON.parse(raw) as {
-              policy?: SystemPolicy;
-              approvals?: ApprovalRequest[];
-              auditLog?: AuthorizationAuditEntry[];
-            };
-            setPolicy({ ...DEFAULT_SYSTEM_POLICY, ...(data.policy ?? {}) });
-            setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
-            setAuditLog(Array.isArray(data.auditLog) ? data.auditLog : []);
-          } catch {
-            localStorage.removeItem(AUTHZ_CACHE_KEY);
-          }
-        }
-        setHydrated(true);
+        setPolicy(DEFAULT_SYSTEM_POLICY);
       },
     );
 
@@ -166,59 +76,49 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   }, [user]);
 
   useEffect(() => {
-    if (!user || !hydrated) return;
-    if (!pendingRemoteWriteRef.current) return;
-    pendingRemoteWriteRef.current = false;
-    const actionNonce = pendingActionNonceRef.current || crypto.randomUUID();
-    pendingActionNonceRef.current = '';
-    const serialized = serializeState({
-      policy,
-      approvals,
-      auditLog,
-    });
-    if (serialized === lastSyncedStateRef.current) return;
-    lastSyncedStateRef.current = serialized;
-    void (async () => {
-      try {
-        await setDoc(
-          AUTHZ_STATE_REF,
-          {
-            policy,
-            approvals,
-            auditLog,
-            writeToken: 'action_v1',
-            clientActionNonce: actionNonce,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-        localStorage.removeItem(AUTHZ_DIRTY_KEY);
-      } catch {
-        localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
-      }
-    })();
-  }, [approvals, auditLog, hydrated, policy, user]);
+    if (!user) {
+      setApprovals([]);
+      return;
+    }
 
-  const appendAudit = useCallback((entry: Omit<AuthorizationAuditEntry, 'id' | 'timestamp'>) => {
-    // Audit logging intentionally disabled to reduce write volume.
-    void entry;
-  }, []);
+    const q = query(collection(db, APPROVALS_COLLECTION), limit(3000));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = snapshot.docs
+          .map((item) => {
+            const data = item.data() as Partial<ApprovalRequest>;
+            return {
+              id: item.id,
+              level: (data.level ?? 'minor') as ApprovalLevel,
+              module: (data.module ?? 'booking') as ApprovalModule,
+              title: data.title ?? '',
+              description: data.description ?? '',
+              amount: data.amount,
+              requestedByUserId: data.requestedByUserId ?? '',
+              requestedByRole: data.requestedByRole ?? 'assistant_hall_manager',
+              targetReference: data.targetReference ?? '',
+              status: (data.status ?? 'pending') as ApprovalStatus,
+              createdAt: data.createdAt ?? new Date(0).toISOString(),
+              updatedAt: data.updatedAt ?? data.createdAt ?? new Date(0).toISOString(),
+              reviewedByUserId: data.reviewedByUserId,
+              reviewedByRole: data.reviewedByRole,
+              decisionComment: data.decisionComment,
+              overrideByUserId: data.overrideByUserId,
+              overrideByRole: data.overrideByRole,
+              overrideComment: data.overrideComment,
+            } as ApprovalRequest;
+          })
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setApprovals(next);
+      },
+      () => {
+        setApprovals([]);
+      },
+    );
 
-  const persistAuthorizationState = useCallback((overrides?: {
-    policy?: SystemPolicy;
-    approvals?: ApprovalRequest[];
-    auditLog?: AuthorizationAuditEntry[];
-  }) => {
-    const payload = {
-      policy: overrides?.policy ?? policy,
-      approvals: overrides?.approvals ?? approvals,
-      auditLog: overrides?.auditLog ?? auditLog,
-    };
-    pendingActionNonceRef.current = crypto.randomUUID();
-    pendingRemoteWriteRef.current = true;
-    localStorage.setItem(AUTHZ_DIRTY_KEY, '1');
-    localStorage.setItem(AUTHZ_CACHE_KEY, JSON.stringify(payload));
-  }, [approvals, auditLog, policy]);
+    return () => unsub();
+  }, [user]);
 
   const can = useCallback((permission: Permission) => {
     if (!user) return false;
@@ -251,114 +151,136 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       updatedAt: new Date().toISOString(),
     };
 
-    const nextApprovals = [request, ...approvals];
-    setApprovals(nextApprovals);
-    persistAuthorizationState({ approvals: nextApprovals });
+    setApprovals((prev) => [request, ...prev]);
+    void setDoc(
+      doc(db, APPROVALS_COLLECTION, request.id),
+      {
+        ...request,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
     return { ok: true, message: 'Approval request created.', requestId: request.id };
-  }, [approvals, persistAuthorizationState, policy, user]);
+  }, [policy, user]);
 
-  const reviewApproval = useCallback(
-    (
-      requestId: string,
-      decision: Extract<ApprovalStatus, 'approved' | 'rejected'>,
-      comment: string,
-    ) => {
-      if (!user) return { ok: false, message: 'Authentication required.' };
-      const request = approvals.find((item) => item.id === requestId);
-      if (!request) return { ok: false, message: 'Approval request not found.' };
-      if (!canReviewApproval(user.role, request.level)) {
-        return { ok: false, message: 'Role cannot review this approval level.' };
-      }
-      if (request.status !== 'pending') {
-        return { ok: false, message: 'Only pending requests can be reviewed.' };
-      }
+  const reviewApproval = useCallback((
+    requestId: string,
+    decision: Extract<ApprovalStatus, 'approved' | 'rejected'>,
+    comment: string,
+  ) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    const request = approvals.find((item) => item.id === requestId);
+    if (!request) return { ok: false, message: 'Approval request not found.' };
+    if (!canReviewApproval(user.role, request.level)) {
+      return { ok: false, message: 'Role cannot review this approval level.' };
+    }
+    if (request.status !== 'pending') {
+      return { ok: false, message: 'Only pending requests can be reviewed.' };
+    }
 
-      const nextApprovals = approvals.map((item) =>
-        item.id === requestId
-          ? {
-              ...item,
-              status: decision,
-              decisionComment: comment,
-              reviewedByUserId: user.id,
-              reviewedByRole: user.role,
-              updatedAt: new Date().toISOString(),
-            }
-          : item,
-      );
-      setApprovals(nextApprovals);
-      persistAuthorizationState({ approvals: nextApprovals });
-      return { ok: true, message: `Approval ${decision}.` };
-    },
-    [approvals, persistAuthorizationState, user],
-  );
+    const patch = {
+      status: decision,
+      updatedAt: new Date().toISOString(),
+      reviewedByUserId: user.id,
+      reviewedByRole: user.role,
+      decisionComment: comment.trim(),
+    };
 
-  const overrideApproval = useCallback(
-    (requestId: string, status: Extract<ApprovalStatus, 'approved' | 'rejected'>, comment: string) => {
-      if (!user) return { ok: false, message: 'Authentication required.' };
-      if (user.role !== 'controller') {
-        return { ok: false, message: 'Only controller can override decisions.' };
-      }
+    setApprovals((prev) => prev.map((item) => (item.id === requestId ? { ...item, ...patch } : item)));
+    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), {
+      ...patch,
+      updatedAt: serverTimestamp(),
+    });
 
-      const request = approvals.find((item) => item.id === requestId);
-      if (!request) return { ok: false, message: 'Approval request not found.' };
+    return { ok: true, message: `Request ${decision}.` };
+  }, [approvals, user]);
 
-      const nextApprovals = approvals.map((item) =>
-        item.id === requestId
-          ? {
-              ...item,
-              status: 'overridden',
-              overrideByUserId: user.id,
-              overrideByRole: user.role,
-              overrideComment: `${status.toUpperCase()}: ${comment}`,
-              updatedAt: new Date().toISOString(),
-            }
-          : item,
-      );
-      setApprovals(nextApprovals);
-      persistAuthorizationState({ approvals: nextApprovals });
-      return { ok: true, message: 'Approval overridden by controller.' };
-    },
-    [approvals, persistAuthorizationState, user],
-  );
+  const overrideApproval = useCallback((
+    requestId: string,
+    status: Extract<ApprovalStatus, 'approved' | 'rejected'>,
+    comment: string,
+  ) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (!hasPermission(user.role, 'approval.override')) {
+      return { ok: false, message: 'Only Controller can override approvals.' };
+    }
+
+    const request = approvals.find((item) => item.id === requestId);
+    if (!request) return { ok: false, message: 'Approval request not found.' };
+
+    const patch = {
+      status,
+      updatedAt: new Date().toISOString(),
+      overrideByUserId: user.id,
+      overrideByRole: user.role,
+      overrideComment: comment.trim(),
+    };
+
+    setApprovals((prev) => prev.map((item) => (item.id === requestId ? { ...item, ...patch } : item)));
+    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), {
+      ...patch,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { ok: true, message: `Request override set to ${status}.` };
+  }, [approvals, user]);
 
   const setTransactionsFrozen = useCallback((frozen: boolean, reason: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'controller') {
-      return { ok: false, message: 'Only controller can freeze/unfreeze transactions.' };
+      return { ok: false, message: 'Only Controller can freeze or unfreeze transactions.' };
     }
+
     const nextPolicy = {
       ...policy,
       transactionsFrozen: frozen,
-      freezeReason: reason.trim(),
+      freezeReason: frozen ? reason.trim() : '',
     };
-    setPolicy(nextPolicy);
-    persistAuthorizationState({ policy: nextPolicy });
-    return { ok: true, message: frozen ? 'Transactions frozen.' : 'Transactions resumed.' };
-  }, [persistAuthorizationState, policy, user]);
 
-  return (
-    <AuthorizationContext.Provider
-      value={{
-        policy,
-        approvals,
-        auditLog,
-        can,
-        isBlocked,
-        createApprovalRequest,
-        reviewApproval,
-        overrideApproval,
-        setTransactionsFrozen,
-      }}
-    >
-      {children}
-    </AuthorizationContext.Provider>
-  );
+    setPolicy(nextPolicy);
+    void setDoc(
+      POLICY_REF,
+      {
+        ...nextPolicy,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return {
+      ok: true,
+      message: frozen ? 'Transactions frozen.' : 'Transactions resumed.',
+    };
+  }, [policy, user]);
+
+  const value = useMemo<AuthorizationContextValue>(() => ({
+    policy,
+    approvals,
+    auditLog,
+    can,
+    isBlocked,
+    createApprovalRequest,
+    reviewApproval,
+    overrideApproval,
+    setTransactionsFrozen,
+  }), [
+    approvals,
+    auditLog,
+    can,
+    createApprovalRequest,
+    isBlocked,
+    overrideApproval,
+    policy,
+    reviewApproval,
+    setTransactionsFrozen,
+  ]);
+
+  return <AuthorizationContext.Provider value={value}>{children}</AuthorizationContext.Provider>;
 }
 
 export function useAuthorization() {
   const context = useContext(AuthorizationContext);
-  if (!context) {
-    throw new Error('useAuthorization must be used inside AuthorizationProvider');
-  }
+  if (!context) throw new Error('useAuthorization must be used within AuthorizationProvider');
   return context;
 }
