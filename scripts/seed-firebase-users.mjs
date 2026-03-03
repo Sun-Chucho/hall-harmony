@@ -18,7 +18,7 @@ const staffUsers = [
   {
     uid: '1',
     email: 'diana.mushi@kuringe.co.tz',
-    name: 'Diana Mushi',
+    name: 'Anonymous',
     role: 'manager',
     isActive: true,
   },

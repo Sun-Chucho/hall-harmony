@@ -17,6 +17,7 @@ const halls = [
   'Garden Deck',
   'Hall D',
 ];
+const HALL_OTHER_VALUE = '__other__';
 
 const carOptions: { value: BookingCarType; label: string }[] = [
   { value: 'none', label: 'No Car' },
@@ -58,6 +59,11 @@ function getYearStartIso() {
 
 function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function hallSelectValue(value: string) {
+  if (!value) return '';
+  return halls.includes(value) ? value : HALL_OTHER_VALUE;
 }
 
 const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -437,12 +443,26 @@ export default function Bookings() {
                         <input type="text" placeholder="Event Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventName} onChange={(event) => onChange('eventName', event.target.value)} />
                         <input type="text" placeholder="Event Type" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventType} onChange={(event) => onChange('eventType', event.target.value)} />
                         <input type="number" placeholder="No. of Guests / Idadi ya Wageni" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.expectedGuests || ''} onChange={(event) => onChange('expectedGuests', Number(event.target.value))} />
-                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.hall} onChange={(event) => onChange('hall', event.target.value)}>
+                        <select
+                          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                          value={hallSelectValue(form.hall)}
+                          onChange={(event) => onChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                        >
                           <option value="">Select Hall</option>
                           {halls.map((hall) => (
                             <option key={hall} value={hall}>{hall}</option>
                           ))}
+                          <option value={HALL_OTHER_VALUE}>Others</option>
                         </select>
+                        {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
+                          <input
+                            type="text"
+                            placeholder="Enter hall name"
+                            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                            value={form.hall}
+                            onChange={(event) => onChange('hall', event.target.value)}
+                          />
+                        ) : null}
                         <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.startTime} onChange={(event) => onChange('startTime', event.target.value)} />
                         <input type="time" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.endTime} onChange={(event) => onChange('endTime', event.target.value)} />
                       </div>
@@ -540,12 +560,26 @@ export default function Bookings() {
                       value={pastForm.date}
                       onChange={(event) => onPastChange('date', event.target.value)}
                     />
-                    <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.hall} onChange={(event) => onPastChange('hall', event.target.value)}>
+                    <select
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={hallSelectValue(pastForm.hall)}
+                      onChange={(event) => onPastChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                    >
                       <option value="">Select Hall</option>
                       {halls.map((hall) => (
                         <option key={hall} value={hall}>{hall}</option>
                       ))}
+                      <option value={HALL_OTHER_VALUE}>Others</option>
                     </select>
+                    {hallSelectValue(pastForm.hall) === HALL_OTHER_VALUE ? (
+                      <input
+                        type="text"
+                        placeholder="Enter hall name"
+                        className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                        value={pastForm.hall}
+                        onChange={(event) => onPastChange('hall', event.target.value)}
+                      />
+                    ) : null}
                     <input type="text" placeholder="Customer Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.customerName} onChange={(event) => onPastChange('customerName', event.target.value)} />
                     <input type="text" placeholder="Customer Phone" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.customerPhone} onChange={(event) => onPastChange('customerPhone', event.target.value)} />
                     <input type="text" placeholder="Event Name" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={pastForm.eventName} onChange={(event) => onPastChange('eventName', event.target.value)} />
@@ -936,12 +970,26 @@ export default function Bookings() {
                 <input type="text" placeholder="Customer Phone" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.customerPhone} onChange={(event) => onChange('customerPhone', event.target.value)} />
                 <input type="text" placeholder="Event Name" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventName} onChange={(event) => onChange('eventName', event.target.value)} />
                 <input type="text" placeholder="Event Type" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventType} onChange={(event) => onChange('eventType', event.target.value)} />
-                <select className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.hall} onChange={(event) => onChange('hall', event.target.value)}>
+                <select
+                  className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                  value={hallSelectValue(form.hall)}
+                  onChange={(event) => onChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                >
                   <option value="">Select Hall</option>
                   {halls.map((hall) => (
                     <option key={hall} value={hall}>{hall}</option>
                   ))}
+                  <option value={HALL_OTHER_VALUE}>Others</option>
                 </select>
+                {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
+                  <input
+                    type="text"
+                    placeholder="Enter hall name"
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                    value={form.hall}
+                    onChange={(event) => onChange('hall', event.target.value)}
+                  />
+                ) : null}
                 <input type="date" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.date} onChange={(event) => onChange('date', event.target.value)} />
                 <input type="time" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.startTime} onChange={(event) => onChange('startTime', event.target.value)} />
                 <input type="time" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.endTime} onChange={(event) => onChange('endTime', event.target.value)} />

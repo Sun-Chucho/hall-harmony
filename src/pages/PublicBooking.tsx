@@ -14,6 +14,7 @@ const HALL_OPTIONS = [
   { id: 'kilimanjaro-garden', label: 'Kilimanjaro Garden (300-400)', name: 'Kilimanjaro Garden', capacityMax: 400 },
   { id: 'hall-d', label: 'Hall D (30-60)', name: 'Hall D', capacityMax: 60 },
 ] as const;
+const HALL_OTHER_VALUE = '__other__';
 
 type HallOption = (typeof HALL_OPTIONS)[number];
 
@@ -66,6 +67,11 @@ export default function PublicBooking() {
 
   const selectedHall = useMemo(() => HALL_OPTIONS.find((item) => item.name === form.hall), [form.hall]);
   const quote = selectedHall && form.date ? hallPrice(selectedHall.id, form.date) : 0;
+  const hallSelectionValue = useMemo(() => {
+    if (!form.hall) return '';
+    return selectedHall ? form.hall : HALL_OTHER_VALUE;
+  }, [form.hall, selectedHall]);
+  const calculatedAmount = selectedHall ? quote : Number(form.quotedAmount) || 0;
   const conflict = form.hall && form.date ? hasConflict(form) : false;
 
   const onChange = <K extends keyof CreateBookingInput>(key: K, value: CreateBookingInput[K]) => {
@@ -78,7 +84,7 @@ export default function PublicBooking() {
 
     const payload: CreateBookingInput = {
       ...form,
-      quotedAmount: quote,
+      quotedAmount: calculatedAmount,
     };
     setIsSubmitting(true);
     try {
@@ -134,11 +140,24 @@ export default function PublicBooking() {
                 <option>{isSw ? 'Tukio la Kampuni' : 'Corporate Event'}</option>
                 <option>{isSw ? 'Nyingine' : 'Other'}</option>
               </select>
-              <select className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.hall} onChange={(e) => onChange('hall', e.target.value)}>
+              <select
+                className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3"
+                value={hallSelectionValue}
+                onChange={(e) => onChange('hall', e.target.value === HALL_OTHER_VALUE ? '' : e.target.value)}
+              >
                 <option value="">{isSw ? 'Chagua Ukumbi' : 'Choose Hall'}</option>
                 {HALL_OPTIONS.map((hall) => <option key={hall.id} value={hall.name}>{hall.label}</option>)}
+                <option value={HALL_OTHER_VALUE}>{isSw ? 'Nyingine' : 'Others'}</option>
               </select>
             </div>
+            {hallSelectionValue === HALL_OTHER_VALUE ? (
+              <input
+                className="h-11 w-full rounded-xl border border-[#e4ded1] bg-white px-3"
+                placeholder={isSw ? 'Andika jina la ukumbi' : 'Enter hall name'}
+                value={form.hall}
+                onChange={(e) => onChange('hall', e.target.value)}
+              />
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-3">
               <input type="date" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.date} onChange={(e) => onChange('date', e.target.value)} />
               <input type="time" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.startTime} onChange={(e) => onChange('startTime', e.target.value)} />
@@ -146,7 +165,21 @@ export default function PublicBooking() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <input type="number" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" placeholder={isSw ? 'Idadi ya Wageni' : 'Expected Guests'} value={form.expectedGuests || ''} onChange={(e) => onChange('expectedGuests', Number(e.target.value))} />
-              <input className="h-11 rounded-xl border border-[#e4ded1] bg-[#faf7f1] px-3 text-[#6b6253]" value={quote > 0 ? formatTZS(quote) : isSw ? 'Bei itaonekana baada ya kuchagua ukumbi na tarehe' : 'Quote auto-calculated after hall/date'} readOnly />
+              {selectedHall ? (
+                <input
+                  className="h-11 rounded-xl border border-[#e4ded1] bg-[#faf7f1] px-3 text-[#6b6253]"
+                  value={quote > 0 ? formatTZS(quote) : isSw ? 'Bei itaonekana baada ya kuchagua ukumbi na tarehe' : 'Quote auto-calculated after hall/date'}
+                  readOnly
+                />
+              ) : (
+                <input
+                  type="number"
+                  className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3"
+                  placeholder={isSw ? 'Andika kiasi cha bei (TZS)' : 'Enter quote amount (TZS)'}
+                  value={form.quotedAmount || ''}
+                  onChange={(e) => onChange('quotedAmount', Number(e.target.value))}
+                />
+              )}
             </div>
             <textarea className="w-full rounded-xl border border-[#e4ded1] bg-white px-3 py-2" rows={3} placeholder={isSw ? 'Maelezo ya Ziada' : 'Additional Notes'} value={form.notes} onChange={(e) => onChange('notes', e.target.value)} />
 
