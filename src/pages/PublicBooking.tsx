@@ -147,13 +147,13 @@ export default function PublicBooking() {
               >
                 <option value="">{isSw ? 'Chagua Ukumbi' : 'Choose Hall'}</option>
                 {HALL_OPTIONS.map((hall) => <option key={hall.id} value={hall.name}>{hall.label}</option>)}
-                <option value={HALL_OTHER_VALUE}>{isSw ? 'Nyingine' : 'Others'}</option>
+                <option value={HALL_OTHER_VALUE}>{isSw ? 'Nyingine' : 'Other hall'}</option>
               </select>
             </div>
             {hallSelectionValue === HALL_OTHER_VALUE ? (
               <input
                 className="h-11 w-full rounded-xl border border-[#e4ded1] bg-white px-3"
-                placeholder={isSw ? 'Andika jina la ukumbi' : 'Enter hall name'}
+                placeholder={isSw ? 'Andika jina la ukumbi' : 'Hall name'}
                 value={form.hall}
                 onChange={(e) => onChange('hall', e.target.value)}
               />

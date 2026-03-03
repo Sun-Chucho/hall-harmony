@@ -452,12 +452,12 @@ export default function Bookings() {
                           {halls.map((hall) => (
                             <option key={hall} value={hall}>{hall}</option>
                           ))}
-                          <option value={HALL_OTHER_VALUE}>Others</option>
+                          <option value={HALL_OTHER_VALUE}>Other hall</option>
                         </select>
                         {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
                           <input
                             type="text"
-                            placeholder="Enter hall name"
+                            placeholder="Hall name"
                             className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                             value={form.hall}
                             onChange={(event) => onChange('hall', event.target.value)}
@@ -569,12 +569,12 @@ export default function Bookings() {
                       {halls.map((hall) => (
                         <option key={hall} value={hall}>{hall}</option>
                       ))}
-                      <option value={HALL_OTHER_VALUE}>Others</option>
+                      <option value={HALL_OTHER_VALUE}>Other hall</option>
                     </select>
                     {hallSelectValue(pastForm.hall) === HALL_OTHER_VALUE ? (
                       <input
                         type="text"
-                        placeholder="Enter hall name"
+                        placeholder="Hall name"
                         className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                         value={pastForm.hall}
                         onChange={(event) => onPastChange('hall', event.target.value)}
@@ -979,12 +979,12 @@ export default function Bookings() {
                   {halls.map((hall) => (
                     <option key={hall} value={hall}>{hall}</option>
                   ))}
-                  <option value={HALL_OTHER_VALUE}>Others</option>
+                  <option value={HALL_OTHER_VALUE}>Other hall</option>
                 </select>
                 {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
                   <input
                     type="text"
-                    placeholder="Enter hall name"
+                    placeholder="Hall name"
                     className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                     value={form.hall}
                     onChange={(event) => onChange('hall', event.target.value)}
