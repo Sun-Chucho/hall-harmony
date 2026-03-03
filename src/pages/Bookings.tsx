@@ -18,11 +18,11 @@ const halls = [
   'Hall D',
 ];
 
-const carOptions: { value: BookingCarType; label: string; price: number }[] = [
-  { value: 'none', label: 'No Car', price: 0 },
-  { value: 'range_rover', label: 'Range Rover', price: 500000 },
-  { value: 'lexus', label: 'Lexus', price: 300000 },
-  { value: 'bmw', label: 'BMW', price: 300000 },
+const carOptions: { value: BookingCarType; label: string }[] = [
+  { value: 'none', label: 'No Car' },
+  { value: 'range_rover', label: 'Range Rover' },
+  { value: 'lexus', label: 'Lexus' },
+  { value: 'bmw', label: 'BMW' },
 ];
 
 const carLabelMap: Record<BookingCarType, string> = {
@@ -58,10 +58,6 @@ function getYearStartIso() {
 
 function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function getCarPrice(carType: BookingCarType) {
-  return carOptions.find((entry) => entry.value === carType)?.price ?? 0;
 }
 
 const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -204,7 +200,7 @@ export default function Bookings() {
   const onChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
     if (field === 'carType') {
       const nextType = value as BookingCarType;
-      setForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
+      setForm((prev) => ({ ...prev, carType: nextType }));
       return;
     }
     if (field === 'carPrice') {
@@ -227,7 +223,7 @@ export default function Bookings() {
   const onPastChange = <K extends keyof CreateBookingInput>(field: K, value: CreateBookingInput[K]) => {
     if (field === 'carType') {
       const nextType = value as BookingCarType;
-      setPastForm((prev) => ({ ...prev, carType: nextType, carPrice: getCarPrice(nextType) }));
+      setPastForm((prev) => ({ ...prev, carType: nextType }));
       return;
     }
     if (field === 'carPrice') {
