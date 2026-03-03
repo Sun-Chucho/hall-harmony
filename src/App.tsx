@@ -44,9 +44,10 @@ import ManagingDirectorTransfer from "./pages/ManagingDirectorTransfer";
 import Distribution from "./pages/Distribution";
 
 const queryClient = new QueryClient();
-const LIVE_DATA_RESET_MARKER = "kuringe_live_data_reset_v1";
+const LIVE_DATA_RESET_MARKER = "kuringe_live_data_reset_v2";
 const LEGACY_LOCAL_KEYS = [
   "kuringe_bookings_v1",
+  "kuringe_bookings_pending_actions_v1",
   "kuringe_payments_v1",
   "kuringe_payment_status_override_v1",
   "kuringe_event_budgets_v1",
