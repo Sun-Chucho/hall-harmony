@@ -73,7 +73,7 @@ export default function CashMovement() {
   const stats = [
     { title: 'Pending Requests', value: `${pendingRequests.length}`, description: 'waiting cashier 1 decision' },
     { title: 'Sent Transfers', value: `${sentTransfers.filter((item) => item.status === 'sent_to_cashier_2').length}`, description: 'waiting cashier 2 confirmation' },
-    { title: 'Received', value: `${sentTransfers.filter((item) => item.status === 'received_by_cashier_2').length}`, description: 'confirmed by cashier 2' },
+    { title: 'Received', value: `${sentTransfers.filter((item) => item.status === 'received_by_cashier_2').length}`, description: 'receipt confirmed' },
     { title: 'Total Records', value: `${cashTransfers.length}`, description: 'cash movement trail' },
   ];
 
@@ -360,15 +360,16 @@ export default function CashMovement() {
       subtitle="Move cash to Cashier 2 and manage requested cash approvals."
       stats={stats}
       sections={[
-        {
-          title: 'Cashier 1 Actions',
-          bullets: [
-            'Send cash directly to Cashier 2.',
-            'Review requested cash from Cashier 2 and approve with amount or decline.',
-            'Track waiting and received statuses with date/time and comments.',
-          ],
-        },
-      ]}
+          {
+            title: 'Cashier 1 Actions',
+            bullets: [
+              'Send cash directly to Cashier 2.',
+              'Review requested cash from Cashier 2 and approve with amount or decline.',
+              'Track waiting and received statuses with date/time and comments.',
+              'Confirm receipt from history when needed.',
+            ],
+          },
+        ]}
       action={
         <div className="space-y-6">
           {message ? <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">{message}</div> : null}
@@ -550,6 +551,45 @@ export default function CashMovement() {
                         <p className="text-xs text-slate-500">
                           Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Received: {item.receivedAt ? new Date(item.receivedAt).toLocaleString() : '-'}
                         </p>
+                        {item.status === 'sent_to_cashier_2' ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Receive comment"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={receiveComment[item.id] ?? ''}
+                              onChange={(event) => setReceiveComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                            />
+                            <Button
+                              size="sm"
+                              disabled={isSubmitting || isRefreshingPage}
+                              onClick={() => {
+                                if (isSubmitting || isRefreshingPage) return;
+                                if (!canRunAction()) return;
+                                if (!(receiveComment[item.id] ?? '').trim()) {
+                                  const invalidMessage = 'Receive comment is required before confirming.';
+                                  setMessage(invalidMessage);
+                                  toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
+                                  return;
+                                }
+                                setIsSubmitting(true);
+                                const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
+                                setMessage(result.message);
+                                toast({
+                                  title: result.ok ? 'Receipt submitted' : 'Receipt failed',
+                                  description: result.message,
+                                  variant: result.ok ? 'default' : 'destructive',
+                                });
+                                if (result.ok) {
+                                  refreshPageAfterSend('Cash received confirmation sent. Refreshing page...');
+                                }
+                                setIsSubmitting(false);
+                              }}
+                            >
+                              Confirm Received
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                     ))
                   )}

@@ -422,7 +422,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   }, [cashTransfers, persistCashTransferEvent, user]);
   const confirmCashTransferReceived = useCallback((transferId: string, receiveComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can confirm receipt.' };
+    if (user.role !== 'cashier_2' && user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can confirm receipt.' };
 
     const target = cashTransfers.find((item) => item.id === transferId);
     if (!target) return { ok: false, message: 'Cash transfer not found.' };
