@@ -61,7 +61,8 @@ function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function hallSelectValue(value: string) {
+function hallSelectValue(value: string, isOtherSelected: boolean) {
+  if (isOtherSelected) return HALL_OTHER_VALUE;
   if (!value) return '';
   return halls.includes(value) ? value : HALL_OTHER_VALUE;
 }
@@ -127,6 +128,8 @@ export default function Bookings() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paidDateTime, setPaidDateTime] = useState(getDefaultPaidDateTime);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [formHallIsOther, setFormHallIsOther] = useState(false);
+  const [pastHallIsOther, setPastHallIsOther] = useState(false);
   const [pastApprovalAmount, setPastApprovalAmount] = useState<Record<string, number>>({});
   const [pastApprovalMethod, setPastApprovalMethod] = useState<Record<string, PaymentMethod>>({});
   const [pastApprovalDateTime, setPastApprovalDateTime] = useState<Record<string, string>>({});
@@ -283,6 +286,7 @@ export default function Bookings() {
           });
         }
         setForm(initialForm);
+        setFormHallIsOther(false);
         setEditingBookingId(null);
         refreshPageAfterUpdate('Booking update saved. Refreshing page...');
       }
@@ -310,6 +314,7 @@ export default function Bookings() {
       carPrice: target.carPrice ?? 0,
       notes: target.notes,
     });
+    setFormHallIsOther(Boolean(target.hall && !halls.includes(target.hall)));
     setEditingBookingId(bookingId);
     setMessage(`Editing booking ${bookingId}. Update details, then click Save Booking Changes.`);
     if (typeof window !== 'undefined') {
@@ -374,6 +379,7 @@ export default function Bookings() {
           ...initialForm,
           date: getTodayIso(),
         });
+        setPastHallIsOther(false);
         refreshPageAfterUpdate('Past booking recorded. Refreshing page...');
       }
     } finally {
@@ -445,8 +451,16 @@ export default function Bookings() {
                         <input type="number" placeholder="No. of Guests / Idadi ya Wageni" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.expectedGuests || ''} onChange={(event) => onChange('expectedGuests', Number(event.target.value))} />
                         <select
                           className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                          value={hallSelectValue(form.hall)}
-                          onChange={(event) => onChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                          value={hallSelectValue(form.hall, formHallIsOther)}
+                          onChange={(event) => {
+                            if (event.target.value === HALL_OTHER_VALUE) {
+                              setFormHallIsOther(true);
+                              onChange('hall', '');
+                              return;
+                            }
+                            setFormHallIsOther(false);
+                            onChange('hall', event.target.value);
+                          }}
                         >
                           <option value="">Select Hall</option>
                           {halls.map((hall) => (
@@ -454,7 +468,7 @@ export default function Bookings() {
                           ))}
                           <option value={HALL_OTHER_VALUE}>Other hall</option>
                         </select>
-                        {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
+                        {formHallIsOther ? (
                           <input
                             type="text"
                             placeholder="Hall name"
@@ -496,7 +510,7 @@ export default function Bookings() {
                         : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
                     </Button>
                     {editingBookingId ? (
-                      <Button size="sm" variant="outline" disabled={isRefreshingPage} onClick={() => { setEditingBookingId(null); setForm(initialForm); }}>
+                      <Button size="sm" variant="outline" disabled={isRefreshingPage} onClick={() => { setEditingBookingId(null); setForm(initialForm); setFormHallIsOther(false); }}>
                         Cancel Edit
                       </Button>
                     ) : null}
@@ -562,8 +576,16 @@ export default function Bookings() {
                     />
                     <select
                       className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                      value={hallSelectValue(pastForm.hall)}
-                      onChange={(event) => onPastChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                      value={hallSelectValue(pastForm.hall, pastHallIsOther)}
+                      onChange={(event) => {
+                        if (event.target.value === HALL_OTHER_VALUE) {
+                          setPastHallIsOther(true);
+                          onPastChange('hall', '');
+                          return;
+                        }
+                        setPastHallIsOther(false);
+                        onPastChange('hall', event.target.value);
+                      }}
                     >
                       <option value="">Select Hall</option>
                       {halls.map((hall) => (
@@ -571,7 +593,7 @@ export default function Bookings() {
                       ))}
                       <option value={HALL_OTHER_VALUE}>Other hall</option>
                     </select>
-                    {hallSelectValue(pastForm.hall) === HALL_OTHER_VALUE ? (
+                    {pastHallIsOther ? (
                       <input
                         type="text"
                         placeholder="Hall name"
@@ -972,8 +994,16 @@ export default function Bookings() {
                 <input type="text" placeholder="Event Type" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.eventType} onChange={(event) => onChange('eventType', event.target.value)} />
                 <select
                   className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                  value={hallSelectValue(form.hall)}
-                  onChange={(event) => onChange('hall', event.target.value === HALL_OTHER_VALUE ? '' : event.target.value)}
+                  value={hallSelectValue(form.hall, formHallIsOther)}
+                  onChange={(event) => {
+                    if (event.target.value === HALL_OTHER_VALUE) {
+                      setFormHallIsOther(true);
+                      onChange('hall', '');
+                      return;
+                    }
+                    setFormHallIsOther(false);
+                    onChange('hall', event.target.value);
+                  }}
                 >
                   <option value="">Select Hall</option>
                   {halls.map((hall) => (
@@ -981,7 +1011,7 @@ export default function Bookings() {
                   ))}
                   <option value={HALL_OTHER_VALUE}>Other hall</option>
                 </select>
-                {hallSelectValue(form.hall) === HALL_OTHER_VALUE ? (
+                {formHallIsOther ? (
                   <input
                     type="text"
                     placeholder="Hall name"
@@ -1021,6 +1051,7 @@ export default function Bookings() {
                     onClick={() => {
                       setEditingBookingId(null);
                       setForm(initialForm);
+                      setFormHallIsOther(false);
                       setMessage('Edit cancelled.');
                     }}
                   >
