@@ -5,95 +5,218 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function staffDocPath() {
+      return /databases/$(database)/documents/staff_users/$(request.auth.uid);
+    }
+
+    function isStaffMember() {
+      return isSignedIn() && exists(staffDocPath());
+    }
+
+    function isActiveStaff() {
+      return isStaffMember() && get(staffDocPath()).data.isActive == true;
+    }
+
+    function role() {
+      return get(staffDocPath()).data.role;
+    }
+
+    function hasRole(targetRole) {
+      return isActiveStaff() && role() == targetRole;
+    }
+
+    function hasAnyRole(roles) {
+      return isActiveStaff() && role() in roles;
+    }
+
+    function canReadBookings() {
+      return hasAnyRole([
+        'manager',
+        'managing_director',
+        'assistant_hall_manager',
+        'cashier_1',
+        'cashier_2',
+        'controller',
+        'store_keeper',
+        'purchaser',
+        'accountant'
+      ]);
+    }
+
+    function canMutateBookings() {
+      return hasAnyRole(['manager', 'controller', 'cashier_1'])
+        || (
+          hasRole('assistant_hall_manager')
+          && resource.data.createdByUserId == request.auth.uid
+        );
+    }
+
+    function isPublicBookingCreate() {
+      return request.auth == null
+        && request.resource.data.createdByUserId == 'public-web'
+        && request.resource.data.bookingStatus == 'pending'
+        && request.resource.data.eventDetailStatus == 'pending_assistant';
+    }
+
+    function canReadPayments() {
+      return hasAnyRole(['manager', 'managing_director', 'cashier_1', 'controller', 'accountant']);
+    }
+
+    function canWritePayments() {
+      return hasAnyRole(['cashier_1', 'controller']);
+    }
+
+    function canReadEventFinance() {
+      return hasAnyRole([
+        'manager',
+        'managing_director',
+        'assistant_hall_manager',
+        'cashier_1',
+        'cashier_2',
+        'controller',
+        'store_keeper',
+        'purchaser',
+        'accountant'
+      ]);
+    }
+
+    function canManageInventory() {
+      return hasAnyRole(['store_keeper', 'controller']);
+    }
+
+    function canAccessDocumentsModule() {
+      return hasAnyRole(['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'store_keeper', 'purchaser']);
+    }
+
+    function hasFreshActionNonce() {
+      return request.resource.data.clientActionNonce is string
+        && (
+          resource == null
+          || request.resource.data.clientActionNonce != resource.data.clientActionNonce
+        );
+    }
+
     match /system_state/session_control {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if hasAnyRole(['manager', 'controller'])
+        && request.resource.data.writeToken == 'action_v1'
+        && hasFreshActionNonce();
     }
 
     match /system_state/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn()
+      allow read: if isActiveStaff();
+      allow write: if hasAnyRole(['manager', 'controller'])
         && request.resource.data.writeToken == 'action_v1'
-        && request.resource.data.clientActionNonce is string
-        && request.resource.data.clientActionNonce != resource.data.clientActionNonce;
+        && hasFreshActionNonce();
     }
 
     match /bookings/{bookingId} {
-      allow create: if isSignedIn()
-        || request.resource.data.createdByUserId == 'public-web';
-      allow read, update, delete: if isSignedIn();
+      allow create: if isPublicBookingCreate()
+        || (
+          isActiveStaff()
+          && (
+            hasAnyRole(['manager', 'controller', 'cashier_1'])
+            || (
+              hasRole('assistant_hall_manager')
+              && request.resource.data.createdByUserId == request.auth.uid
+            )
+          )
+        );
+      allow read: if canReadBookings();
+      allow update, delete: if canMutateBookings();
     }
 
     match /payments/{paymentId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadPayments();
+      allow write: if canWritePayments();
     }
 
     match /payment_status_overrides/{bookingId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadPayments();
+      allow write: if canWritePayments();
     }
 
     match /authorization_policy/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if hasRole('controller');
     }
 
     match /authorization_approvals/{approvalId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if hasAnyRole(['manager', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller']);
     }
 
     match /event_budgets/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_2', 'controller']);
     }
 
     match /event_allocations/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
     }
 
     match /event_distributions/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_2', 'controller']);
     }
 
     match /cash_transfers/{transferId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
     }
 
     match /md_transfers/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_1', 'controller']);
     }
 
     match /cash_distributions/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if canReadEventFinance();
+      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
     }
 
     match /inventory_items/{itemId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if canManageInventory();
     }
 
     match /inventory_movements/{movementId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if canManageInventory();
     }
 
     match /inventory_damages/{damageId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if canManageInventory();
     }
 
     match /inventory_allocations/{allocationId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveStaff();
+      allow write: if canManageInventory();
     }
 
     match /staff_users/{userId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if hasAnyRole(['manager', 'controller']);
     }
 
     match /manager_messages/{messageId} {
-      allow read, write: if isSignedIn();
+      allow create: if isActiveStaff()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.toRole == 'manager';
+      allow read: if hasRole('manager')
+        || (isActiveStaff() && resource.data.fromUserId == request.auth.uid);
+      allow update: if hasRole('manager');
+      allow delete: if hasAnyRole(['manager', 'controller']);
     }
 
     match /document_form_outputs/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if canAccessDocumentsModule();
     }
 
     match /cash_request_workflow/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if canAccessDocumentsModule();
     }
 
     match /{document=**} {
