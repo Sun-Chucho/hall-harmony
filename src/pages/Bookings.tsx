@@ -108,6 +108,8 @@ function ensureEndAfterStart(startTime: string, endTime: string): string {
   return toTimeString(startMinutes + 60);
 }
 
+type CashierBookingsTab = 'pending-approval' | 'partial-payment' | 'completed-payment';
+
 export default function Bookings() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -132,6 +134,7 @@ export default function Bookings() {
   const [isSavingPastBooking, setIsSavingPastBooking] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+  const [cashierTab, setCashierTab] = useState<CashierBookingsTab>('pending-approval');
   const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
   const [confirmInstallments, setConfirmInstallments] = useState<InstallmentEntry[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
@@ -760,7 +763,12 @@ export default function Bookings() {
         title: 'Booking confirmed',
         description: `Recorded ${successfulPayments} installment payment(s).`,
       });
-      refreshPageAfterUpdate('Booking confirmed and installment payments saved. Refreshing page...');
+      setSelectedBookingId(selected.id);
+      if (Math.max(quotedAmount - totalAfterDraft, 0) <= 0) {
+        setCashierTab('completed-payment');
+      } else {
+        setCashierTab('partial-payment');
+      }
       setIsRecordingPayment(false);
     };
 
@@ -786,7 +794,7 @@ export default function Bookings() {
         ]}
         action={
           <div className="space-y-6">
-            <Tabs defaultValue="pending-approval" className="space-y-4">
+            <Tabs value={cashierTab} onValueChange={(value) => setCashierTab(value as CashierBookingsTab)} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="pending-approval">Pending Approval</TabsTrigger>
                 <TabsTrigger value="partial-payment">Partial Payment</TabsTrigger>

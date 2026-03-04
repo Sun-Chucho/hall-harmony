@@ -655,6 +655,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         bookingStatus: status,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) =>
+        prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
+      );
       return { ok: true, message: `Booking marked as ${status}.` };
     } catch {
       setBookings((prev) =>
