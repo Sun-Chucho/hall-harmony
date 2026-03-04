@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -153,6 +154,7 @@ type AssistantBookingsTab = 'halls' | 'other-booking';
 
 export default function Bookings() {
   const { user } = useAuth();
+  const location = useLocation();
   const { toast } = useToast();
   const {
     bookings,
@@ -466,6 +468,7 @@ export default function Bookings() {
     const assistantBookings = bookings.filter((entry) => entry.createdByUserId === user.id);
     const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1' || !entry.assignedToRole).length;
     const otherBookingTotal = otherBookingSelections.reduce((sum, item) => sum + item.total, 0);
+    const isSubmittedBookingsPage = location.pathname === '/bookings/submitted';
 
     const addOtherBookingSelection = () => {
       const selectedOption = assistantOtherBookingOptions.find((item) => item.id === otherBookingItemId);
@@ -500,6 +503,55 @@ export default function Bookings() {
       setMessage('Other booking items applied to quoted amount.');
     };
 
+    if (isSubmittedBookingsPage) {
+      return (
+        <ManagementPageTemplate
+          pageTitle="Submitted Bookings"
+          subtitle="Standalone list of bookings submitted from Assistant Hall desk."
+          stats={[
+            { title: 'My Bookings', value: `${assistantBookings.length}`, description: 'all submitted records' },
+            { title: 'Sent to Cashier 1', value: `${sentToCashierCount}`, description: 'waiting payment workflow' },
+            { title: 'Pending', value: `${assistantBookings.filter((entry) => entry.bookingStatus === 'pending').length}`, description: 'still pending approval' },
+            { title: 'Updated', value: `${assistantBookings.filter((entry) => (entry.revision ?? 0) > 0).length}`, description: 'records edited at least once' },
+          ]}
+          sections={[]}
+          action={
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Submitted Bookings</p>
+                <Badge className="bg-slate-100 text-slate-700">{assistantBookings.length} records</Badge>
+              </div>
+              {assistantBookings.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">No submitted bookings yet.</p>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {assistantBookings.map((booking) => (
+                    <div key={booking.id} className={`rounded-2xl border p-4 text-sm ${booking.revision ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-900">{booking.eventName}</p>
+                        <div className="flex items-center gap-2">
+                          {booking.revision ? <Badge className="bg-amber-100 text-amber-800">Updated x{booking.revision}</Badge> : null}
+                          <Badge className="bg-blue-100 text-blue-700">Sent to Cashier 1</Badge>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
+                      <p className="text-slate-500">
+                        {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
+                        <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete Booking</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          }
+        />
+      );
+    }
+
     return (
       <ManagementPageTemplate
         pageTitle="Bookings"
@@ -521,51 +573,7 @@ export default function Bookings() {
           },
         ]}
         action={
-          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-            <aside className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Cars Booking</p>
-                <div className="mt-3 grid gap-3">
-                  <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
-                    {carOptions.map((car) => (
-                      <option key={car.value} value={car.value}>{car.label}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="Car Amount (TZS)"
-                    className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                    value={Number(form.carPrice) || 0}
-                    onChange={(event) => onChange('carPrice', Number(event.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Submitted Bookings</p>
-                  <Badge className="bg-slate-100 text-slate-700">{assistantBookings.length}</Badge>
-                </div>
-                <div className="mt-3 max-h-[420px] space-y-2 overflow-auto">
-                  {assistantBookings.length === 0 ? (
-                    <p className="text-sm text-slate-600">No submitted bookings yet.</p>
-                  ) : (
-                    assistantBookings.map((booking) => (
-                      <div key={booking.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
-                        <p className="font-semibold text-slate-900">{booking.eventName}</p>
-                        <p className="text-slate-600">{booking.date} | {booking.hall}</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete</Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </aside>
-
-            <div className="space-y-6">
+          <div className="space-y-6">
             <Tabs value={assistantTab} onValueChange={(value) => setAssistantTab(value as AssistantBookingsTab)} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="halls">Halls</TabsTrigger>
@@ -638,8 +646,18 @@ export default function Bookings() {
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-500">C. Payment Details</p>
                       <div className="mt-2 grid gap-3 md:grid-cols-2">
                         <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
-                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.quotedAmount) || 0} readOnly />
-                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
+                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
+                          {carOptions.map((car) => (
+                            <option key={car.value} value={car.value}>{car.label}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="Car Amount (TZS)"
+                          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                          value={Number(form.carPrice) || 0}
+                          onChange={(event) => onChange('carPrice', Number(event.target.value))}
+                        />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={(Number(form.quotedAmount) || 0) + (Number(form.carPrice) || 0)} readOnly />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
@@ -781,7 +799,6 @@ export default function Bookings() {
                 </div>
               </TabsContent>
             </Tabs>
-          </div>
           </div>
         }
       />

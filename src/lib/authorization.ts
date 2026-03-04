@@ -157,6 +157,7 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
     'accountant',
   ],
   '/bookings': ['manager', 'assistant_hall_manager', 'cashier_1', 'controller', 'accountant'],
+  '/bookings/submitted': ['assistant_hall_manager'],
   '/customers': ['manager', 'assistant_hall_manager'],
   '/payments': ['cashier_1', 'controller', 'accountant'],
   '/cash-movement': ['cashier_2', 'cashier_1', 'controller', 'accountant'],

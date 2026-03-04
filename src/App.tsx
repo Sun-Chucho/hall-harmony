@@ -111,6 +111,7 @@ const App = () => {
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
                           <Route path="/managing-director-dashboard" element={<RouteGuard path="/managing-director-dashboard"><ManagingDirectorDashboard /></RouteGuard>} />
                           <Route path="/bookings" element={<RouteGuard path="/bookings" transactional><Bookings /></RouteGuard>} />
+                          <Route path="/bookings/submitted" element={<RouteGuard path="/bookings/submitted" transactional><Bookings /></RouteGuard>} />
                           <Route path="/customers" element={<RouteGuard path="/customers"><Customers /></RouteGuard>} />
                           <Route path="/payments" element={<RouteGuard path="/payments" transactional><Payments /></RouteGuard>} />
                           <Route path="/cash-movement" element={<RouteGuard path="/cash-movement" transactional><CashMovement /></RouteGuard>} />

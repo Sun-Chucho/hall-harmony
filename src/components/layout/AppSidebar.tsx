@@ -169,6 +169,7 @@ export function AppSidebar() {
   const assistantHallNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
+    { title: 'Submitted Bookings', icon: FileText, path: '/bookings/submitted' },
     { title: 'Inventory', icon: Car, path: '/rentals' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
