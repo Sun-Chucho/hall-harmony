@@ -150,7 +150,7 @@ function toDateTimeLocal(value: string) {
 }
 
 type CashierBookingsTab = 'pending-approval' | 'partial-payment' | 'completed-payment';
-type AssistantBookingsTab = 'halls' | 'other-booking';
+type AssistantBookingsTab = 'halls' | 'car-booking' | 'other-booking' | 'past-booking';
 
 export default function Bookings() {
   const { user } = useAuth();
@@ -595,6 +595,7 @@ export default function Bookings() {
             <Tabs value={assistantTab} onValueChange={(value) => setAssistantTab(value as AssistantBookingsTab)} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="halls">Halls</TabsTrigger>
+                <TabsTrigger value="car-booking">Car Booking</TabsTrigger>
                 <TabsTrigger value="other-booking">Other Booking</TabsTrigger>
                 <TabsTrigger value="past-booking">Record Past Booking</TabsTrigger>
               </TabsList>
@@ -664,21 +665,12 @@ export default function Bookings() {
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-500">C. Payment Details</p>
                       <div className="mt-2 grid gap-3 md:grid-cols-2">
                         <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
-                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
-                          {carOptions.map((car) => (
-                            <option key={car.value} value={car.value}>{car.label}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          placeholder="Car Amount (TZS)"
-                          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                          value={Number(form.carPrice) || 0}
-                          onChange={(event) => onChange('carPrice', Number(event.target.value))}
-                        />
+                        <input type="text" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={`Car: ${carLabelMap[form.carType ?? 'none']}`} readOnly />
+                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={(Number(form.quotedAmount) || 0) + (Number(form.carPrice) || 0)} readOnly />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
+                      <p className="mt-2 text-xs text-slate-500">Set car type and car amount in the Car Booking tab.</p>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -694,6 +686,44 @@ export default function Bookings() {
                     ) : null}
                     {conflict ? <Badge className="bg-rose-100 text-rose-700">Conflict detected</Badge> : <Badge className="bg-emerald-100 text-emerald-700">No conflict</Badge>}
                     {message ? <span className="text-xs text-slate-600">{message}</span> : null}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="car-booking">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Car Booking</p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <select
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={form.carType ?? 'none'}
+                      onChange={(event) => onChange('carType', event.target.value as BookingCarType)}
+                    >
+                      {carOptions.map((car) => (
+                        <option key={car.value} value={car.value}>{car.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Car Amount (TZS)"
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={Number(form.carPrice) || 0}
+                      onChange={(event) => onChange('carPrice', Number(event.target.value))}
+                    />
+                    <input
+                      type="text"
+                      className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500 md:col-span-2"
+                      value={`Current selection: ${carLabelMap[form.carType ?? 'none']} | Car Amount: TZS ${(Number(form.carPrice) || 0).toLocaleString()}`}
+                      readOnly
+                    />
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Badge className="bg-blue-100 text-blue-700">
+                      Booking Total (Quoted + Car): TZS {((Number(form.quotedAmount) || 0) + (Number(form.carPrice) || 0)).toLocaleString()}
+                    </Badge>
+                    <Button size="sm" onClick={() => { setAssistantTab('halls'); setMessage('Car booking details updated.'); }}>
+                      Save Car Booking
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
