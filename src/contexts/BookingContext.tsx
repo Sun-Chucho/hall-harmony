@@ -565,13 +565,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'controller';
+    const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'controller' || user.role === 'cashier_1';
     if (!canEditAsRole) {
       return { ok: false, message: 'Only Assistant Hall Manager, Hall Manager, or Controller can edit bookings.' };
     }
     const target = bookings.find((entry) => entry.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
-    const canEditAny = user.role === 'manager' || user.role === 'controller';
+    const canEditAny = user.role === 'manager' || user.role === 'controller' || user.role === 'cashier_1';
     if (!canEditAny && target.createdByUserId !== user.id) {
       return { ok: false, message: 'You can only edit your own bookings.' };
     }

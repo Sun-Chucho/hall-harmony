@@ -113,7 +113,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const computeStatus = useCallback((bookingId: string): BookingPaymentStatus => {
     const booking = bookings.find((item) => item.id === bookingId);
     if (!booking) return 'pending';
-    const quotedAmount = Number(booking.quotedAmount) || 0;
+    const quotedAmount = (Number(booking.quotedAmount) || 0) + (Number(booking.carPrice) || 0);
     const totalPaid = payments
       .filter((payment) => payment.bookingId === bookingId)
       .reduce((sum, payment) => sum + payment.amount, 0);
@@ -130,7 +130,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!booking) {
       return { totalPaid: 0, balance: 0, quotedAmount: 0, status: 'pending' };
     }
-    const quotedAmount = Number(booking.quotedAmount) || 0;
+    const quotedAmount = (Number(booking.quotedAmount) || 0) + (Number(booking.carPrice) || 0);
     const totalPaid = payments
       .filter((payment) => payment.bookingId === bookingId)
       .reduce((sum, payment) => sum + payment.amount, 0);
