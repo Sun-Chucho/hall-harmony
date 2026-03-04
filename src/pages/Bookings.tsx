@@ -200,6 +200,11 @@ export default function Bookings() {
   const [pastApprovalMethod, setPastApprovalMethod] = useState<Record<string, PaymentMethod>>({});
   const [pastApprovalDateTime, setPastApprovalDateTime] = useState<Record<string, string>>({});
   const [pastApprovalNotes, setPastApprovalNotes] = useState<Record<string, string>>({});
+  const [pendingApprovalAmount, setPendingApprovalAmount] = useState<Record<string, number>>({});
+  const [pendingApprovalMethod, setPendingApprovalMethod] = useState<Record<string, PaymentMethod>>({});
+  const [pendingApprovalDateTime, setPendingApprovalDateTime] = useState<Record<string, string>>({});
+  const [pendingApprovalNotes, setPendingApprovalNotes] = useState<Record<string, string>>({});
+  const [pendingPaymentSearch, setPendingPaymentSearch] = useState('');
   const [pastForm, setPastForm] = useState<CreateBookingInput>({
     ...initialForm,
     date: getTodayIso(),
@@ -899,11 +904,24 @@ export default function Bookings() {
     const partialPaymentBookings = cashierBookings.filter((entry) => {
       return entry.bookingStatus === 'approved';
     });
+    const normalizedPendingPaymentSearch = pendingPaymentSearch.trim().toLowerCase();
+    const filteredPartialPaymentBookings = normalizedPendingPaymentSearch
+      ? partialPaymentBookings.filter((entry) => {
+          const haystack = [
+            entry.id,
+            entry.customerName,
+            entry.customerPhone,
+            entry.eventName,
+            entry.hall,
+          ].join(' ').toLowerCase();
+          return haystack.includes(normalizedPendingPaymentSearch);
+        })
+      : partialPaymentBookings;
     const completedPaymentBookings = cashierBookings.filter((entry) => {
       return entry.bookingStatus === 'completed';
     });
-    const activePendingPaymentBookingId = selectedBookingId || partialPaymentBookings[0]?.id || '';
-    const selectedPartial = partialPaymentBookings.find((entry) => entry.id === activePendingPaymentBookingId) ?? null;
+    const activePendingPaymentBookingId = selectedBookingId || filteredPartialPaymentBookings[0]?.id || '';
+    const selectedPartial = filteredPartialPaymentBookings.find((entry) => entry.id === activePendingPaymentBookingId) ?? null;
     const financials = selectedPartial ? getBookingFinancials(selectedPartial.id) : null;
     const bookingPayments = selectedPartial ? payments.filter((item) => item.bookingId === selectedPartial.id) : [];
     const installmentEditorBooking = cashierBookings.find((entry) => entry.id === installmentEditorBookingId) ?? null;
@@ -931,6 +949,42 @@ export default function Bookings() {
 
     const approveBookingToPendingPayment = async (bookingId: string) => {
       if (isRefreshingPage) return;
+      const amount = Number(pendingApprovalAmount[bookingId]);
+      const method = pendingApprovalMethod[bookingId] ?? 'cash';
+      const receivedAt = pendingApprovalDateTime[bookingId] ?? getDefaultPaidDateTime();
+      const notes = pendingApprovalNotes[bookingId] ?? 'Initial deposit recorded during booking approval.';
+      const bookingFinancials = getBookingFinancials(bookingId);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        const description = 'Enter a valid deposit amount before approval.';
+        setMessage(description);
+        toast({ title: 'Missing deposit amount', description, variant: 'destructive' });
+        return false;
+      }
+      if (!receivedAt) {
+        const description = 'Enter deposit date and time before approval.';
+        setMessage(description);
+        toast({ title: 'Missing deposit date/time', description, variant: 'destructive' });
+        return false;
+      }
+      if (amount > bookingFinancials.balance) {
+        const description = `Deposit exceeds remaining balance. Maximum allowed: TZS ${bookingFinancials.balance.toLocaleString()}.`;
+        setMessage(description);
+        toast({ title: 'Deposit too high', description, variant: 'destructive' });
+        return false;
+      }
+      const paymentResult = await recordPayment({
+        actionId: crypto.randomUUID(),
+        bookingId,
+        amount,
+        method,
+        receivedAt,
+        notes,
+      });
+      if (!paymentResult.ok) {
+        setMessage(paymentResult.message);
+        toast({ title: 'Deposit failed', description: paymentResult.message, variant: 'destructive' });
+        return false;
+      }
       const result = await updateBookingStatus(bookingId, 'approved');
       setMessage(result.message);
       toast({
@@ -943,7 +997,9 @@ export default function Bookings() {
         setCashierTab('partial-payment');
         navigate(`/bookings?cashierTab=partial-payment&booking=${bookingId}`, { replace: true });
         refreshPageAfterUpdate('Booking approved and moved to pending payment. Refreshing page...');
+        return true;
       }
+      return false;
     };
 
     const cancelPendingBooking = async (bookingId: string) => {
@@ -1075,13 +1131,48 @@ export default function Bookings() {
                     ) : (
                       pendingApprovalBookings.map((entry) => (
                         <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          {(() => {
+                            const entryFinancials = getBookingFinancials(entry.id);
+                            return (
+                              <>
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
                             <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
                           </div>
                           <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
                           <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
-                          <p className="text-slate-500">Quoted: TZS {(Number(entry.quotedAmount) || 0).toLocaleString()}</p>
+                          <p className="text-slate-500">Quoted: TZS {entryFinancials.quotedAmount.toLocaleString()} | Left: TZS {entryFinancials.balance.toLocaleString()}</p>
+                          <div className="mt-2 grid gap-2 md:grid-cols-4">
+                            <input
+                              type="number"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              placeholder={`Deposit Amount (max ${entryFinancials.balance.toLocaleString()})`}
+                              value={pendingApprovalAmount[entry.id] ?? ''}
+                              onChange={(event) => setPendingApprovalAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))}
+                            />
+                            <select
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={pendingApprovalMethod[entry.id] ?? 'cash'}
+                              onChange={(event) => setPendingApprovalMethod((prev) => ({ ...prev, [entry.id]: event.target.value as PaymentMethod }))}
+                            >
+                              {cashierPaymentMethods.map((method) => (
+                                <option key={method.value} value={method.value}>{method.label}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="datetime-local"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={pendingApprovalDateTime[entry.id] ?? getDefaultPaidDateTime()}
+                              onChange={(event) => setPendingApprovalDateTime((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                            />
+                            <input
+                              type="text"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              placeholder="Deposit note"
+                              value={pendingApprovalNotes[entry.id] ?? ''}
+                              onChange={(event) => setPendingApprovalNotes((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                            />
+                          </div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Button
                               size="sm"
@@ -1099,6 +1190,9 @@ export default function Bookings() {
                               Cancel Booking
                             </Button>
                           </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       ))
                     )}
@@ -1235,13 +1329,22 @@ export default function Bookings() {
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Pending Payment Bookings</p>
-                <Badge className="bg-slate-100 text-slate-700">{partialPaymentBookings.length} approved bookings</Badge>
+                <Badge className="bg-slate-100 text-slate-700">{filteredPartialPaymentBookings.length} shown</Badge>
+              </div>
+              <div className="mt-3">
+                <input
+                  type="text"
+                  placeholder="Search by order ID, customer name, phone, or event"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                  value={pendingPaymentSearch}
+                  onChange={(event) => setPendingPaymentSearch(event.target.value)}
+                />
               </div>
               <div className="mt-3 space-y-2">
-                {partialPaymentBookings.length === 0 ? (
+                {filteredPartialPaymentBookings.length === 0 ? (
                   <p className="text-sm text-slate-600">No approved bookings waiting for payment updates.</p>
                 ) : (
-                  partialPaymentBookings.map((entry) => {
+                  filteredPartialPaymentBookings.map((entry) => {
                     const entryFinancials = getBookingFinancials(entry.id);
                     const isActive = selectedPartial?.id === entry.id;
                     return (
@@ -1626,6 +1729,12 @@ export default function Bookings() {
                   <p className="mt-3 text-sm text-slate-600">
                     Are you sure you want to approve this booking and move it to pending payment?
                   </p>
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <p><span className="font-semibold">Booking:</span> {approveDialogBookingId}</p>
+                    <p><span className="font-semibold">Deposit:</span> TZS {(Number(pendingApprovalAmount[approveDialogBookingId]) || 0).toLocaleString()}</p>
+                    <p><span className="font-semibold">Method:</span> {toShortStatus(pendingApprovalMethod[approveDialogBookingId] ?? 'cash')}</p>
+                    <p><span className="font-semibold">Date:</span> {pendingApprovalDateTime[approveDialogBookingId] ?? getDefaultPaidDateTime()}</p>
+                  </div>
                   <div className="mt-4 flex items-center justify-end gap-2">
                     <Button size="sm" variant="outline" onClick={() => setApproveDialogBookingId('')}>
                       Cancel
@@ -1635,8 +1744,10 @@ export default function Bookings() {
                       disabled={isRefreshingPage}
                       onClick={async () => {
                         const bookingId = approveDialogBookingId;
-                        setApproveDialogBookingId('');
-                        await approveBookingToPendingPayment(bookingId);
+                        const ok = await approveBookingToPendingPayment(bookingId);
+                        if (ok) {
+                          setApproveDialogBookingId('');
+                        }
                       }}
                     >
                       OK
