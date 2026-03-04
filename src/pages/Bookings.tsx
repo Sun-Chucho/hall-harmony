@@ -149,6 +149,13 @@ function ensureEndAfterStart(startTime: string, endTime: string): string {
   return toTimeString(startMinutes + 60);
 }
 
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
 type CashierBookingsTab = 'pending-approval' | 'partial-payment' | 'completed-payment';
 type AssistantBookingsTab = 'halls' | 'other-booking';
 
@@ -168,7 +175,7 @@ export default function Bookings() {
     hasConflict,
   } = useBookings();
   const { sendManagerAlert } = useMessages();
-  const { payments, recordPayment, getBookingFinancials } = usePayments();
+  const { payments, recordPayment, updatePayment, getBookingFinancials } = usePayments();
   const [form, setForm] = useState<CreateBookingInput>(initialForm);
   const [message, setMessage] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -183,6 +190,12 @@ export default function Bookings() {
   const [otherBookingQuantity, setOtherBookingQuantity] = useState(1);
   const [otherBookingSelections, setOtherBookingSelections] = useState<OtherBookingSelection[]>([]);
   const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
+  const [isInstallmentEditorOpen, setIsInstallmentEditorOpen] = useState(false);
+  const [installmentEditorBookingId, setInstallmentEditorBookingId] = useState('');
+  const [installmentEditAmount, setInstallmentEditAmount] = useState<Record<string, number>>({});
+  const [installmentEditMethod, setInstallmentEditMethod] = useState<Record<string, PaymentMethod>>({});
+  const [installmentEditDateTime, setInstallmentEditDateTime] = useState<Record<string, string>>({});
+  const [installmentEditNotes, setInstallmentEditNotes] = useState<Record<string, string>>({});
   const [confirmInstallments, setConfirmInstallments] = useState<InstallmentEntry[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -462,6 +475,28 @@ export default function Bookings() {
     }
     setConfirmInstallments([createInstallmentEntry()]);
     setIsConfirmBookingModalOpen(true);
+  };
+
+  const openInstallmentEditor = (bookingId: string) => {
+    const bookingPayments = payments
+      .filter((item) => item.bookingId === bookingId)
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    const amountMap: Record<string, number> = {};
+    const methodMap: Record<string, PaymentMethod> = {};
+    const dateTimeMap: Record<string, string> = {};
+    const notesMap: Record<string, string> = {};
+    bookingPayments.forEach((item) => {
+      amountMap[item.id] = item.amount;
+      methodMap[item.id] = item.method;
+      dateTimeMap[item.id] = toDateTimeLocal(item.receivedAt);
+      notesMap[item.id] = item.notes ?? '';
+    });
+    setInstallmentEditAmount(amountMap);
+    setInstallmentEditMethod(methodMap);
+    setInstallmentEditDateTime(dateTimeMap);
+    setInstallmentEditNotes(notesMap);
+    setInstallmentEditorBookingId(bookingId);
+    setIsInstallmentEditorOpen(true);
   };
 
   if (isAssistantHall && user) {
@@ -828,6 +863,13 @@ export default function Bookings() {
     const selectedPartial = partialPaymentBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const financials = selectedPartial ? getBookingFinancials(selectedPartial.id) : null;
     const bookingPayments = selectedPartial ? payments.filter((item) => item.bookingId === selectedPartial.id) : [];
+    const installmentEditorBooking = cashierBookings.find((entry) => entry.id === installmentEditorBookingId) ?? null;
+    const installmentEditorFinancials = installmentEditorBooking ? getBookingFinancials(installmentEditorBooking.id) : null;
+    const installmentEditorPayments = installmentEditorBooking
+      ? payments
+          .filter((item) => item.bookingId === installmentEditorBooking.id)
+          .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+      : [];
     const quotedAmount = (Number(selected?.quotedAmount) || 0) + (Number(selected?.carPrice) || 0);
     const totalPaidSoFar = financials?.totalPaid ?? 0;
     const installmentDraftTotal = confirmInstallments.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? Number(row.amount) : 0), 0);
@@ -1210,9 +1252,9 @@ export default function Bookings() {
                       size="sm"
                       variant="outline"
                       disabled={isRefreshingPage}
-                      onClick={() => beginEditBooking(selectedPartial.id)}
+                      onClick={() => openInstallmentEditor(selectedPartial.id)}
                     >
-                      Edit Booking
+                      Edit Installments
                     </Button>
                   </div>
                 </div>
@@ -1369,9 +1411,9 @@ export default function Bookings() {
                               size="sm"
                               variant="outline"
                               disabled={isRefreshingPage}
-                              onClick={() => beginEditBooking(entry.id)}
+                              onClick={() => openInstallmentEditor(entry.id)}
                             >
-                              Edit Booking
+                              Edit Installments
                             </Button>
                             {entry.bookingStatus !== 'completed' ? (
                               <Button
@@ -1392,6 +1434,131 @@ export default function Bookings() {
               </div>
             </TabsContent>
             </Tabs>
+
+            {isInstallmentEditorOpen && installmentEditorBooking ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Edit Payment Installments</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (isRecordingPayment) return;
+                        setIsInstallmentEditorOpen(false);
+                        setInstallmentEditorBookingId('');
+                        setInstallmentEditAmount({});
+                        setInstallmentEditMethod({});
+                        setInstallmentEditDateTime({});
+                        setInstallmentEditNotes({});
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm md:grid-cols-3">
+                    <p><span className="font-semibold">Booking:</span> {installmentEditorBooking.id}</p>
+                    <p><span className="font-semibold">Event:</span> {installmentEditorBooking.eventName}</p>
+                    <p><span className="font-semibold">Customer:</span> {installmentEditorBooking.customerName}</p>
+                    <p><span className="font-semibold">Total Due:</span> TZS {(installmentEditorFinancials?.quotedAmount ?? 0).toLocaleString()}</p>
+                    <p><span className="font-semibold">Total Paid:</span> TZS {(installmentEditorFinancials?.totalPaid ?? 0).toLocaleString()}</p>
+                    <p><span className="font-semibold">Balance:</span> TZS {(installmentEditorFinancials?.balance ?? 0).toLocaleString()}</p>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {installmentEditorPayments.length === 0 ? (
+                      <p className="text-sm text-slate-600">No installments found for this booking.</p>
+                    ) : (
+                      installmentEditorPayments.map((payment) => (
+                        <div key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-900">{payment.id}</p>
+                            <Badge className="bg-slate-200 text-slate-900">Installment</Badge>
+                          </div>
+                          <div className="mt-2 grid gap-2 md:grid-cols-4">
+                            <input
+                              type="number"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={installmentEditAmount[payment.id] ?? payment.amount}
+                              onChange={(event) => setInstallmentEditAmount((prev) => ({ ...prev, [payment.id]: Number(event.target.value) }))}
+                            />
+                            <select
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={installmentEditMethod[payment.id] ?? payment.method}
+                              onChange={(event) => setInstallmentEditMethod((prev) => ({ ...prev, [payment.id]: event.target.value as PaymentMethod }))}
+                            >
+                              <option value="cash">Cash</option>
+                              <option value="bank_transfer">Bank Transfer</option>
+                              <option value="mobile_money">Mobile Money</option>
+                              <option value="pos">POS</option>
+                            </select>
+                            <input
+                              type="datetime-local"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={installmentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt)}
+                              onChange={(event) => setInstallmentEditDateTime((prev) => ({ ...prev, [payment.id]: event.target.value }))}
+                            />
+                            <input
+                              type="text"
+                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                              value={installmentEditNotes[payment.id] ?? payment.notes}
+                              onChange={(event) => setInstallmentEditNotes((prev) => ({ ...prev, [payment.id]: event.target.value }))}
+                            />
+                          </div>
+                          <div className="mt-2">
+                            <Button
+                              size="sm"
+                              disabled={isRecordingPayment || isRefreshingPage}
+                              onClick={async () => {
+                                if (isRecordingPayment || isRefreshingPage) return;
+                                if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                                const amount = installmentEditAmount[payment.id] ?? payment.amount;
+                                const method = installmentEditMethod[payment.id] ?? payment.method;
+                                const receivedAt = installmentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt);
+                                const notes = installmentEditNotes[payment.id] ?? payment.notes;
+                                if (!Number.isFinite(amount) || amount <= 0) {
+                                  setMessage('Enter a valid installment amount greater than zero.');
+                                  toast({
+                                    title: 'Invalid installment amount',
+                                    description: 'Enter a valid installment amount greater than zero.',
+                                    variant: 'destructive',
+                                  });
+                                  return;
+                                }
+                                if (!receivedAt) {
+                                  setMessage('Enter paid date and time for this installment.');
+                                  toast({
+                                    title: 'Missing paid date/time',
+                                    description: 'Enter paid date and time for this installment.',
+                                    variant: 'destructive',
+                                  });
+                                  return;
+                                }
+                                setIsRecordingPayment(true);
+                                const result = await updatePayment(payment.id, { amount, method, receivedAt, notes });
+                                setMessage(result.message);
+                                toast({
+                                  title: result.ok ? 'Installment updated' : 'Update failed',
+                                  description: result.message,
+                                  variant: result.ok ? 'default' : 'destructive',
+                                });
+                                if (result.ok) {
+                                  lastPaymentActionAtRef.current = Date.now();
+                                }
+                                setIsRecordingPayment(false);
+                              }}
+                            >
+                              {isRecordingPayment ? 'Saving...' : 'Confirm Changes'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {isConfirmBookingModalOpen && selected ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
