@@ -163,11 +163,22 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (duplicate) {
       return { ok: true, message: 'This payment was already submitted.', paymentId: duplicate.id };
     }
+    const quotedAmount = (Number(booking.quotedAmount) || 0) + (Number(booking.carPrice) || 0);
+    const totalPaid = payments
+      .filter((payment) => payment.bookingId === input.bookingId)
+      .reduce((sum, payment) => sum + payment.amount, 0);
+    const remainingBalance = Math.max(quotedAmount - totalPaid, 0);
+    const amount = Math.round(input.amount);
+    if (remainingBalance <= 0) {
+      return { ok: false, message: 'This booking is already fully paid. No additional payment is allowed.' };
+    }
+    if (amount > remainingBalance) {
+      return { ok: false, message: `Payment exceeds remaining balance. Maximum allowed: TZS ${remainingBalance.toLocaleString()}.` };
+    }
 
     const paymentId = `PAY-ACT-${actionId}`;
     const receiptNumber = generateReference('RCT');
     const referenceNumber = input.referenceNumber?.trim() || generateReference('PAYREF');
-    const amount = Math.round(input.amount);
     const receivedAt = input.receivedAt ? new Date(input.receivedAt) : new Date();
     if (Number.isNaN(receivedAt.getTime())) {
       return { ok: false, message: 'Enter a valid paid date and time.' };
@@ -226,6 +237,16 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
     }
+    const quotedAmount = (Number(booking.quotedAmount) || 0) + (Number(booking.carPrice) || 0);
+    const nextAmount = Math.round(input.amount);
+    const otherInstallmentsTotal = payments
+      .filter((item) => item.bookingId === target.bookingId && item.id !== paymentId)
+      .reduce((sum, item) => sum + item.amount, 0);
+    const nextTotalPaid = otherInstallmentsTotal + nextAmount;
+    if (quotedAmount > 0 && nextTotalPaid > quotedAmount) {
+      const allowed = Math.max(quotedAmount - otherInstallmentsTotal, 0);
+      return { ok: false, message: `Installment exceeds remaining balance. Maximum allowed for this row: TZS ${allowed.toLocaleString()}.` };
+    }
     const receivedAt = new Date(input.receivedAt);
     if (Number.isNaN(receivedAt.getTime())) {
       return { ok: false, message: 'Enter a valid paid date and time.' };
@@ -233,7 +254,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
     const updated: PaymentRecord = {
       ...target,
-      amount: Math.round(input.amount),
+      amount: nextAmount,
       method: input.method,
       notes: input.notes?.trim() ?? '',
       receivedAt: receivedAt.toISOString(),

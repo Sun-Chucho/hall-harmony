@@ -1051,18 +1051,23 @@ export default function Bookings() {
                 ) : (
                   pendingPastBookings.map((entry) => (
                     <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      {(() => {
+                        const entryFinancials = getBookingFinancials(entry.id);
+                        return (
+                          <>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
                         <Badge className="bg-amber-100 text-amber-800">Pending Cashier 1</Badge>
                       </div>
                       <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
                       <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
+                      <p className="text-slate-500">Due: TZS {entryFinancials.quotedAmount.toLocaleString()} | Left: TZS {entryFinancials.balance.toLocaleString()}</p>
                       <div className="mt-2 grid gap-2 md:grid-cols-4">
                         <input
                           type="number"
                           className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                          placeholder="Paid Amount"
-                          value={pastApprovalAmount[entry.id] ?? entry.quotedAmount}
+                          placeholder={`Paid Amount (max ${entryFinancials.balance.toLocaleString()})`}
+                          value={pastApprovalAmount[entry.id] ?? ''}
                           onChange={(event) => setPastApprovalAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))}
                         />
                         <select
@@ -1095,11 +1100,13 @@ export default function Bookings() {
                           onClick={async () => {
                             if (Date.now() - lastPaymentActionAtRef.current < 900) return;
                             if (!confirmAction('Are you sure you want to record this payment and approve the booking?')) return;
-                            const amount = Number.isFinite(pastApprovalAmount[entry.id])
-                              ? Number(pastApprovalAmount[entry.id])
-                              : Number(entry.quotedAmount);
+                            const amount = Number(pastApprovalAmount[entry.id]);
                             if (!Number.isFinite(amount) || amount <= 0) {
-                              setMessage('Enter a valid paid amount for past booking approval.');
+                              setMessage('Enter the paid amount for this booking before approval.');
+                              return;
+                            }
+                            if (amount > entryFinancials.balance) {
+                              setMessage(`Amount exceeds remaining balance. Maximum allowed: TZS ${entryFinancials.balance.toLocaleString()}.`);
                               return;
                             }
                             const paymentResult = await recordPayment({
@@ -1148,6 +1155,9 @@ export default function Bookings() {
                           Reject
                         </Button>
                       </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ))
                 )}
@@ -1290,6 +1300,17 @@ export default function Bookings() {
                               return;
                             }
                             const currentBalance = financials?.balance ?? 0;
+                            if (currentBalance <= 0) {
+                              setMessage('This booking is already fully paid.');
+                              toast({ title: 'No balance left', description: 'This booking is already fully paid.', variant: 'destructive' });
+                              return;
+                            }
+                            if (paidAmount > currentBalance) {
+                              const description = `Payment exceeds remaining balance. Maximum allowed: TZS ${currentBalance.toLocaleString()}.`;
+                              setMessage(description);
+                              toast({ title: 'Payment too high', description, variant: 'destructive' });
+                              return;
+                            }
                             setIsRecordingPayment(true);
                             const result = await recordPayment({
                               actionId: crypto.randomUUID(),
@@ -1502,6 +1523,17 @@ export default function Bookings() {
                                     description: 'Enter paid date and time for this installment.',
                                     variant: 'destructive',
                                   });
+                                  return;
+                                }
+                                const quotedAmount = installmentEditorFinancials?.quotedAmount ?? 0;
+                                const otherInstallmentsTotal = installmentEditorPayments
+                                  .filter((item) => item.id !== payment.id)
+                                  .reduce((sum, item) => sum + item.amount, 0);
+                                const maxAllowed = Math.max(quotedAmount - otherInstallmentsTotal, 0);
+                                if (amount > maxAllowed) {
+                                  const description = `Installment exceeds remaining balance. Maximum allowed: TZS ${maxAllowed.toLocaleString()}.`;
+                                  setMessage(description);
+                                  toast({ title: 'Installment too high', description, variant: 'destructive' });
                                   return;
                                 }
                                 setIsRecordingPayment(true);
