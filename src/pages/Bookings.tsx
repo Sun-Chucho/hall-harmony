@@ -406,7 +406,10 @@ export default function Bookings() {
     }
   };
 
-  const openConfirmBookingModal = () => {
+  const openConfirmBookingModal = (bookingId?: string) => {
+    if (bookingId) {
+      setSelectedBookingId(bookingId);
+    }
     setConfirmInstallments([createInstallmentEntry()]);
     setIsConfirmBookingModalOpen(true);
   };
@@ -669,8 +672,21 @@ export default function Bookings() {
         && entry.bookingStatus !== 'rejected',
     );
     const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
-    const financials = selected ? getBookingFinancials(selected.id) : null;
-    const bookingPayments = selected ? payments.filter((item) => item.bookingId === selected.id) : [];
+    const pendingApprovalBookings = cashierBookings.filter(
+      (entry) => entry.bookingStatus === 'pending' && !entry.pastBookingSubmission,
+    );
+    const partialPaymentBookings = cashierBookings.filter((entry) => {
+      if (entry.bookingStatus !== 'approved') return false;
+      const itemFinancials = getBookingFinancials(entry.id);
+      return itemFinancials.balance > 0;
+    });
+    const completedPaymentBookings = cashierBookings.filter((entry) => {
+      const itemFinancials = getBookingFinancials(entry.id);
+      return itemFinancials.quotedAmount > 0 && itemFinancials.balance <= 0;
+    });
+    const selectedPartial = partialPaymentBookings.find((entry) => entry.id === selectedBookingId) ?? null;
+    const financials = selectedPartial ? getBookingFinancials(selectedPartial.id) : null;
+    const bookingPayments = selectedPartial ? payments.filter((item) => item.bookingId === selectedPartial.id) : [];
     const quotedAmount = Number(selected?.quotedAmount) || 0;
     const totalPaidSoFar = financials?.totalPaid ?? 0;
     const installmentDraftTotal = confirmInstallments.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? Number(row.amount) : 0), 0);
@@ -751,27 +767,66 @@ export default function Bookings() {
     return (
       <ManagementPageTemplate
         pageTitle="Bookings"
-        subtitle="Registered bookings from Assistant Halls with payment tracking."
+        subtitle="Cashier 1 workflow for approvals, partial payments, and completed payments."
         stats={[
-          { title: 'Registered Bookings', value: `${cashierBookings.length}`, description: 'from assistant hall desk' },
-          { title: 'Selected Balance', value: selected && financials ? `TZS ${financials.balance.toLocaleString()}` : 'TZS 0', description: 'remaining amount to be paid' },
-          { title: 'Payment Entries', value: `${bookingPayments.length}`, description: 'for selected event' },
+          { title: 'Pending Approval', value: `${pendingApprovalBookings.length}`, description: 'bookings not yet confirmed' },
+          { title: 'Partial Payment', value: `${partialPaymentBookings.length}`, description: 'approved bookings still owing' },
+          { title: 'Completed Payment', value: `${completedPaymentBookings.length}`, description: 'fully paid bookings' },
           { title: "Today's Records", value: `${payments.filter((item) => item.receivedAt.slice(0, 10) === new Date().toISOString().slice(0, 10)).length}`, description: 'payments tracked today' },
         ]}
         sections={[
           {
             title: 'Cashier 1 Booking Payment Workflow',
             bullets: [
-              'Select a registered booking from Assistant Halls.',
-              'View booking details in read-only mode.',
-              'Select payment module (cash, bank transfer, or mobile money).',
-              'Enter paid amount and notes, then mark Paid to update remaining balance.',
-              'Review past booking submissions from Assistant and record payment while approving.',
+              'Pending Approval tab is for bookings waiting cashier confirmation.',
+              'Partial Payment tab is for confirmed bookings with remaining balance.',
+              'Completed Payment tab tracks fully paid bookings and event completion.',
             ],
           },
         ]}
         action={
           <div className="space-y-6">
+            <Tabs defaultValue="pending-approval" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="pending-approval">Pending Approval</TabsTrigger>
+                <TabsTrigger value="partial-payment">Partial Payment</TabsTrigger>
+                <TabsTrigger value="completed-payment">Completed Payment</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="pending-approval" className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Pending Booking Confirmation</p>
+                    <Badge className="bg-slate-100 text-slate-700">{pendingApprovalBookings.length} pending</Badge>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {pendingApprovalBookings.length === 0 ? (
+                      <p className="text-sm text-slate-600">No pending bookings to confirm.</p>
+                    ) : (
+                      pendingApprovalBookings.map((entry) => (
+                        <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
+                            <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
+                          </div>
+                          <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
+                          <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
+                          <p className="text-slate-500">Quoted: TZS {(Number(entry.quotedAmount) || 0).toLocaleString()}</p>
+                          <div className="mt-2">
+                            <Button
+                              size="sm"
+                              disabled={isRecordingPayment || isRefreshingPage}
+                              onClick={() => openConfirmBookingModal(entry.id)}
+                            >
+                              Confirm Booking
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Past Booking Submissions (Assistant)</p>
@@ -882,6 +937,9 @@ export default function Bookings() {
               </div>
             </div>
 
+            </TabsContent>
+
+            <TabsContent value="partial-payment" className="space-y-4">
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Registered Bookings</p>
               <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -890,58 +948,41 @@ export default function Bookings() {
                   value={selectedBookingId}
                   onChange={(event) => setSelectedBookingId(event.target.value)}
                 >
-                  <option value="">Select booking</option>
-                  {cashierBookings.map((entry) => (
+                  <option value="">Select approved booking with partial payment</option>
+                  {partialPaymentBookings.map((entry) => (
                     <option key={entry.id} value={entry.id}>
                       {entry.id} | {entry.customerName} | {entry.eventName}
                     </option>
                   ))}
                 </select>
-                {selected && financials ? (
+                {selectedPartial && financials ? (
                   <Badge className="bg-slate-100 text-slate-700 self-center">Left: TZS {financials.balance.toLocaleString()}</Badge>
                 ) : null}
               </div>
             </div>
 
-            {selected ? (
+            {selectedPartial ? (
               <>
-                <div className={`rounded-3xl border bg-white p-5 shadow-sm ${selected.revision ? 'border-amber-300' : 'border-slate-200'}`}>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Details (Read-only)</p>
-                  {selected.revision ? (
+                <div className={`rounded-3xl border bg-white p-5 shadow-sm ${selectedPartial.revision ? 'border-amber-300' : 'border-slate-200'}`}>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Details (Approved)</p>
+                  {selectedPartial.revision ? (
                     <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                      Updated booking revision x{selected.revision}
+                      Updated booking revision x{selectedPartial.revision}
                     </p>
                   ) : null}
                   <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-                    <p><span className="font-semibold">Booking:</span> {selected.id}</p>
-                    <p><span className="font-semibold">Customer:</span> {selected.customerName}</p>
-                    <p><span className="font-semibold">Phone:</span> {selected.customerPhone}</p>
-                    <p><span className="font-semibold">Event:</span> {selected.eventName}</p>
-                    <p><span className="font-semibold">Hall:</span> {selected.hall}</p>
-                    <p><span className="font-semibold">Date:</span> {selected.date}</p>
-                    <p><span className="font-semibold">Time:</span> {selected.startTime} - {selected.endTime}</p>
-                    <p><span className="font-semibold">Quoted Amount:</span> TZS {(Number(selected.quotedAmount) || 0).toLocaleString()}</p>
-                    <p><span className="font-semibold">Car:</span> {carLabelMap[selected.carType ?? 'none']} (TZS {(Number(selected.carPrice) || 0).toLocaleString()})</p>
+                    <p><span className="font-semibold">Booking:</span> {selectedPartial.id}</p>
+                    <p><span className="font-semibold">Customer:</span> {selectedPartial.customerName}</p>
+                    <p><span className="font-semibold">Phone:</span> {selectedPartial.customerPhone}</p>
+                    <p><span className="font-semibold">Event:</span> {selectedPartial.eventName}</p>
+                    <p><span className="font-semibold">Hall:</span> {selectedPartial.hall}</p>
+                    <p><span className="font-semibold">Date:</span> {selectedPartial.date}</p>
+                    <p><span className="font-semibold">Time:</span> {selectedPartial.startTime} - {selectedPartial.endTime}</p>
+                    <p><span className="font-semibold">Quoted Amount:</span> TZS {(Number(selectedPartial.quotedAmount) || 0).toLocaleString()}</p>
+                    <p><span className="font-semibold">Car:</span> {carLabelMap[selectedPartial.carType ?? 'none']} (TZS {(Number(selectedPartial.carPrice) || 0).toLocaleString()})</p>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      disabled={isRecordingPayment || isRefreshingPage}
-                      onClick={openConfirmBookingModal}
-                    >
-                      Confirm Booking
-                    </Button>
-                    <Badge className="bg-slate-100 text-slate-700">Status: {toShortStatus(selected.bookingStatus)}</Badge>
-                    {canCompleteEvent ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={isRecordingPayment || isRefreshingPage}
-                        onClick={() => void handleBookingStatus(selected.id, 'completed')}
-                      >
-                        Complete Event
-                      </Button>
-                    ) : null}
+                    <Badge className="bg-slate-100 text-slate-700">Status: {toShortStatus(selectedPartial.bookingStatus)}</Badge>
                   </div>
                 </div>
 
@@ -1001,7 +1042,7 @@ export default function Bookings() {
                             setIsRecordingPayment(true);
                             const result = await recordPayment({
                               actionId: crypto.randomUUID(),
-                              bookingId: selected.id,
+                              bookingId: selectedPartial.id,
                               amount: paidAmount,
                               method: paymentMethod,
                               receivedAt: paidDateTime || undefined,
@@ -1026,7 +1067,7 @@ export default function Bookings() {
                         setIsRecordingPayment(false);
                       }}
                     >
-                      {isRecordingPayment ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Paid'}
+                      {isRecordingPayment ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Add Payment'}
                     </Button>
                     {financials ? <Badge className="bg-slate-100 text-slate-700">Remaining: TZS {financials.balance.toLocaleString()}</Badge> : null}
                     {message ? <span className="text-xs text-slate-600">{message}</span> : null}
@@ -1060,6 +1101,58 @@ export default function Bookings() {
                 </div>
               </>
             ) : null}
+
+            </TabsContent>
+
+            <TabsContent value="completed-payment" className="space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Fully Paid Bookings</p>
+                  <Badge className="bg-slate-100 text-slate-700">{completedPaymentBookings.length} completed payments</Badge>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {completedPaymentBookings.length === 0 ? (
+                    <p className="text-sm text-slate-600">No bookings with completed payment yet.</p>
+                  ) : (
+                    completedPaymentBookings.map((entry) => {
+                      const entryPayments = payments
+                        .filter((item) => item.bookingId === entry.id)
+                        .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+                      const completedAt = entryPayments[0]?.receivedAt;
+                      const entryFinancials = getBookingFinancials(entry.id);
+                      return (
+                        <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
+                            {entry.bookingStatus === 'completed' ? (
+                              <Badge className="bg-emerald-100 text-emerald-700">Event Completed</Badge>
+                            ) : (
+                              <Badge className="bg-blue-100 text-blue-700">Payment Complete</Badge>
+                            )}
+                          </div>
+                          <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
+                          <p className="text-slate-500">Quoted: TZS {entryFinancials.quotedAmount.toLocaleString()} | Paid: TZS {entryFinancials.totalPaid.toLocaleString()}</p>
+                          <p className="text-slate-500">Payment completed at: {completedAt ? new Date(completedAt).toLocaleString() : '-'}</p>
+                          {entry.bookingStatus !== 'completed' ? (
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={isRefreshingPage}
+                                onClick={() => void handleBookingStatus(entry.id, 'completed')}
+                              >
+                                Complete Event
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+            </Tabs>
 
             {isConfirmBookingModalOpen && selected ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
