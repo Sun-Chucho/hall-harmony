@@ -28,3 +28,10 @@ export interface CreatePaymentInput {
   notes?: string;
   receivedAt?: string;
 }
+
+export interface UpdatePaymentInput {
+  amount: number;
+  method: PaymentMethod;
+  notes?: string;
+  receivedAt: string;
+}

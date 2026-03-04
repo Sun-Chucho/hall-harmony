@@ -4,20 +4,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useToast } from '@/hooks/use-toast';
+import { PaymentMethod } from '@/types/payment';
 
 function statusLabel(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 export default function CashMovement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { sendManagerAlert } = useMessages();
-  const { payments } = usePayments();
+  const { bookings } = useBookings();
+  const { payments, getBookingFinancials, updatePayment } = usePayments();
   const {
     cashTransfers,
     mdTransfers,
@@ -38,6 +48,11 @@ export default function CashMovement() {
   const [decisionComment, setDecisionComment] = useState<Record<string, string>>({});
   const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
   const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
+  const [selectedPaymentBookingId, setSelectedPaymentBookingId] = useState('');
+  const [paymentEditAmount, setPaymentEditAmount] = useState<Record<string, number>>({});
+  const [paymentEditMethod, setPaymentEditMethod] = useState<Record<string, PaymentMethod>>({});
+  const [paymentEditDateTime, setPaymentEditDateTime] = useState<Record<string, string>>({});
+  const [paymentEditNotes, setPaymentEditNotes] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
   const lastActionAtRef = useRef(0);
@@ -185,6 +200,16 @@ export default function CashMovement() {
 
   if (user?.role === 'cashier_2') {
     const waitingApproval = cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2');
+    const paymentBookings = bookings
+      .filter((booking) => payments.some((payment) => payment.bookingId === booking.id))
+      .sort((a, b) => a.eventName.localeCompare(b.eventName));
+    const selectedPaymentBooking = paymentBookings.find((booking) => booking.id === selectedPaymentBookingId) ?? null;
+    const selectedPaymentFinancials = selectedPaymentBooking ? getBookingFinancials(selectedPaymentBooking.id) : null;
+    const selectedPaymentRows = selectedPaymentBooking
+      ? payments
+          .filter((payment) => payment.bookingId === selectedPaymentBooking.id)
+          .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+      : [];
     return (
       <ManagementPageTemplate
         pageTitle="Cash Movement"
@@ -206,6 +231,7 @@ export default function CashMovement() {
             <Tabs defaultValue="move-cash" className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
+                <TabsTrigger value="edit-payments">Edit Payments</TabsTrigger>
               </TabsList>
 
               <TabsContent value="move-cash">
@@ -321,6 +347,113 @@ export default function CashMovement() {
                       ))}
                     </div>
                   </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="edit-payments">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Edit Booking Installments</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                    <select
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={selectedPaymentBookingId}
+                      onChange={(event) => setSelectedPaymentBookingId(event.target.value)}
+                    >
+                      <option value="">Select booking</option>
+                      {paymentBookings.map((booking) => (
+                        <option key={booking.id} value={booking.id}>
+                          {booking.id} | {booking.customerName} | {booking.eventName}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedPaymentFinancials ? (
+                      <Badge className="bg-slate-100 text-slate-700 self-center">
+                        Total Paid: TZS {selectedPaymentFinancials.totalPaid.toLocaleString()} | Due: TZS {selectedPaymentFinancials.quotedAmount.toLocaleString()}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  {selectedPaymentBooking ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p><span className="font-semibold">Event:</span> {selectedPaymentBooking.eventName}</p>
+                        <p><span className="font-semibold">Customer:</span> {selectedPaymentBooking.customerName} ({selectedPaymentBooking.customerPhone})</p>
+                        <p><span className="font-semibold">Hall/Date:</span> {selectedPaymentBooking.hall} | {selectedPaymentBooking.date}</p>
+                      </div>
+
+                      {selectedPaymentRows.length === 0 ? (
+                        <p className="text-sm text-slate-600">No installments found for this booking.</p>
+                      ) : (
+                        selectedPaymentRows.map((payment) => (
+                          <div key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-semibold text-slate-900">{payment.id}</p>
+                              <Badge className="bg-slate-200 text-slate-900">Installment</Badge>
+                            </div>
+                            <div className="mt-2 grid gap-2 md:grid-cols-4">
+                              <input
+                                type="number"
+                                placeholder="Amount"
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                value={paymentEditAmount[payment.id] ?? payment.amount}
+                                onChange={(event) => setPaymentEditAmount((prev) => ({ ...prev, [payment.id]: Number(event.target.value) }))}
+                              />
+                              <select
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                value={paymentEditMethod[payment.id] ?? payment.method}
+                                onChange={(event) => setPaymentEditMethod((prev) => ({ ...prev, [payment.id]: event.target.value as PaymentMethod }))}
+                              >
+                                <option value="cash">Cash</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="mobile_money">Mobile Money</option>
+                                <option value="pos">POS</option>
+                              </select>
+                              <input
+                                type="datetime-local"
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                value={paymentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt)}
+                                onChange={(event) => setPaymentEditDateTime((prev) => ({ ...prev, [payment.id]: event.target.value }))}
+                              />
+                              <input
+                                type="text"
+                                placeholder="Notes"
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                value={paymentEditNotes[payment.id] ?? payment.notes}
+                                onChange={(event) => setPaymentEditNotes((prev) => ({ ...prev, [payment.id]: event.target.value }))}
+                              />
+                            </div>
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                disabled={isSubmitting || isRefreshingPage}
+                                onClick={async () => {
+                                  if (isSubmitting || isRefreshingPage) return;
+                                  if (!canRunAction()) return;
+                                  const amount = paymentEditAmount[payment.id] ?? payment.amount;
+                                  const method = paymentEditMethod[payment.id] ?? payment.method;
+                                  const receivedAt = paymentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt);
+                                  const notes = paymentEditNotes[payment.id] ?? payment.notes;
+                                  setIsSubmitting(true);
+                                  const result = await updatePayment(payment.id, { amount, method, receivedAt, notes });
+                                  setMessage(result.message);
+                                  toast({
+                                    title: result.ok ? 'Installment updated' : 'Update failed',
+                                    description: result.message,
+                                    variant: result.ok ? 'default' : 'destructive',
+                                  });
+                                  setIsSubmitting(false);
+                                }}
+                              >
+                                {isSubmitting ? 'Saving...' : 'Confirm Changes'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-600">Select a booking to load installments for editing.</p>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

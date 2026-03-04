@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { db } from '@/lib/firebase';
-import { BookingPaymentStatus, CreatePaymentInput, PaymentRecord } from '@/types/payment';
+import { BookingPaymentStatus, CreatePaymentInput, PaymentRecord, UpdatePaymentInput } from '@/types/payment';
 
 interface BookingFinancials {
   totalPaid: number;
@@ -16,6 +16,7 @@ interface BookingFinancials {
 interface PaymentContextValue {
   payments: PaymentRecord[];
   recordPayment: (input: CreatePaymentInput) => Promise<{ ok: boolean; message: string; paymentId?: string }>;
+  updatePayment: (paymentId: string, input: UpdatePaymentInput) => Promise<{ ok: boolean; message: string }>;
   setBookingPaymentStatus: (bookingId: string, status: BookingPaymentStatus) => Promise<{ ok: boolean; message: string }>;
   getBookingFinancials: (bookingId: string) => BookingFinancials;
   generateReceiptText: (paymentId: string) => { ok: boolean; message: string; receipt?: string };
@@ -209,6 +210,56 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
   }, [bookings, payments, policy.transactionsFrozen, user]);
 
+  const updatePayment = useCallback(async (paymentId: string, input: UpdatePaymentInput) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'cashier_1' && user.role !== 'cashier_2' && user.role !== 'controller') {
+      return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can edit payments.' };
+    }
+    if (policy.transactionsFrozen && user.role !== 'controller') {
+      return { ok: false, message: 'Transactions are frozen by controller.' };
+    }
+
+    const target = payments.find((item) => item.id === paymentId);
+    if (!target) return { ok: false, message: 'Payment record not found.' };
+    const booking = bookings.find((item) => item.id === target.bookingId);
+    if (!booking) return { ok: false, message: 'Booking not found for this payment.' };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
+    }
+    const receivedAt = new Date(input.receivedAt);
+    if (Number.isNaN(receivedAt.getTime())) {
+      return { ok: false, message: 'Enter a valid paid date and time.' };
+    }
+
+    const updated: PaymentRecord = {
+      ...target,
+      amount: Math.round(input.amount),
+      method: input.method,
+      notes: input.notes?.trim() ?? '',
+      receivedAt: receivedAt.toISOString(),
+    };
+
+    setPayments((prev) => prev.map((item) => (item.id === paymentId ? updated : item)));
+    try {
+      await setDoc(
+        doc(db, PAYMENTS_COLLECTION, paymentId),
+        {
+          amount: updated.amount,
+          method: updated.method,
+          notes: updated.notes,
+          receivedAt: updated.receivedAt,
+          updatedAt: serverTimestamp(),
+          updatedByUserId: user.id,
+        },
+        { merge: true },
+      );
+      return { ok: true, message: 'Payment installment updated successfully.' };
+    } catch {
+      setPayments((prev) => prev.map((item) => (item.id === paymentId ? target : item)));
+      return { ok: false, message: 'Failed to sync payment update to cloud. Please try again.' };
+    }
+  }, [bookings, payments, policy.transactionsFrozen, user]);
+
   const setBookingPaymentStatus = useCallback(async (bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
@@ -274,10 +325,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<PaymentContextValue>(() => ({
     payments,
     recordPayment,
+    updatePayment,
     setBookingPaymentStatus,
     getBookingFinancials,
     generateReceiptText,
-  }), [generateReceiptText, getBookingFinancials, payments, recordPayment, setBookingPaymentStatus]);
+  }), [generateReceiptText, getBookingFinancials, payments, recordPayment, setBookingPaymentStatus, updatePayment]);
 
   return <PaymentContext.Provider value={value}>{children}</PaymentContext.Provider>;
 }

@@ -63,7 +63,7 @@ service cloud.firestore {
     }
 
     function canWritePayments() {
-      return hasAnyRole(['cashier_1', 'controller']);
+      return hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
     }
 
     function canReadEventFinance() {
