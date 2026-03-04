@@ -244,7 +244,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       });
       return { ok: false, message: 'Failed to update payment status in cloud. Please try again.' };
     }
-  }, [bookings, user]);
+  }, [bookings, statusOverride, user]);
 
   const generateReceiptText = useCallback((paymentId: string) => {
     const payment = payments.find((item) => item.id === paymentId);
