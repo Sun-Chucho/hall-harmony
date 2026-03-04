@@ -81,6 +81,46 @@ interface InstallmentEntry {
   notes: string;
 }
 
+interface OtherBookingOption {
+  id: string;
+  label: string;
+  unitPrice: number;
+}
+
+interface OtherBookingSelection extends OtherBookingOption {
+  quantity: number;
+  total: number;
+}
+
+const assistantOtherBookingOptions: OtherBookingOption[] = [
+  { id: 'parent_tables', label: 'Meza za Wazazi (PC 2)', unitPrice: 60000 },
+  { id: 'parent_chairs', label: 'Viti vya Wazazi', unitPrice: 5000 },
+  { id: 'bride_groom_table', label: 'Meza ya Maharusi', unitPrice: 15000 },
+  { id: 'bride_groom_chair', label: 'Kiti cha Maharusi', unitPrice: 10000 },
+  { id: 'new_bride_groom_chair', label: 'Kiti cha Maharusi Kipya', unitPrice: 15000 },
+  { id: 'charger_plate', label: 'Chaja Plate', unitPrice: 500 },
+  { id: 'marine_board', label: 'Marine Board', unitPrice: 5000 },
+  { id: 'vase', label: 'Versi', unitPrice: 1000 },
+  { id: 'table_cloth', label: 'Kitamba cha Meza', unitPrice: 3000 },
+  { id: 'seminar_table_cloth', label: 'Meza za Semina na Kitambaa', unitPrice: 7000 },
+  { id: 'napkins', label: 'Napkins', unitPrice: 500 },
+  { id: 'table_runner', label: 'Table Runner', unitPrice: 1000 },
+  { id: 'decor_iron', label: 'Chuma za Mapambo', unitPrice: 10000 },
+  { id: 'new_glass_tables', label: 'Meza za Kioo Mpya (PC 2)', unitPrice: 100000 },
+  { id: 'snake_tables', label: 'Meza za Nyoka Nyoka', unitPrice: 25000 },
+  { id: 'ld', label: 'LD', unitPrice: 10000 },
+  { id: 'glass_charger_plate', label: 'Chaja Plate za Kioo', unitPrice: 1000 },
+  { id: 'new_chairs', label: 'Viti Vipya', unitPrice: 5000 },
+  { id: 'basketball_chair', label: 'Kuringe Basketball Chair', unitPrice: 4000 },
+  { id: 'bride_sofa', label: 'Kochi la Maharusi', unitPrice: 50000 },
+  { id: 'ladder_day', label: 'Ngazi Siku Nzima', unitPrice: 30000 },
+  { id: 'truss_light', label: 'Taa za Truss', unitPrice: 10000 },
+  { id: 'hall_tables', label: 'Meza za Ukumbini', unitPrice: 5000 },
+  { id: 'banquet_chairs', label: 'Viti vya Benquit', unitPrice: 1500 },
+  { id: 'banquet_chair_cover', label: 'Foronya za Benquit Chair', unitPrice: 500 },
+  { id: 'flower_head', label: 'Maua Kichaa', unitPrice: 1000 },
+];
+
 function getDefaultPaidDateTime() {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
@@ -109,6 +149,7 @@ function ensureEndAfterStart(startTime: string, endTime: string): string {
 }
 
 type CashierBookingsTab = 'pending-approval' | 'partial-payment' | 'completed-payment';
+type AssistantBookingsTab = 'halls' | 'other-booking';
 
 export default function Bookings() {
   const { user } = useAuth();
@@ -135,6 +176,10 @@ export default function Bookings() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [isRefreshingPage, setIsRefreshingPage] = useState(false);
   const [cashierTab, setCashierTab] = useState<CashierBookingsTab>('pending-approval');
+  const [assistantTab, setAssistantTab] = useState<AssistantBookingsTab>('halls');
+  const [otherBookingItemId, setOtherBookingItemId] = useState(assistantOtherBookingOptions[0]?.id ?? '');
+  const [otherBookingQuantity, setOtherBookingQuantity] = useState(1);
+  const [otherBookingSelections, setOtherBookingSelections] = useState<OtherBookingSelection[]>([]);
   const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
   const [confirmInstallments, setConfirmInstallments] = useState<InstallmentEntry[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
@@ -420,6 +465,40 @@ export default function Bookings() {
   if (isAssistantHall && user) {
     const assistantBookings = bookings.filter((entry) => entry.createdByUserId === user.id);
     const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1' || !entry.assignedToRole).length;
+    const otherBookingTotal = otherBookingSelections.reduce((sum, item) => sum + item.total, 0);
+
+    const addOtherBookingSelection = () => {
+      const selectedOption = assistantOtherBookingOptions.find((item) => item.id === otherBookingItemId);
+      if (!selectedOption) return;
+      const normalizedQuantity = Number.isFinite(otherBookingQuantity) ? Math.max(1, Math.round(otherBookingQuantity)) : 1;
+      setOtherBookingSelections((prev) => {
+        const existing = prev.find((item) => item.id === selectedOption.id);
+        if (existing) {
+          return prev.map((item) => item.id === selectedOption.id
+            ? {
+                ...item,
+                quantity: item.quantity + normalizedQuantity,
+                total: (item.quantity + normalizedQuantity) * item.unitPrice,
+              }
+            : item);
+        }
+        return [...prev, { ...selectedOption, quantity: normalizedQuantity, total: normalizedQuantity * selectedOption.unitPrice }];
+      });
+      setOtherBookingQuantity(1);
+    };
+
+    const applyOtherBookingToQuotedAmount = () => {
+      if (otherBookingSelections.length === 0) {
+        setMessage('Add at least one other booking item first.');
+        return;
+      }
+      const details = otherBookingSelections.map((item) => `${item.label} x${item.quantity} = TZS ${item.total.toLocaleString()}`).join(' | ');
+      onChange('quotedAmount', (Number(form.quotedAmount) || 0) + otherBookingTotal);
+      onChange('notes', [form.notes, `Other Booking: ${details}`].filter(Boolean).join('\n'));
+      setOtherBookingSelections([]);
+      setAssistantTab('halls');
+      setMessage('Other booking items applied to quoted amount.');
+    };
 
     return (
       <ManagementPageTemplate
@@ -442,17 +521,61 @@ export default function Bookings() {
           },
         ]}
         action={
-          <div className="space-y-6">
-            <Tabs defaultValue="hall-registration" className="space-y-4">
+          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+            <aside className="space-y-4">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Cars Booking</p>
+                <div className="mt-3 grid gap-3">
+                  <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
+                    {carOptions.map((car) => (
+                      <option key={car.value} value={car.value}>{car.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Car Amount (TZS)"
+                    className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                    value={Number(form.carPrice) || 0}
+                    onChange={(event) => onChange('carPrice', Number(event.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Submitted Bookings</p>
+                  <Badge className="bg-slate-100 text-slate-700">{assistantBookings.length}</Badge>
+                </div>
+                <div className="mt-3 max-h-[420px] space-y-2 overflow-auto">
+                  {assistantBookings.length === 0 ? (
+                    <p className="text-sm text-slate-600">No submitted bookings yet.</p>
+                  ) : (
+                    assistantBookings.map((booking) => (
+                      <div key={booking.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+                        <p className="font-semibold text-slate-900">{booking.eventName}</p>
+                        <p className="text-slate-600">{booking.date} | {booking.hall}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit</Button>
+                          <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete</Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-6">
+            <Tabs value={assistantTab} onValueChange={(value) => setAssistantTab(value as AssistantBookingsTab)} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="hall-registration">Hall Registration Form</TabsTrigger>
+                <TabsTrigger value="halls">Halls</TabsTrigger>
+                <TabsTrigger value="other-booking">Other Booking</TabsTrigger>
                 <TabsTrigger value="past-booking">Record Past Booking</TabsTrigger>
-                <TabsTrigger value="submitted-bookings">Submitted Bookings</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="hall-registration">
+              <TabsContent value="halls">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Hall Registration Form</p>
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Halls Booking Form</p>
                   <div className="mt-4 space-y-4">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Booking Date</p>
@@ -516,18 +639,8 @@ export default function Bookings() {
                       <div className="mt-2 grid gap-3 md:grid-cols-2">
                         <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.quotedAmount) || 0} readOnly />
-                        <select className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.carType ?? 'none'} onChange={(event) => onChange('carType', event.target.value as BookingCarType)}>
-                          {carOptions.map((car) => (
-                            <option key={car.value} value={car.value}>{car.label}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          placeholder="Car Amount (TZS)"
-                          className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
-                          value={Number(form.carPrice) || 0}
-                          onChange={(event) => onChange('carPrice', Number(event.target.value))}
-                        />
+                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
+                        <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={(Number(form.quotedAmount) || 0) + (Number(form.carPrice) || 0)} readOnly />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
                     </div>
@@ -549,45 +662,51 @@ export default function Bookings() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="submitted-bookings">
+              <TabsContent value="other-booking">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">My Submitted Bookings</p>
-                    <Badge className="bg-slate-100 text-slate-700">{assistantBookings.length} records</Badge>
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Bei ya Kukodisha Vifaa vya Mapambo</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                    <select
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={otherBookingItemId}
+                      onChange={(event) => setOtherBookingItemId(event.target.value)}
+                    >
+                      {assistantOtherBookingOptions.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label} @ TZS {item.unitPrice.toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={otherBookingQuantity}
+                      onChange={(event) => setOtherBookingQuantity(Number(event.target.value))}
+                    />
+                    <Button size="sm" onClick={addOtherBookingSelection}>Add</Button>
                   </div>
-                  {assistantBookings.length === 0 ? (
-                    <p className="mt-3 text-sm text-slate-600">No booking requests yet.</p>
-                  ) : (
-                    <div className="mt-3 space-y-3">
-                      {assistantBookings.map((booking) => (
-                        <div key={booking.id} className={`rounded-2xl border p-4 text-sm ${booking.revision ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">{booking.eventName}</p>
-                            <div className="flex items-center gap-2">
-                              {booking.revision ? <Badge className="bg-amber-100 text-amber-800">Updated x{booking.revision}</Badge> : null}
-                              <Badge className="bg-blue-100 text-blue-700">Sent to Cashier 1</Badge>
-                            </div>
-                          </div>
-                          <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
-                          <p className="text-slate-500">
-                            {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
-                          </p>
-                          {booking.pastBookingSubmission ? (
-                            <p className="text-xs text-violet-700">
-                              Past Record: {toShortStatus(booking.pastBookingApprovalStatus ?? 'pending_cashier_1')}
-                              {booking.pastReviewedAt ? ` | Reviewed: ${new Date(booking.pastReviewedAt).toLocaleString()}` : ''}
-                            </p>
-                          ) : null}
-                          <div className="mt-3">
-                            <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
-                              <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete Booking</Button>
-                            </div>
+
+                  <div className="mt-4 space-y-2">
+                    {otherBookingSelections.length === 0 ? (
+                      <p className="text-sm text-slate-600">No decoration items selected yet.</p>
+                    ) : (
+                      otherBookingSelections.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                          <p>{item.label} x{item.quantity}</p>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-slate-200 text-slate-900">TZS {item.total.toLocaleString()}</Badge>
+                            <Button size="sm" variant="outline" onClick={() => setOtherBookingSelections((prev) => prev.filter((entry) => entry.id !== item.id))}>Remove</Button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Badge className="bg-blue-100 text-blue-700">Other Booking Total: TZS {otherBookingTotal.toLocaleString()}</Badge>
+                    <Button size="sm" onClick={applyOtherBookingToQuotedAmount}>Apply to Quoted Amount</Button>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -662,6 +781,7 @@ export default function Bookings() {
                 </div>
               </TabsContent>
             </Tabs>
+          </div>
           </div>
         }
       />
