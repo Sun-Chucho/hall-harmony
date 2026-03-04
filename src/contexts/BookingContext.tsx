@@ -541,7 +541,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Past booking already reviewed.' };
     }
 
-    const bookingStatus: BookingStatus = decision === 'approved_cashier_1' ? 'completed' : 'rejected';
+    const bookingStatus: BookingStatus = decision === 'approved_cashier_1' ? 'approved' : 'rejected';
     const patch = {
       bookingStatus,
       pastBookingApprovalStatus: decision,
@@ -555,7 +555,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...patch,
         updatedAt: serverTimestamp(),
       });
-      return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier 1.' : 'Past booking rejected.' };
+      return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier 1 and moved to pending payment.' : 'Past booking rejected.' };
     } catch {
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       queuePendingAction({ type: 'patch', bookingId, patch });
