@@ -35,6 +35,8 @@ export interface BookingRecord {
   quotedAmount: number;
   carType?: BookingCarType;
   carPrice?: number;
+  carBookedBy?: string;
+  carLocation?: string;
   notes: string;
   createdAt: string;
   createdByUserId: string;
@@ -69,5 +71,7 @@ export interface CreateBookingInput {
   quotedAmount: number;
   carType?: BookingCarType;
   carPrice?: number;
+  carBookedBy?: string;
+  carLocation?: string;
   notes?: string;
 }

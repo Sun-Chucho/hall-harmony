@@ -48,6 +48,8 @@ const initialForm: CreateBookingInput = {
   quotedAmount: 0,
   carType: 'none',
   carPrice: 0,
+  carBookedBy: '',
+  carLocation: '',
   notes: '',
 };
 
@@ -386,6 +388,8 @@ export default function Bookings() {
       quotedAmount: target.quotedAmount,
       carType: target.carType ?? 'none',
       carPrice: target.carPrice ?? 0,
+      carBookedBy: target.carBookedBy ?? '',
+      carLocation: target.carLocation ?? '',
       notes: target.notes,
     });
     setFormHallIsOther(Boolean(target.hall && !halls.includes(target.hall)));
@@ -593,7 +597,7 @@ export default function Bookings() {
                       </div>
                       <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                       <p className="text-slate-500">
-                        {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
+                        {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()}) | Booker: {booking.carBookedBy || '-'} | Location: {booking.carLocation || '-'}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" onClick={() => navigate(`/bookings?edit=${booking.id}`)}>Edit Booking</Button>
@@ -706,6 +710,8 @@ export default function Bookings() {
                         <input type="number" placeholder="Quoted Amount (TZS)" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={form.quotedAmount || ''} onChange={(event) => onChange('quotedAmount', Number(event.target.value))} />
                         <input type="text" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={`Car: ${carLabelMap[form.carType ?? 'none']}`} readOnly />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={Number(form.carPrice) || 0} readOnly />
+                        <input type="text" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={form.carBookedBy || '-'} readOnly />
+                        <input type="text" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500 md:col-span-2" value={form.carLocation || '-'} readOnly />
                         <input type="number" className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500" value={(Number(form.quotedAmount) || 0) + (Number(form.carPrice) || 0)} readOnly />
                         <input type="text" placeholder="Notes" className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2" value={form.notes} onChange={(event) => onChange('notes', event.target.value)} />
                       </div>
@@ -751,8 +757,22 @@ export default function Bookings() {
                     />
                     <input
                       type="text"
+                      placeholder="Name of person booking car"
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={form.carBookedBy ?? ''}
+                      onChange={(event) => onChange('carBookedBy', event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Car location"
+                      className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={form.carLocation ?? ''}
+                      onChange={(event) => onChange('carLocation', event.target.value)}
+                    />
+                    <input
+                      type="text"
                       className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500 md:col-span-2"
-                      value={`Current selection: ${carLabelMap[form.carType ?? 'none']} | Car Amount: TZS ${(Number(form.carPrice) || 0).toLocaleString()}`}
+                      value={`Current selection: ${carLabelMap[form.carType ?? 'none']} | Car Amount: TZS ${(Number(form.carPrice) || 0).toLocaleString()} | Booker: ${form.carBookedBy || '-'} | Location: ${form.carLocation || '-'}`}
                       readOnly
                     />
                   </div>
@@ -1390,6 +1410,8 @@ export default function Bookings() {
                     <p><span className="font-semibold">Time:</span> {selectedPartial.startTime} - {selectedPartial.endTime}</p>
                     <p><span className="font-semibold">Quoted Amount:</span> TZS {(Number(selectedPartial.quotedAmount) || 0).toLocaleString()}</p>
                     <p><span className="font-semibold">Car:</span> {carLabelMap[selectedPartial.carType ?? 'none']} (TZS {(Number(selectedPartial.carPrice) || 0).toLocaleString()})</p>
+                    <p><span className="font-semibold">Car Booker:</span> {selectedPartial.carBookedBy || '-'}</p>
+                    <p><span className="font-semibold">Car Location:</span> {selectedPartial.carLocation || '-'}</p>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     <Badge className="bg-slate-100 text-slate-700">Status: {toShortStatus(selectedPartial.bookingStatus)}</Badge>
@@ -1886,7 +1908,7 @@ export default function Bookings() {
                     </div>
                     <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
                     <p className="text-slate-500">
-                      {booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
+                      {booking.customerName} ({booking.customerPhone}) | {booking.eventType} | {booking.expectedGuests} guests | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()}) | Booker: {booking.carBookedBy || '-'} | Location: {booking.carLocation || '-'}
                     </p>
                     {booking.pastBookingSubmission ? (
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">
