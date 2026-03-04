@@ -74,14 +74,6 @@ const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: 'mobile_money', label: 'Mobile Money' },
 ];
 
-interface InstallmentEntry {
-  id: string;
-  method: PaymentMethod;
-  amount: number;
-  receivedAt: string;
-  notes: string;
-}
-
 interface OtherBookingOption {
   id: string;
   label: string;
@@ -189,14 +181,12 @@ export default function Bookings() {
   const [otherBookingItemId, setOtherBookingItemId] = useState(assistantOtherBookingOptions[0]?.id ?? '');
   const [otherBookingQuantity, setOtherBookingQuantity] = useState(1);
   const [otherBookingSelections, setOtherBookingSelections] = useState<OtherBookingSelection[]>([]);
-  const [isConfirmBookingModalOpen, setIsConfirmBookingModalOpen] = useState(false);
   const [isInstallmentEditorOpen, setIsInstallmentEditorOpen] = useState(false);
   const [installmentEditorBookingId, setInstallmentEditorBookingId] = useState('');
   const [installmentEditAmount, setInstallmentEditAmount] = useState<Record<string, number>>({});
   const [installmentEditMethod, setInstallmentEditMethod] = useState<Record<string, PaymentMethod>>({});
   const [installmentEditDateTime, setInstallmentEditDateTime] = useState<Record<string, string>>({});
   const [installmentEditNotes, setInstallmentEditNotes] = useState<Record<string, string>>({});
-  const [confirmInstallments, setConfirmInstallments] = useState<InstallmentEntry[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [paidDateTime, setPaidDateTime] = useState(getDefaultPaidDateTime);
@@ -214,14 +204,6 @@ export default function Bookings() {
   const lastBookingActionAtRef = useRef(0);
   const lastPastBookingActionAtRef = useRef(0);
   const lastPaymentActionAtRef = useRef(0);
-
-  const createInstallmentEntry = (): InstallmentEntry => ({
-    id: crypto.randomUUID(),
-    method: 'cash',
-    amount: 0,
-    receivedAt: getDefaultPaidDateTime(),
-    notes: '',
-  });
 
   const refreshPageAfterUpdate = (notice?: string) => {
     setIsRefreshingPage(true);
@@ -467,14 +449,6 @@ export default function Bookings() {
       lastPastBookingActionAtRef.current = Date.now();
       setIsSavingPastBooking(false);
     }
-  };
-
-  const openConfirmBookingModal = (bookingId?: string) => {
-    if (bookingId) {
-      setSelectedBookingId(bookingId);
-    }
-    setConfirmInstallments([createInstallmentEntry()]);
-    setIsConfirmBookingModalOpen(true);
   };
 
   const openInstallmentEditor = (bookingId: string) => {
@@ -846,7 +820,6 @@ export default function Bookings() {
         entry.bookingStatus !== 'cancelled'
         && entry.bookingStatus !== 'rejected',
     );
-    const selected = cashierBookings.find((entry) => entry.id === selectedBookingId) ?? null;
     const pendingApprovalBookings = cashierBookings.filter(
       (entry) => entry.bookingStatus === 'pending' && !entry.pastBookingSubmission,
     );
@@ -870,11 +843,6 @@ export default function Bookings() {
           .filter((item) => item.bookingId === installmentEditorBooking.id)
           .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
       : [];
-    const quotedAmount = (Number(selected?.quotedAmount) || 0) + (Number(selected?.carPrice) || 0);
-    const totalPaidSoFar = financials?.totalPaid ?? 0;
-    const installmentDraftTotal = confirmInstallments.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? Number(row.amount) : 0), 0);
-    const totalAfterDraft = totalPaidSoFar + installmentDraftTotal;
-    const canCompleteEvent = Boolean(selected && financials && financials.balance <= 0 && selected.bookingStatus !== 'completed');
     const pendingPastBookings = bookings.filter(
       (entry) =>
         entry.pastBookingSubmission
@@ -891,66 +859,30 @@ export default function Bookings() {
       { cash: 0, bankTransfer: 0, mobileMoney: 0 },
     );
 
-    const saveConfirmBookingInstallments = async () => {
-      if (!selected) return;
-      if (isRecordingPayment || isRefreshingPage) return;
-      if (confirmInstallments.length === 0) {
-        setMessage('Add at least one installment payment.');
-        return;
-      }
-      const invalidInstallment = confirmInstallments.find(
-        (item) => !Number.isFinite(item.amount) || item.amount <= 0 || !item.receivedAt,
-      );
-      if (invalidInstallment) {
-        setMessage('Each installment must include amount greater than zero and payment date/time.');
-        return;
-      }
-
-      setIsRecordingPayment(true);
-      let successfulPayments = 0;
-      for (const installment of confirmInstallments) {
-        const paymentResult = await recordPayment({
-          actionId: crypto.randomUUID(),
-          bookingId: selected.id,
-          amount: installment.amount,
-          method: installment.method,
-          receivedAt: installment.receivedAt,
-          notes: installment.notes || 'Installment recorded during booking confirmation.',
-        });
-        if (!paymentResult.ok) {
-          setMessage(paymentResult.message);
-          toast({ title: 'Payment failed', description: paymentResult.message, variant: 'destructive' });
-          setIsRecordingPayment(false);
-          return;
-        }
-        successfulPayments += 1;
-      }
-
-      if (selected.bookingStatus === 'pending') {
-        const confirmResult = await updateBookingStatus(selected.id, 'approved');
-        if (!confirmResult.ok) {
-          setMessage(confirmResult.message);
-          toast({ title: 'Booking confirmation failed', description: confirmResult.message, variant: 'destructive' });
-          setIsRecordingPayment(false);
-          return;
-        }
-      }
-
-      setIsConfirmBookingModalOpen(false);
-      setConfirmInstallments([]);
-      setMessage(`Booking confirmed with ${successfulPayments} installment payment(s).`);
+    const approveBookingToPendingPayment = async (bookingId: string) => {
+      if (isRefreshingPage) return;
+      const result = await updateBookingStatus(bookingId, 'approved');
+      setMessage(result.message);
       toast({
-        title: 'Booking confirmed',
-        description: `Recorded ${successfulPayments} installment payment(s).`,
+        title: result.ok ? 'Booking approved' : 'Booking approval failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
       });
-      setSelectedBookingId(selected.id);
-      const bookingTotalDue = (Number(selected.quotedAmount) || 0) + (Number(selected.carPrice) || 0);
-      if (Math.max(bookingTotalDue - totalAfterDraft, 0) <= 0) {
-        setCashierTab('completed-payment');
-      } else {
+      if (result.ok) {
+        setSelectedBookingId(bookingId);
         setCashierTab('partial-payment');
       }
-      setIsRecordingPayment(false);
+    };
+
+    const cancelPendingBooking = async (bookingId: string) => {
+      if (isRefreshingPage) return;
+      const result = await updateBookingStatus(bookingId, 'cancelled');
+      setMessage(result.message);
+      toast({
+        title: result.ok ? 'Booking cancelled' : 'Booking cancellation failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      });
     };
 
     return (
@@ -1054,7 +986,7 @@ export default function Bookings() {
             <Tabs value={cashierTab} onValueChange={(value) => setCashierTab(value as CashierBookingsTab)} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 <TabsTrigger value="pending-approval">Pending Approval</TabsTrigger>
-                <TabsTrigger value="partial-payment">Partial Payment</TabsTrigger>
+                <TabsTrigger value="partial-payment">Pending Payment</TabsTrigger>
                 <TabsTrigger value="completed-payment">Completed Payment</TabsTrigger>
               </TabsList>
 
@@ -1077,13 +1009,21 @@ export default function Bookings() {
                           <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
                           <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
                           <p className="text-slate-500">Quoted: TZS {(Number(entry.quotedAmount) || 0).toLocaleString()}</p>
-                          <div className="mt-2">
+                          <div className="mt-2 flex flex-wrap gap-2">
                             <Button
                               size="sm"
-                              disabled={isRecordingPayment || isRefreshingPage}
-                              onClick={() => openConfirmBookingModal(entry.id)}
+                              disabled={isRefreshingPage}
+                              onClick={() => void approveBookingToPendingPayment(entry.id)}
                             >
-                              Confirm Booking
+                              Approve Booking
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isRefreshingPage}
+                              onClick={() => void cancelPendingBooking(entry.id)}
+                            >
+                              Cancel Booking
                             </Button>
                           </div>
                         </div>
@@ -1560,100 +1500,6 @@ export default function Bookings() {
               </div>
             ) : null}
 
-            {isConfirmBookingModalOpen && selected ? (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Confirm Booking Installments</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (isRecordingPayment) return;
-                        setIsConfirmBookingModalOpen(false);
-                      }}
-                    >
-                      Close
-                    </Button>
-                  </div>
-                  <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm md:grid-cols-3">
-                    <p><span className="font-semibold">Booking:</span> {selected.id}</p>
-                    <p><span className="font-semibold">Quoted (locked):</span> TZS {quotedAmount.toLocaleString()}</p>
-                    <p><span className="font-semibold">Paid so far:</span> TZS {totalPaidSoFar.toLocaleString()}</p>
-                    <p><span className="font-semibold">Draft installments:</span> TZS {installmentDraftTotal.toLocaleString()}</p>
-                    <p><span className="font-semibold">After save:</span> TZS {totalAfterDraft.toLocaleString()}</p>
-                    <p><span className="font-semibold">Remaining after save:</span> TZS {Math.max(quotedAmount - totalAfterDraft, 0).toLocaleString()}</p>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {confirmInstallments.map((row, index) => (
-                      <div key={row.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Installment {index + 1}</p>
-                        <div className="mt-2 grid gap-2 md:grid-cols-4">
-                          <input
-                            type="datetime-local"
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
-                            value={row.receivedAt}
-                            onChange={(event) => setConfirmInstallments((prev) => prev.map((item) => (item.id === row.id ? { ...item, receivedAt: event.target.value } : item)))}
-                          />
-                          <select
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
-                            value={row.method}
-                            onChange={(event) => setConfirmInstallments((prev) => prev.map((item) => (item.id === row.id ? { ...item, method: event.target.value as PaymentMethod } : item)))}
-                          >
-                            {cashierPaymentMethods.map((method) => (
-                              <option key={method.value} value={method.value}>{method.label}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            placeholder="Amount"
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
-                            value={row.amount || ''}
-                            onChange={(event) => setConfirmInstallments((prev) => prev.map((item) => (item.id === row.id ? { ...item, amount: Number(event.target.value) } : item)))}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Notes"
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
-                            value={row.notes}
-                            onChange={(event) => setConfirmInstallments((prev) => prev.map((item) => (item.id === row.id ? { ...item, notes: event.target.value } : item)))}
-                          />
-                        </div>
-                        <div className="mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={confirmInstallments.length === 1 || isRecordingPayment}
-                            onClick={() => setConfirmInstallments((prev) => prev.filter((item) => item.id !== row.id))}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isRecordingPayment}
-                      onClick={() => setConfirmInstallments((prev) => [...prev, createInstallmentEntry()])}
-                    >
-                      Add Installment
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={isRecordingPayment || isRefreshingPage}
-                      onClick={() => void saveConfirmBookingInstallments()}
-                    >
-                      {isRecordingPayment ? 'Saving...' : 'Save & Confirm Booking'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
           </div>
         }
       />
