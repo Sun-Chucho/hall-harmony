@@ -461,6 +461,13 @@ export default function Bookings() {
   };
 
   const openInstallmentEditor = (bookingId: string) => {
+    const targetBooking = bookings.find((item) => item.id === bookingId);
+    if (targetBooking?.bookingStatus === 'completed') {
+      const notice = 'Completed events cannot be edited.';
+      setMessage(notice);
+      toast({ title: 'Edit blocked', description: notice, variant: 'destructive' });
+      return;
+    }
     const bookingPayments = payments
       .filter((item) => item.bookingId === bookingId)
       .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
@@ -1436,14 +1443,7 @@ export default function Bookings() {
                           <p className="text-slate-500">Quoted: TZS {entryFinancials.quotedAmount.toLocaleString()} | Paid: TZS {entryFinancials.totalPaid.toLocaleString()}</p>
                           <p className="text-slate-500">Payment completed at: {completedAt ? new Date(completedAt).toLocaleString() : '-'}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={isRefreshingPage}
-                              onClick={() => openInstallmentEditor(entry.id)}
-                            >
-                              Edit Installments
-                            </Button>
+                            <Badge className="bg-slate-200 text-slate-700">Locked after completion</Badge>
                           </div>
                         </div>
                       );

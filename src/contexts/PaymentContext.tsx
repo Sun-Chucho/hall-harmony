@@ -155,6 +155,9 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
     const booking = bookings.find((item) => item.id === input.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
+    if (booking.bookingStatus === 'completed') {
+      return { ok: false, message: 'This event is completed. Payments can no longer be changed.' };
+    }
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
     }
@@ -234,6 +237,9 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     if (!target) return { ok: false, message: 'Payment record not found.' };
     const booking = bookings.find((item) => item.id === target.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found for this payment.' };
+    if (booking.bookingStatus === 'completed') {
+      return { ok: false, message: 'This event is completed. Payment installments cannot be edited.' };
+    }
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
       return { ok: false, message: 'Enter a valid payment amount greater than zero.' };
     }
