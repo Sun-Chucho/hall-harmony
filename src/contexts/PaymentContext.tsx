@@ -15,8 +15,8 @@ interface BookingFinancials {
 
 interface PaymentContextValue {
   payments: PaymentRecord[];
-  recordPayment: (input: CreatePaymentInput) => { ok: boolean; message: string; paymentId?: string };
-  setBookingPaymentStatus: (bookingId: string, status: BookingPaymentStatus) => { ok: boolean; message: string };
+  recordPayment: (input: CreatePaymentInput) => Promise<{ ok: boolean; message: string; paymentId?: string }>;
+  setBookingPaymentStatus: (bookingId: string, status: BookingPaymentStatus) => Promise<{ ok: boolean; message: string }>;
   getBookingFinancials: (bookingId: string) => BookingFinancials;
   generateReceiptText: (paymentId: string) => { ok: boolean; message: string; receipt?: string };
 }
@@ -144,7 +144,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     };
   }, [bookings, computeStatus, payments, statusOverride]);
 
-  const recordPayment = useCallback((input: CreatePaymentInput) => {
+  const recordPayment = useCallback(async (input: CreatePaymentInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can record payments.' };
@@ -192,20 +192,24 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
 
-    void setDoc(
-      doc(db, PAYMENTS_COLLECTION, record.id),
-      {
-        ...record,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-    void deleteDoc(doc(db, PAYMENT_STATUS_COLLECTION, input.bookingId));
-
-    return { ok: true, message: 'Payment recorded successfully.', paymentId };
+    try {
+      await setDoc(
+        doc(db, PAYMENTS_COLLECTION, record.id),
+        {
+          ...record,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      await deleteDoc(doc(db, PAYMENT_STATUS_COLLECTION, input.bookingId));
+      return { ok: true, message: 'Payment recorded successfully.', paymentId };
+    } catch {
+      setPayments((prev) => prev.filter((entry) => entry.id !== record.id));
+      return { ok: false, message: 'Payment failed to sync to cloud. Please try again.' };
+    }
   }, [bookings, payments, policy.transactionsFrozen, user]);
 
-  const setBookingPaymentStatus = useCallback((bookingId: string, status: BookingPaymentStatus) => {
+  const setBookingPaymentStatus = useCallback(async (bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') {
       return { ok: false, message: 'Only Cashier 1 or Controller can set payment status.' };
@@ -214,19 +218,32 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Booking not found.' };
     }
 
+    const previousStatus = statusOverride[bookingId];
     setStatusOverride((prev) => ({ ...prev, [bookingId]: status }));
-    void setDoc(
-      doc(db, PAYMENT_STATUS_COLLECTION, bookingId),
-      {
-        bookingId,
-        status,
-        updatedAt: serverTimestamp(),
-        updatedByUserId: user.id,
-      },
-      { merge: true },
-    );
-
-    return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };
+    try {
+      await setDoc(
+        doc(db, PAYMENT_STATUS_COLLECTION, bookingId),
+        {
+          bookingId,
+          status,
+          updatedAt: serverTimestamp(),
+          updatedByUserId: user.id,
+        },
+        { merge: true },
+      );
+      return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };
+    } catch {
+      setStatusOverride((prev) => {
+        const next = { ...prev };
+        if (previousStatus) {
+          next[bookingId] = previousStatus;
+        } else {
+          delete next[bookingId];
+        }
+        return next;
+      });
+      return { ok: false, message: 'Failed to update payment status in cloud. Please try again.' };
+    }
   }, [bookings, user]);
 
   const generateReceiptText = useCallback((paymentId: string) => {

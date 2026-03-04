@@ -235,7 +235,7 @@ export default function CashMovement() {
                               <Button
                                 size="sm"
                                 disabled={isSubmitting || isRefreshingPage}
-                                onClick={() => {
+                                onClick={async () => {
                                   if (isSubmitting || isRefreshingPage) return;
                                   if (!canRunAction()) return;
                                   if (!(receiveComment[item.id] ?? '').trim()) {
@@ -245,7 +245,7 @@ export default function CashMovement() {
                                     return;
                                   }
                                   setIsSubmitting(true);
-                                  const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
+                                  const result = await confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
                                   setMessage(result.message);
                                   toast({
                                     title: result.ok ? 'Receipt submitted' : 'Receipt failed',
@@ -277,7 +277,7 @@ export default function CashMovement() {
                       <Button
                         size="sm"
                         disabled={isSubmitting || isRefreshingPage}
-                        onClick={() => {
+                        onClick={async () => {
                           if (isSubmitting || isRefreshingPage) return;
                           if (!canRunAction()) return;
                           if (!Number.isFinite(requestAmount) || requestAmount <= 0) {
@@ -292,7 +292,7 @@ export default function CashMovement() {
                             return;
                           }
                           setIsSubmitting(true);
-                          const result = requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment, actionId: crypto.randomUUID() });
+                          const result = await requestCashTransferFromCashier2({ amount: requestAmount, comment: requestComment, actionId: crypto.randomUUID() });
                           setMessage(result.message);
                           toast({
                             title: result.ok ? 'Request submitted' : 'Request failed',
@@ -391,7 +391,7 @@ export default function CashMovement() {
                   <Button
                     size="sm"
                     disabled={isSubmitting || isRefreshingPage}
-                    onClick={() => {
+                    onClick={async () => {
                       if (isSubmitting || isRefreshingPage) return;
                       if (!canRunAction()) return;
                       if (!Number.isFinite(moveCashAmount) || moveCashAmount <= 0) {
@@ -406,7 +406,7 @@ export default function CashMovement() {
                         return;
                       }
                       setIsSubmitting(true);
-                      const result = sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment, actionId: crypto.randomUUID() });
+                      const result = await sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment, actionId: crypto.randomUUID() });
                       setMessage(result.message);
                       toast({
                         title: result.ok ? 'Cash sent' : 'Send failed',
@@ -461,7 +461,7 @@ export default function CashMovement() {
                           <Button
                             size="sm"
                             disabled={isSubmitting}
-                            onClick={() => {
+                            onClick={async () => {
                               if (isSubmitting) return;
                               if (!canRunAction()) return;
                               const amount = decisionAmount[item.id] || 0;
@@ -477,7 +477,7 @@ export default function CashMovement() {
                                 return;
                               }
                               setIsSubmitting(true);
-                              const result = approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '', crypto.randomUUID());
+                              const result = await approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '', crypto.randomUUID());
                               setMessage(result.message);
                               toast({
                                 title: result.ok ? 'Request approved' : 'Approval failed',
@@ -493,7 +493,7 @@ export default function CashMovement() {
                             size="sm"
                             variant="outline"
                             disabled={isSubmitting}
-                            onClick={() => {
+                            onClick={async () => {
                               if (isSubmitting) return;
                               if (!canRunAction()) return;
                               if (!(decisionComment[item.id] ?? '').trim()) {
@@ -503,7 +503,7 @@ export default function CashMovement() {
                                 return;
                               }
                               setIsSubmitting(true);
-                              const result = declineCashTransferRequest(item.id, decisionComment[item.id] ?? '', crypto.randomUUID());
+                              const result = await declineCashTransferRequest(item.id, decisionComment[item.id] ?? '', crypto.randomUUID());
                               setMessage(result.message);
                               toast({
                                 title: result.ok ? 'Request declined' : 'Decline failed',
@@ -563,7 +563,7 @@ export default function CashMovement() {
                             <Button
                               size="sm"
                               disabled={isSubmitting || isRefreshingPage}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (isSubmitting || isRefreshingPage) return;
                                 if (!canRunAction()) return;
                                 if (!(receiveComment[item.id] ?? '').trim()) {
@@ -573,7 +573,7 @@ export default function CashMovement() {
                                   return;
                                 }
                                 setIsSubmitting(true);
-                                const result = confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
+                                const result = await confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
                                 setMessage(result.message);
                                 toast({
                                   title: result.ok ? 'Receipt submitted' : 'Receipt failed',

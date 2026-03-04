@@ -749,7 +749,7 @@ export default function Bookings() {
                               setMessage('Enter a valid paid amount for past booking approval.');
                               return;
                             }
-                            const paymentResult = recordPayment({
+                            const paymentResult = await recordPayment({
                               actionId: crypto.randomUUID(),
                               bookingId: entry.id,
                               amount,
@@ -880,7 +880,7 @@ export default function Bookings() {
                         <Button
                           size="sm"
                           disabled={isRecordingPayment || isRefreshingPage || !Number.isFinite(paidAmount) || paidAmount <= 0 || !paidDateTime}
-                          onClick={() => {
+                          onClick={async () => {
                             if (isRecordingPayment || isRefreshingPage) return;
                             if (Date.now() - lastPaymentActionAtRef.current < 900) return;
                             if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
@@ -895,7 +895,7 @@ export default function Bookings() {
                             }
                             const currentBalance = financials?.balance ?? 0;
                             setIsRecordingPayment(true);
-                            const result = recordPayment({
+                            const result = await recordPayment({
                               actionId: crypto.randomUUID(),
                               bookingId: selected.id,
                               amount: paidAmount,

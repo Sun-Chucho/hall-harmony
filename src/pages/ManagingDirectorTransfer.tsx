@@ -51,8 +51,8 @@ export default function ManagingDirectorTransfer() {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
-                onClick={() => {
-                  const result = recordManagingDirectorTransfer({ amount, notes });
+                onClick={async () => {
+                  const result = await recordManagingDirectorTransfer({ amount, notes });
                   setMessage(result.message);
                   if (result.ok) {
                     setAmount(0);

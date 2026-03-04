@@ -110,7 +110,7 @@ export default function Distribution() {
               <Button
                 size="sm"
                 disabled={isSaving || isRefreshingPage}
-                onClick={() => {
+                onClick={async () => {
                   if (isSaving || isRefreshingPage) return;
                   if (Date.now() - lastActionAtRef.current < 900) return;
                   if (!canRecordDistribution) {
@@ -134,7 +134,7 @@ export default function Distribution() {
                     return;
                   }
                   setIsSaving(true);
-                  const result = recordCashDistribution({ actionId: crypto.randomUUID(), category, amount, reason, otherDetails });
+                  const result = await recordCashDistribution({ actionId: crypto.randomUUID(), category, amount, reason, otherDetails });
                   setMessage(result.message);
                   toast({
                     title: result.ok ? 'Distribution submitted' : 'Distribution failed',

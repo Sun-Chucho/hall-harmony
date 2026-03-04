@@ -113,7 +113,7 @@ export default function Payments() {
 
   const canRecordPayments = user?.role === 'cashier_1' || user?.role === 'controller';
 
-  const handleRecordPayment = () => {
+  const handleRecordPayment = async () => {
     if (isSubmitting || isRefreshingPage) return;
     if (Date.now() - lastActionAtRef.current < 900) return;
     if (!form.bookingId || !form.receivedAt || !form.method || !Number.isFinite(form.amount) || form.amount <= 0) {
@@ -123,7 +123,7 @@ export default function Payments() {
       return;
     }
     setIsSubmitting(true);
-    const result = recordPayment({ ...form, actionId: crypto.randomUUID() });
+    const result = await recordPayment({ ...form, actionId: crypto.randomUUID() });
     setMessage(result.message);
     toast({
       title: result.ok ? 'Payment submitted' : 'Payment failed',
@@ -144,7 +144,7 @@ export default function Payments() {
     setIsSubmitting(false);
   };
 
-  const handleSetStatus = () => {
+  const handleSetStatus = async () => {
     if (isSubmitting || isRefreshingPage) return;
     if (Date.now() - lastActionAtRef.current < 900) return;
     if (!statusBookingId) {
@@ -153,7 +153,7 @@ export default function Payments() {
       return;
     }
     setIsSubmitting(true);
-    const result = setBookingPaymentStatus(statusBookingId, statusValue);
+    const result = await setBookingPaymentStatus(statusBookingId, statusValue);
     setMessage(result.message);
     toast({
       title: result.ok ? 'Status submitted' : 'Status failed',
