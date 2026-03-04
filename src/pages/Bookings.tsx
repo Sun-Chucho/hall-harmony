@@ -9,6 +9,7 @@ import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useToast } from '@/hooks/use-toast';
+import { confirmAction } from '@/lib/confirmAction';
 import { BookingCarType, CreateBookingInput } from '@/types/booking';
 import { PaymentMethod } from '@/types/payment';
 
@@ -318,6 +319,9 @@ export default function Bookings() {
   const handleCreateBooking = async (assistantFlow = false) => {
     if (isSavingBooking) return;
     if (Date.now() - lastBookingActionAtRef.current < 900) return;
+    if (!confirmAction(editingBookingId ? 'Are you sure you want to save these booking changes?' : 'Are you sure you want to submit this booking?')) {
+      return;
+    }
     if (!isBookingFormComplete) {
       const invalidMessage = 'Complete all required booking fields before submitting.';
       setMessage(invalidMessage);
@@ -386,24 +390,28 @@ export default function Bookings() {
   };
 
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
+    if (!confirmAction(`Are you sure you want to mark this booking as ${toShortStatus(status)}?`)) return;
     const result = await updateBookingStatus(bookingId, status);
     setMessage(result.message);
     if (result.ok) refreshPageAfterUpdate(`Booking marked as ${status}. Refreshing page...`);
   };
 
   const handleEventStatus = async (bookingId: string, status: 'approved_assistant' | 'approved_controller' | 'rejected') => {
+    if (!confirmAction(`Are you sure you want to set event status to ${toShortStatus(status)}?`)) return;
     const result = await updateEventDetailStatus(bookingId, status);
     setMessage(result.message);
     if (result.ok) refreshPageAfterUpdate('Event status updated. Refreshing page...');
   };
 
   const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirmAction('Are you sure you want to delete this booking?')) return;
     const result = await deleteBooking(bookingId);
     setMessage(result.message);
     if (result.ok) refreshPageAfterUpdate('Booking deleted. Refreshing page...');
   };
 
   const handleAccountantDecision = async (bookingId: string, decision: 'approve' | 'disapprove') => {
+    if (!confirmAction(`Are you sure you want to submit recommendation: ${decision}?`)) return;
     const booking = bookings.find((item) => item.id === bookingId);
     if (!booking) {
       setMessage('Booking not found.');
@@ -422,6 +430,7 @@ export default function Bookings() {
   const handleRecordPastBooking = async () => {
     if (isSavingPastBooking) return;
     if (Date.now() - lastPastBookingActionAtRef.current < 900) return;
+    if (!confirmAction('Are you sure you want to record this past booking?')) return;
     if (!isPastFormComplete) {
       const invalidMessage = 'Complete all required past booking fields before submitting.';
       setMessage(invalidMessage);
@@ -858,6 +867,7 @@ export default function Bookings() {
 
     const approveBookingToPendingPayment = async (bookingId: string) => {
       if (isRefreshingPage) return;
+      if (!confirmAction('Are you sure you want to approve this booking and move it to pending payment?')) return;
       const result = await updateBookingStatus(bookingId, 'approved');
       setMessage(result.message);
       toast({
@@ -873,6 +883,7 @@ export default function Bookings() {
 
     const cancelPendingBooking = async (bookingId: string) => {
       if (isRefreshingPage) return;
+      if (!confirmAction('Are you sure you want to cancel this booking?')) return;
       const result = await updateBookingStatus(bookingId, 'cancelled');
       setMessage(result.message);
       toast({
@@ -1083,6 +1094,7 @@ export default function Bookings() {
                           disabled={isRefreshingPage}
                           onClick={async () => {
                             if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                            if (!confirmAction('Are you sure you want to record this payment and approve the booking?')) return;
                             const amount = Number.isFinite(pastApprovalAmount[entry.id])
                               ? Number(pastApprovalAmount[entry.id])
                               : Number(entry.quotedAmount);
@@ -1125,6 +1137,7 @@ export default function Bookings() {
                           variant="outline"
                           disabled={isRefreshingPage}
                           onClick={async () => {
+                            if (!confirmAction('Are you sure you want to reject this past booking?')) return;
                             const reviewResult = await reviewPastBooking(entry.id, 'rejected_cashier_1');
                             setMessage(reviewResult.message);
                             if (reviewResult.ok) {
@@ -1265,6 +1278,7 @@ export default function Bookings() {
                           onClick={async () => {
                             if (isRecordingPayment || isRefreshingPage) return;
                             if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                            if (!confirmAction('Are you sure you want to add this payment installment?')) return;
                             if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
                               setMessage('Enter a valid payment amount greater than zero.');
                               toast({ title: 'Invalid payment amount', description: 'Enter a valid payment amount greater than zero.', variant: 'destructive' });
@@ -1467,6 +1481,7 @@ export default function Bookings() {
                               onClick={async () => {
                                 if (isRecordingPayment || isRefreshingPage) return;
                                 if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                                if (!confirmAction('Are you sure you want to save these installment changes?')) return;
                                 const amount = installmentEditAmount[payment.id] ?? payment.amount;
                                 const method = installmentEditMethod[payment.id] ?? payment.method;
                                 const receivedAt = installmentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt);

@@ -7,6 +7,7 @@ import { BookingPaymentStatus, CreatePaymentInput, PaymentMethod } from '@/types
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { confirmAction } from '@/lib/confirmAction';
 
 function getDefaultPaidDateTime() {
   const now = new Date();
@@ -116,6 +117,7 @@ export default function Payments() {
   const handleRecordPayment = async () => {
     if (isSubmitting || isRefreshingPage) return;
     if (Date.now() - lastActionAtRef.current < 900) return;
+    if (!confirmAction('Are you sure you want to record this payment?')) return;
     if (!form.bookingId || !form.receivedAt || !form.method || !Number.isFinite(form.amount) || form.amount <= 0) {
       const invalidMessage = 'Complete booking, amount, method and paid date/time before submitting.';
       setMessage(invalidMessage);
@@ -147,6 +149,7 @@ export default function Payments() {
   const handleSetStatus = async () => {
     if (isSubmitting || isRefreshingPage) return;
     if (Date.now() - lastActionAtRef.current < 900) return;
+    if (!confirmAction(`Are you sure you want to set this booking payment status to ${statusLabel(statusValue)}?`)) return;
     if (!statusBookingId) {
       setMessage('Select a booking first.');
       toast({ title: 'Missing booking', description: 'Select a booking first.', variant: 'destructive' });

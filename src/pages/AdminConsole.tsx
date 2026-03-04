@@ -3,6 +3,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApprovalLevel, ApprovalModule } from '@/lib/authorization';
+import { confirmAction } from '@/lib/confirmAction';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,11 +52,13 @@ export default function AdminConsole() {
   }, [approvals, policy.transactionsFrozen]);
 
   const handleFreezeToggle = () => {
+    if (!confirmAction(policy.transactionsFrozen ? 'Are you sure you want to resume transactions?' : 'Are you sure you want to freeze transactions?')) return;
     const response = setTransactionsFrozen(!policy.transactionsFrozen, freezeReason);
     setStatusMessage(response.message);
   };
 
   const handleCreateRequest = () => {
+    if (!confirmAction('Are you sure you want to submit this approval request?')) return;
     if (!requestForm.title || !requestForm.description || !requestForm.targetReference) {
       setStatusMessage('Title, description, and reference are required.');
       return;
@@ -82,11 +85,13 @@ export default function AdminConsole() {
   };
 
   const handleDecision = (requestId: string, decision: 'approved' | 'rejected') => {
+    if (!confirmAction(`Are you sure you want to ${decision} this request?`)) return;
     const response = reviewApproval(requestId, decision, decisionComment);
     setStatusMessage(response.message);
   };
 
   const handleOverride = (requestId: string, decision: 'approved' | 'rejected') => {
+    if (!confirmAction(`Are you sure you want to override this request as ${decision}?`)) return;
     const response = overrideApproval(requestId, decision, decisionComment || 'Override by controller');
     setStatusMessage(response.message);
   };

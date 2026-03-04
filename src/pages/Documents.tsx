@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { confirmAction } from '@/lib/confirmAction';
 import { db } from '@/lib/firebase';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 
@@ -239,6 +240,7 @@ export default function Documents() {
   const saveSubmission = async (formId: FormId, formTitle: string, event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) return;
+    if (!confirmAction(`Are you sure you want to save ${formTitle}?`)) return;
 
     const formData = new FormData(event.currentTarget);
     const fields: Record<string, string> = {};
@@ -319,6 +321,7 @@ export default function Documents() {
 
   const handleControllerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
     if (!user || user.role !== 'controller') return;
+    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     const request = cashRequests.find((entry) => entry.id === requestId);
     if (!request) return;
     const comment = controllerComment[requestId]?.trim() ?? '';
@@ -357,6 +360,7 @@ export default function Documents() {
 
   const handleManagerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
     if (!user || user.role !== 'manager') return;
+    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     const request = cashRequests.find((entry) => entry.id === requestId);
     if (!request) return;
     const comment = managerComment[requestId]?.trim() ?? '';

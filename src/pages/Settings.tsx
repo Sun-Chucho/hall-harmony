@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { confirmAction } from '@/lib/confirmAction';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { Loader2, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 
@@ -60,6 +61,7 @@ export default function Settings() {
   const onSubmitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!confirmAction('Are you sure you want to change your password?')) return;
 
     if (newPassword !== confirmPassword) {
       toast({
@@ -89,6 +91,7 @@ export default function Settings() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageUsers) return;
+    if (!confirmAction('Are you sure you want to create this user?')) return;
 
     setIsCreatingUser(true);
     const result = await createStaffUser(createForm);
@@ -111,6 +114,7 @@ export default function Settings() {
   const handleRoleUpdate = async (staffId: string) => {
     const nextRole = roleDrafts[staffId];
     if (!nextRole) return;
+    if (!confirmAction(`Are you sure you want to change this user role to ${ROLE_LABELS[nextRole]}?`)) return;
     setBusyUserId(staffId);
     const result = await updateStaffRole(staffId, nextRole);
     toast({
@@ -122,6 +126,7 @@ export default function Settings() {
   };
 
   const handleToggleActive = async (staffId: string, isActive: boolean) => {
+    if (!confirmAction(`Are you sure you want to ${isActive ? 'deactivate' : 'activate'} this user?`)) return;
     setBusyUserId(staffId);
     const result = await updateStaffActive(staffId, !isActive);
     toast({
@@ -133,6 +138,7 @@ export default function Settings() {
   };
 
   const handleRemoveUser = async (staffId: string) => {
+    if (!confirmAction('Are you sure you want to remove this user?')) return;
     setBusyUserId(staffId);
     const result = await removeStaffUser(staffId);
     toast({
@@ -145,6 +151,7 @@ export default function Settings() {
 
   const handleForceLogoutAll = async () => {
     if (!canManageUsers) return;
+    if (!confirmAction('Are you sure you want to force logout all staff sessions?')) return;
     setIsForcingLogout(true);
     const result = await forceLogoutAllSessions();
     toast({
