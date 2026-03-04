@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -155,6 +155,7 @@ type AssistantBookingsTab = 'halls' | 'car-booking' | 'other-booking' | 'past-bo
 export default function Bookings() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const {
     bookings,
@@ -389,6 +390,17 @@ export default function Bookings() {
     }
   };
 
+  useEffect(() => {
+    if (!isAssistantHall) return;
+    if (location.pathname !== '/bookings') return;
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (!editId) return;
+    beginEditBooking(editId);
+    setAssistantTab('halls');
+    navigate('/bookings', { replace: true });
+  }, [bookings, isAssistantHall, location.pathname, location.search, navigate]);
+
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
     if (!confirmAction(`Are you sure you want to mark this booking as ${toShortStatus(status)}?`)) return;
     const result = await updateBookingStatus(bookingId, status);
@@ -564,7 +576,7 @@ export default function Bookings() {
                         {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()})
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>Edit Booking</Button>
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/bookings?edit=${booking.id}`)}>Edit Booking</Button>
                         <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete Booking</Button>
                       </div>
                     </div>
