@@ -183,6 +183,7 @@ export default function Bookings() {
   const [otherBookingItemId, setOtherBookingItemId] = useState(assistantOtherBookingOptions[0]?.id ?? '');
   const [otherBookingQuantity, setOtherBookingQuantity] = useState(1);
   const [otherBookingSelections, setOtherBookingSelections] = useState<OtherBookingSelection[]>([]);
+  const [approveDialogBookingId, setApproveDialogBookingId] = useState('');
   const [isInstallmentEditorOpen, setIsInstallmentEditorOpen] = useState(false);
   const [installmentEditorBookingId, setInstallmentEditorBookingId] = useState('');
   const [installmentEditAmount, setInstallmentEditAmount] = useState<Record<string, number>>({});
@@ -930,7 +931,6 @@ export default function Bookings() {
 
     const approveBookingToPendingPayment = async (bookingId: string) => {
       if (isRefreshingPage) return;
-      if (!confirmAction('Are you sure you want to approve this booking and move it to pending payment?')) return;
       const result = await updateBookingStatus(bookingId, 'approved');
       setMessage(result.message);
       toast({
@@ -1086,7 +1086,7 @@ export default function Bookings() {
                             <Button
                               size="sm"
                               disabled={isRefreshingPage}
-                              onClick={() => void approveBookingToPendingPayment(entry.id)}
+                              onClick={() => setApproveDialogBookingId(entry.id)}
                             >
                               Approve Booking
                             </Button>
@@ -1614,6 +1614,33 @@ export default function Bookings() {
                         </div>
                       ))
                     )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {approveDialogBookingId ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-700">Confirm Booking Approval</p>
+                  <p className="mt-3 text-sm text-slate-600">
+                    Are you sure you want to approve this booking and move it to pending payment?
+                  </p>
+                  <div className="mt-4 flex items-center justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setApproveDialogBookingId('')}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={isRefreshingPage}
+                      onClick={async () => {
+                        const bookingId = approveDialogBookingId;
+                        setApproveDialogBookingId('');
+                        await approveBookingToPendingPayment(bookingId);
+                      }}
+                    >
+                      OK
+                    </Button>
                   </div>
                 </div>
               </div>
