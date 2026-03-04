@@ -401,6 +401,20 @@ export default function Bookings() {
     navigate('/bookings', { replace: true });
   }, [bookings, isAssistantHall, location.pathname, location.search, navigate]);
 
+  useEffect(() => {
+    if (!isCashier1) return;
+    if (location.pathname !== '/bookings') return;
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('cashierTab');
+    const booking = params.get('booking');
+    if (tab === 'pending-approval' || tab === 'partial-payment' || tab === 'completed-payment') {
+      setCashierTab(tab);
+    }
+    if (booking) {
+      setSelectedBookingId(booking);
+    }
+  }, [isCashier1, location.pathname, location.search]);
+
   const handleBookingStatus = async (bookingId: string, status: 'approved' | 'rejected' | 'cancelled' | 'completed') => {
     if (!confirmAction(`Are you sure you want to mark this booking as ${toShortStatus(status)}?`)) return;
     const result = await updateBookingStatus(bookingId, status);
@@ -927,6 +941,8 @@ export default function Bookings() {
       if (result.ok) {
         setSelectedBookingId(bookingId);
         setCashierTab('partial-payment');
+        navigate(`/bookings?cashierTab=partial-payment&booking=${bookingId}`, { replace: true });
+        refreshPageAfterUpdate('Booking approved and moved to pending payment. Refreshing page...');
       }
     };
 
