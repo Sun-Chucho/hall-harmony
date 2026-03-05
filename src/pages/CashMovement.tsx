@@ -37,11 +37,13 @@ export default function CashMovement() {
     approveCashTransferRequest,
     declineCashTransferRequest,
     confirmCashTransferReceived,
+    denyCashTransferReceived,
   } = useEventFinance();
 
   const [message, setMessage] = useState('');
   const [moveCashAmount, setMoveCashAmount] = useState(0);
   const [moveCashComment, setMoveCashComment] = useState('');
+  const [moveCashDateTime, setMoveCashDateTime] = useState(() => toDateTimeLocal(new Date().toISOString()));
   const [requestAmount, setRequestAmount] = useState(0);
   const [requestComment, setRequestComment] = useState('');
   const [decisionAmount, setDecisionAmount] = useState<Record<string, number>>({});
@@ -82,6 +84,10 @@ export default function CashMovement() {
   );
   const incomingForCashier2 = useMemo(
     () => cashTransfers.filter((item) => item.status === 'sent_to_cashier_2'),
+    [cashTransfers],
+  );
+  const deniedOrCancelledTransfers = useMemo(
+    () => cashTransfers.filter((item) => item.status === 'declined_by_cashier_1' || item.status === 'denied_by_cashier_2'),
     [cashTransfers],
   );
 
@@ -253,7 +259,7 @@ export default function CashMovement() {
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <input
                                 type="text"
-                                placeholder="Receive comment"
+                                placeholder="Receive or deny comment"
                                 className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
                                 value={receiveComment[item.id] ?? ''}
                                 onChange={(event) => setReceiveComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
@@ -285,6 +291,35 @@ export default function CashMovement() {
                                 }}
                               >
                                 Received
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isSubmitting || isRefreshingPage}
+                                onClick={async () => {
+                                  if (isSubmitting || isRefreshingPage) return;
+                                  if (!canRunAction()) return;
+                                  if (!(receiveComment[item.id] ?? '').trim()) {
+                                    const invalidMessage = 'Deny comment is required before denying.';
+                                    setMessage(invalidMessage);
+                                    toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
+                                    return;
+                                  }
+                                  setIsSubmitting(true);
+                                  const result = await denyCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
+                                  setMessage(result.message);
+                                  toast({
+                                    title: result.ok ? 'Movement denied' : 'Deny failed',
+                                    description: result.message,
+                                    variant: result.ok ? 'default' : 'destructive',
+                                  });
+                                  if (result.ok) {
+                                    refreshPageAfterSend('Cash movement denied. Refreshing page...');
+                                  }
+                                  setIsSubmitting(false);
+                                }}
+                              >
+                                Deny
                               </Button>
                             </div>
                           </div>
@@ -498,8 +533,7 @@ export default function CashMovement() {
             bullets: [
               'Send cash directly to Cashier 2.',
               'Review requested cash from Cashier 2 and approve with amount or decline.',
-              'Track waiting and received statuses with date/time and comments.',
-              'Confirm receipt from history when needed.',
+              'Track waiting, received, and denied statuses with date/time and comments.',
             ],
           },
         ]}
@@ -511,14 +545,16 @@ export default function CashMovement() {
               <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
               <TabsTrigger value="requested-cash">Requested Cash</TabsTrigger>
               <TabsTrigger value="history">Cash Moved</TabsTrigger>
+              <TabsTrigger value="cancelled-denied">Cancelled/Denied</TabsTrigger>
             </TabsList>
 
             <TabsContent value="move-cash">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Send Cash to Cashier 2</p>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
                   <input type="number" placeholder="Amount to Move (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashAmount || ''} onChange={(event) => setMoveCashAmount(Number(event.target.value))} />
                   <input type="text" placeholder="Comment" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashComment} onChange={(event) => setMoveCashComment(event.target.value)} />
+                  <input type="datetime-local" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashDateTime} onChange={(event) => setMoveCashDateTime(event.target.value)} />
                 </div>
                 <div className="mt-4">
                   <Button
@@ -538,8 +574,19 @@ export default function CashMovement() {
                         toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
                         return;
                       }
+                      if (!moveCashDateTime || Number.isNaN(new Date(moveCashDateTime).getTime())) {
+                        const invalidMessage = 'Transfer date/time is required.';
+                        setMessage(invalidMessage);
+                        toast({ title: 'Missing date/time', description: invalidMessage, variant: 'destructive' });
+                        return;
+                      }
                       setIsSubmitting(true);
-                      const result = await sendCashToCashier2({ amount: moveCashAmount, comment: moveCashComment, actionId: crypto.randomUUID() });
+                      const result = await sendCashToCashier2({
+                        amount: moveCashAmount,
+                        comment: moveCashComment,
+                        transferDateTime: moveCashDateTime,
+                        actionId: crypto.randomUUID(),
+                      });
                       setMessage(result.message);
                       toast({
                         title: result.ok ? 'Cash sent' : 'Send failed',
@@ -549,6 +596,7 @@ export default function CashMovement() {
                       if (result.ok) {
                         setMoveCashAmount(0);
                         setMoveCashComment('');
+                        setMoveCashDateTime(toDateTimeLocal(new Date().toISOString()));
                         refreshPageAfterSend('Cash sent successfully. Refreshing page...');
                       }
                       setIsSubmitting(false);
@@ -671,6 +719,8 @@ export default function CashMovement() {
                             <Badge className="bg-amber-100 text-amber-800">Waiting</Badge>
                           ) : item.status === 'received_by_cashier_2' ? (
                             <Badge className="bg-emerald-100 text-emerald-700">Received</Badge>
+                          ) : item.status === 'denied_by_cashier_2' ? (
+                            <Badge className="bg-rose-100 text-rose-700">Denied by Cashier 2</Badge>
                           ) : item.status === 'declined_by_cashier_1' ? (
                             <Badge className="bg-rose-100 text-rose-700">Declined</Badge>
                           ) : (
@@ -684,45 +734,37 @@ export default function CashMovement() {
                         <p className="text-xs text-slate-500">
                           Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Received: {item.receivedAt ? new Date(item.receivedAt).toLocaleString() : '-'}
                         </p>
-                        {item.status === 'sent_to_cashier_2' ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <input
-                              type="text"
-                              placeholder="Receive comment"
-                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                              value={receiveComment[item.id] ?? ''}
-                              onChange={(event) => setReceiveComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                            />
-                            <Button
-                              size="sm"
-                              disabled={isSubmitting || isRefreshingPage}
-                              onClick={async () => {
-                                if (isSubmitting || isRefreshingPage) return;
-                                if (!canRunAction()) return;
-                                if (!(receiveComment[item.id] ?? '').trim()) {
-                                  const invalidMessage = 'Receive comment is required before confirming.';
-                                  setMessage(invalidMessage);
-                                  toast({ title: 'Missing comment', description: invalidMessage, variant: 'destructive' });
-                                  return;
-                                }
-                                setIsSubmitting(true);
-                                const result = await confirmCashTransferReceived(item.id, receiveComment[item.id] ?? '', crypto.randomUUID());
-                                setMessage(result.message);
-                                toast({
-                                  title: result.ok ? 'Receipt submitted' : 'Receipt failed',
-                                  description: result.message,
-                                  variant: result.ok ? 'default' : 'destructive',
-                                });
-                                if (result.ok) {
-                                  refreshPageAfterSend('Cash received confirmation sent. Refreshing page...');
-                                }
-                                setIsSubmitting(false);
-                              }}
-                            >
-                              Confirm Received
-                            </Button>
-                          </div>
-                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="cancelled-denied">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Cancelled / Denied Movements</p>
+                <div className="mt-3 space-y-3">
+                  {deniedOrCancelledTransfers.length === 0 ? (
+                    <p className="text-sm text-slate-600">No cancelled or denied movements.</p>
+                  ) : (
+                    deniedOrCancelledTransfers.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">{item.id}</p>
+                          {item.status === 'denied_by_cashier_2' ? (
+                            <Badge className="bg-rose-100 text-rose-700">Denied by Cashier 2</Badge>
+                          ) : (
+                            <Badge className="bg-rose-100 text-rose-700">Declined by Cashier 1</Badge>
+                          )}
+                        </div>
+                        <p className="text-slate-600">Amount: TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>
+                        <p className="text-slate-500">Request comment: {item.requestComment || '-'}</p>
+                        <p className="text-slate-500">Decision comment: {item.decisionComment || '-'}</p>
+                        <p className="text-slate-500">Receive/Deny comment: {item.receiveComment || '-'}</p>
+                        <p className="text-xs text-slate-500">
+                          Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Denied: {item.deniedAt ? new Date(item.deniedAt).toLocaleString() : '-'}
+                        </p>
                       </div>
                     ))
                   )}

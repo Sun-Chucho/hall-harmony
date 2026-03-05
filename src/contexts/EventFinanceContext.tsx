@@ -35,10 +35,11 @@ interface EventFinanceContextValue {
   releaseFunds: (requestId: string, releaseReference: string) => { ok: boolean; message: string };
   addDistribution: (input: DistributionInput) => { ok: boolean; message: string; distributionId?: string };
   requestCashTransferFromCashier2: (input: { amount: number; comment: string; actionId?: string }) => Promise<{ ok: boolean; message: string; requestId?: string }>;
-  sendCashToCashier2: (input: { amount: number; comment: string; actionId?: string }) => Promise<{ ok: boolean; message: string; transferId?: string }>;
+  sendCashToCashier2: (input: { amount: number; comment: string; transferDateTime?: string; actionId?: string }) => Promise<{ ok: boolean; message: string; transferId?: string }>;
   approveCashTransferRequest: (transferId: string, approvedAmount: number, decisionComment: string, actionId?: string) => Promise<{ ok: boolean; message: string }>;
   declineCashTransferRequest: (transferId: string, decisionComment: string, actionId?: string) => Promise<{ ok: boolean; message: string }>;
   confirmCashTransferReceived: (transferId: string, receiveComment: string, actionId?: string) => Promise<{ ok: boolean; message: string }>;
+  denyCashTransferReceived: (transferId: string, denyComment: string, actionId?: string) => Promise<{ ok: boolean; message: string }>;
   recordManagingDirectorTransfer: (input: { actionId?: string; amount: number; reference?: string; notes?: string }) => Promise<{ ok: boolean; message: string; transferId?: string }>;
   recordCashDistribution: (input: { actionId?: string; category: CashDistributionCategory; amount: number; reason: string; otherDetails?: string }) => Promise<{ ok: boolean; message: string; distributionId?: string }>;
   getAllocationSummary: (requestId: string) => { requested: number; distributed: number; remaining: number };
@@ -342,10 +343,13 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     }
   }, [appendLog, cashTransfers, persistCashTransferEvent, user]);
 
-  const sendCashToCashier2 = useCallback(async (input: { amount: number; comment: string; actionId?: string }) => {
+  const sendCashToCashier2 = useCallback(async (input: { amount: number; comment: string; transferDateTime?: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can send cash to Cashier 2.' };
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
+    const transferDate = input.transferDateTime ? new Date(input.transferDateTime) : new Date();
+    if (Number.isNaN(transferDate.getTime())) return { ok: false, message: 'Enter a valid transfer date/time.' };
+    const transferDateIso = transferDate.toISOString();
     const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
     const duplicateTransfer = cashTransfers.find((entry) => entry.clientActionId === actionId);
     if (duplicateTransfer) return { ok: true, message: 'Cash transfer already submitted.', transferId: duplicateTransfer.id };
@@ -361,10 +365,10 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       receiveComment: '',
       initiatedByUserId: user.id,
       initiatedByRole: 'cashier_1',
-      requestedAt: new Date().toISOString(),
-      decidedAt: new Date().toISOString(),
+      requestedAt: transferDateIso,
+      decidedAt: transferDateIso,
       decidedByUserId: user.id,
-      sentAt: new Date().toISOString(),
+      sentAt: transferDateIso,
       sentByUserId: user.id,
       status: 'sent_to_cashier_2',
     };
@@ -469,6 +473,36 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     }
   }, [cashTransfers, persistCashTransferEvent, user]);
 
+  const denyCashTransferReceived = useCallback(async (transferId: string, denyComment: string, actionId?: string) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can deny receipt.' };
+    if (!denyComment.trim()) return { ok: false, message: 'Deny comment is required.' };
+
+    const target = cashTransfers.find((item) => item.id === transferId);
+    if (!target) return { ok: false, message: 'Cash transfer not found.' };
+    if (target.status !== 'sent_to_cashier_2') return { ok: false, message: 'Transfer is not awaiting receipt confirmation.' };
+
+    const normalizedActionId = normalizeActionId(actionId);
+    if (normalizedActionId && cashTransfers.some((entry) => entry.clientActionId === normalizedActionId)) return { ok: true, message: 'Receipt denial already submitted.' };
+
+    const updated: CashTransfer = {
+      ...target,
+      clientActionId: normalizedActionId || target.clientActionId,
+      receiveComment: denyComment.trim(),
+      deniedAt: new Date().toISOString(),
+      deniedByUserId: user.id,
+      status: 'denied_by_cashier_2',
+    };
+    setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? updated : item)));
+    try {
+      await persistCashTransferEvent(updated);
+      return { ok: true, message: 'Cash movement denied by Cashier 2.' };
+    } catch {
+      setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? target : item)));
+      return { ok: false, message: 'Receipt denial failed to sync. Please try again.' };
+    }
+  }, [cashTransfers, persistCashTransferEvent, user]);
+
   const recordManagingDirectorTransfer = useCallback(async (input: { amount: number; reference?: string; notes?: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can record MD transfers.' };
@@ -556,13 +590,13 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     budgets, allocations, distributions, cashTransfers, mdTransfers, cashDistributions, logs,
     createBudget, requestAllocation, controllerDecision, releaseFunds, addDistribution,
     requestCashTransferFromCashier2, sendCashToCashier2, approveCashTransferRequest,
-    declineCashTransferRequest, confirmCashTransferReceived, recordManagingDirectorTransfer,
+    declineCashTransferRequest, confirmCashTransferReceived, denyCashTransferReceived, recordManagingDirectorTransfer,
     recordCashDistribution, getAllocationSummary, generateExpenseSheet,
   }), [
     addDistribution, allocations, approveCashTransferRequest, budgets, cashTransfers,
     confirmCashTransferReceived, controllerDecision, createBudget, declineCashTransferRequest,
     distributions, generateExpenseSheet, getAllocationSummary, cashDistributions, logs,
-    mdTransfers, recordCashDistribution, recordManagingDirectorTransfer, releaseFunds,
+    denyCashTransferReceived, mdTransfers, recordCashDistribution, recordManagingDirectorTransfer, releaseFunds,
     requestCashTransferFromCashier2, requestAllocation, sendCashToCashier2,
   ]);
 

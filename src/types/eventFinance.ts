@@ -69,7 +69,8 @@ export type CashTransferStatus =
   | 'pending_cashier_1_approval'
   | 'declined_by_cashier_1'
   | 'sent_to_cashier_2'
-  | 'received_by_cashier_2';
+  | 'received_by_cashier_2'
+  | 'denied_by_cashier_2';
 
 export interface CashTransfer {
   id: string;
@@ -88,6 +89,8 @@ export interface CashTransfer {
   sentByUserId?: string;
   receivedAt?: string;
   receivedByUserId?: string;
+  deniedAt?: string;
+  deniedByUserId?: string;
   status: CashTransferStatus;
 }
 
