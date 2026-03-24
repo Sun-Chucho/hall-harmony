@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, Check, Phone, Star, X } from 'lucide-react';
+import { ArrowRight, Check, Phone, Sparkles, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { beverageList, beverageNotes, cakeOptions, conferencePackages, decorationPackages, externalServices } from '@/lib/landingData';
+import { beverageList, beverageNotes, cakeOptions, clientDeclaration, conferencePackages, decorationPackages, externalServices } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
 import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { bankAccounts, destinationProfiles, foodMenus, hallOperationsPolicy, importantNotices } from '@/lib/destinationProfiles';
+import { bankAccounts, decorByPax, destinationContact, destinationProfiles, foodMenus, hallOperationsPolicy, importantNotices, photoshootPackage } from '@/lib/destinationProfiles';
 import { SITE_IMAGES, VENUE_IMAGE_BY_ID } from '@/lib/siteImages';
 import heroVideo from '../../HALLS.mp4';
 
@@ -19,7 +19,16 @@ const IMAGES = {
   'kilimanjaro-garden': VENUE_IMAGE_BY_ID['kilimanjaro-garden'],
   'hall-d': VENUE_IMAGE_BY_ID['hall-d'],
   suite: SITE_IMAGES.lounge,
+  premium: SITE_IMAGES.premium,
+  journal: SITE_IMAGES.journal,
+  editorial: SITE_IMAGES.editorial,
 };
+
+const GALLERY_IMAGES = [
+  { src: SITE_IMAGES.premium, alt: 'Premium hall styling' },
+  { src: SITE_IMAGES.journal, alt: 'Journal event styling' },
+  { src: SITE_IMAGES.editorial, alt: 'Editorial hall view' },
+];
 
 const STORY_CARDS = [
   {
@@ -172,6 +181,60 @@ export default function Index() {
       </section>
 
       <main className="mx-auto max-w-7xl px-4 pb-20">
+        <section className="reveal-on-scroll -mt-16 relative z-10 pb-10">
+          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <article className="overflow-hidden rounded-[2rem] border border-black/10 bg-white shadow-[0_24px_70px_rgba(11,16,33,0.08)]">
+              <div className="grid gap-0 md:grid-cols-[1.15fr_0.85fr]">
+                <div className="p-8 md:p-10">
+                  <p className="text-xs uppercase tracking-[0.32em] text-[#8a816e]">{isSw ? 'Mwonekano wa Kiwango cha Juu' : 'World-Class Presentation'}</p>
+                  <h2 className="mt-4 text-3xl font-semibold leading-tight md:text-4xl">
+                    {isSw ? 'Picha nyingi zaidi, maelezo zaidi, lakini bado ukurasa mmoja safi' : 'More imagery, fuller detail, still one sleek landing page'}
+                  </h2>
+                  <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#5f5a52]">
+                    {isSw
+                      ? 'Kila sehemu muhimu sasa inaweza kufunguliwa kwa kitufe, huku picha halisi za Kuringe zikibaki mbele ili ukurasa uonekane wa kimataifa na wa kuvutia.'
+                      : 'Every major section now opens on demand while real Kuringe photography stays front and center, giving the site a more polished international feel.'}
+                  </p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Link to="/?section=destinations">
+                      <Button className="rounded-full bg-[#121212] px-6 text-white hover:bg-[#262626]">{isSw ? 'Tazama Kumbi' : 'View Venues'}</Button>
+                    </Link>
+                    <Link to="/?section=planner">
+                      <Button variant="outline" className="rounded-full border-black/15 px-6">{isSw ? 'Fungua Maelezo' : 'Reveal Details'}</Button>
+                    </Link>
+                  </div>
+                </div>
+                <div className="grid min-h-[320px] grid-cols-2 grid-rows-2 gap-2 bg-[#efe8db] p-3">
+                  <img src={GALLERY_IMAGES[0].src} alt={GALLERY_IMAGES[0].alt} className="col-span-2 h-full w-full rounded-[1.4rem] object-cover" />
+                  <img src={GALLERY_IMAGES[1].src} alt={GALLERY_IMAGES[1].alt} className="h-full w-full rounded-[1.2rem] object-cover" />
+                  <img src={GALLERY_IMAGES[2].src} alt={GALLERY_IMAGES[2].alt} className="h-full w-full rounded-[1.2rem] object-cover" />
+                </div>
+              </div>
+            </article>
+
+            <article className="overflow-hidden rounded-[2rem] bg-[linear-gradient(140deg,#14070a_0%,#48161d_55%,#c6a75e_100%)] p-8 text-white shadow-[0_24px_70px_rgba(79,23,26,0.18)]">
+              <div className="flex items-center gap-2 text-[#f4dec0]">
+                <Sparkles className="h-4 w-4" />
+                <p className="text-xs uppercase tracking-[0.28em]">{isSw ? 'Sasa ni rahisi zaidi' : 'Now cleaner and easier'}</p>
+              </div>
+              <div className="mt-8 grid gap-4">
+                <div className="rounded-[1.4rem] border border-white/15 bg-white/8 p-5 backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/65">{isSw ? 'Kumbi' : 'Venues'}</p>
+                  <p className="mt-2 text-lg font-semibold">{destinationProfiles.length} {isSw ? 'nafasi tofauti' : 'distinct spaces'}</p>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/15 bg-white/8 p-5 backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/65">{isSw ? 'Huduma' : 'Services'}</p>
+                  <p className="mt-2 text-lg font-semibold">{externalServices.length + conferencePackages.length} {isSw ? 'mipango ya ziada' : 'expanded planning options'}</p>
+                </div>
+                <div className="rounded-[1.4rem] border border-white/15 bg-white/8 p-5 backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/65">{isSw ? 'Sera na malipo' : 'Policies and payments'}</p>
+                  <p className="mt-2 text-lg font-semibold">{bankAccounts.length} {isSw ? 'accounts rasmi na masharti yote' : 'official payment accounts and full terms'}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section id="destinations" className="reveal-on-scroll py-20">
           <div className="text-center">
             <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Kumbi' : 'Destinations'}</h2>
@@ -197,6 +260,49 @@ export default function Index() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          <div className="mt-8 overflow-hidden rounded-[2rem] border border-black/10 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.05)] md:p-8">
+            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <img src={IMAGES.witness} alt="Witness Hall interior" className="h-[240px] w-full rounded-[1.5rem] object-cover sm:h-full" />
+                <div className="grid gap-3">
+                  <img src={IMAGES.kilimanjaro} alt="Kilimanjaro Hall" className="h-[150px] w-full rounded-[1.3rem] object-cover" />
+                  <img src={IMAGES['kilimanjaro-garden']} alt="Kilimanjaro Garden" className="h-[150px] w-full rounded-[1.3rem] object-cover" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-[#8a816e]">{isSw ? 'Maelezo yaliyofichwa' : 'Expanded venue reveal'}</p>
+                <h3 className="mt-4 text-3xl font-semibold">{isSw ? 'Fungua profaili kamili ya kila ukumbi' : 'Open the full profile for each venue'}</h3>
+                <Accordion type="single" collapsible className="mt-6">
+                  {destinationProfiles.map((destination) => (
+                    <AccordionItem key={destination.id} value={destination.id}>
+                      <AccordionTrigger className="text-left text-base">{destination.name}</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
+                          <img
+                            src={IMAGES[destination.id as keyof typeof IMAGES]}
+                            alt={destination.name}
+                            className="h-[220px] w-full rounded-[1.3rem] object-cover"
+                          />
+                          <div>
+                            <p className="text-sm font-semibold text-[#7a151b]">{destination.alias} • {destination.capacity} {isSw ? 'wageni' : 'guests'}</p>
+                            <p className="mt-3 text-sm leading-relaxed text-[#5b5b5b]">{destination.heroSummary}</p>
+                            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-[#8a8a8a]">{isSw ? 'Bora kwa' : 'Ideal for'}</p>
+                            <p className="mt-2 text-sm text-[#5b5b5b]">{destination.idealFor.join(' • ')}</p>
+                            <div className="mt-4 grid gap-2">
+                              {destination.signatureHighlights.map((highlight) => (
+                                <p key={highlight} className="rounded-xl bg-[#f7f4ed] px-4 py-3 text-sm text-[#4e4e4e]">{highlight}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -224,6 +330,53 @@ export default function Index() {
                 </Link>
               </article>
             ))}
+          </div>
+
+          <div className="mt-8 overflow-hidden rounded-[2rem] border border-black/10 bg-[#111111] p-6 text-white md:p-8">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-white/55">{isSw ? 'Bei Zilizofichwa Vizuri' : 'Refined rate reveal'}</p>
+                <h3 className="mt-4 text-3xl font-semibold">{isSw ? 'Bei rasmi zote zipo hapa bila kubeba ukurasa mzima' : 'All official rates stay here without overcrowding the page'}</h3>
+                <p className="mt-4 text-sm leading-relaxed text-white/75">
+                  {isSw
+                    ? 'Bonyeza kufungua viwango vya gala dinner na viwango vya kila ukumbi kwa muonekano safi na wa kifahari.'
+                    : 'Press to reveal gala dinner and hall-specific rate tables in a cleaner, more premium format.'}
+                </p>
+              </div>
+              <Accordion type="single" collapsible className="rounded-[1.6rem] border border-white/10 bg-white/5 px-5">
+                {destinationProfiles.map((hall) => (
+                  <AccordionItem key={`${hall.id}-rates`} value={`${hall.id}-rates`} className="border-white/10">
+                    <AccordionTrigger className="text-left text-base text-white">{hall.name}</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-[1.2rem] bg-black/30 p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-white/55">{isSw ? 'Ukumbi wa kawaida' : 'Standard rental'}</p>
+                          <div className="mt-3 space-y-2">
+                            {hall.standardRentalRates.map((rate) => (
+                              <div key={`${hall.id}-standard-${rate.label}`} className="flex items-center justify-between gap-3 text-sm text-white/80">
+                                <span>{rate.label}</span>
+                                <span className="font-semibold text-white">{formatTZS(rate.price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-[1.2rem] bg-[#c6a75e]/15 p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-[#f0d9a1]">{isSw ? 'Gala dinner' : 'Gala dinner'}</p>
+                          <div className="mt-3 space-y-2">
+                            {hall.galaDinnerRates.map((rate) => (
+                              <div key={`${hall.id}-gala-${rate.label}`} className="flex items-center justify-between gap-3 text-sm text-white/80">
+                                <span>{rate.label}</span>
+                                <span className="font-semibold text-white">{formatTZS(rate.price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
           </div>
         </section>
 
@@ -305,6 +458,79 @@ export default function Index() {
               </div>
             </div>
           </article>
+
+          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+            <article className="overflow-hidden rounded-[1.8rem] border border-black/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)] lg:col-span-2">
+              <img src={IMAGES.premium} alt="Premium decoration package" className="h-[260px] w-full object-cover" />
+              <div className="p-6 md:p-8">
+                <p className="text-xs uppercase tracking-[0.26em] text-[#8a816e]">{isSw ? 'Vifurushi vikubwa' : 'Signature packages'}</p>
+                <Accordion type="single" collapsible className="mt-4">
+                  {decorationPackages.map((pkg, index) => {
+                    const style = getDecorationPackageVisual(index);
+                    return (
+                      <AccordionItem key={pkg.title} value={pkg.title}>
+                        <AccordionTrigger className="text-left">
+                          <div>
+                            <p className={`inline-flex rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${style.badgeClass}`}>{getTierLabel(style.tier, isSw)}</p>
+                            <p className="mt-2 text-base font-semibold text-[#161616]">{getDecorationPackageName(pkg.title)}</p>
+                            <p className="text-sm text-[#7a151b]">{formatTZS(pkg.price)}</p>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {pkg.highlights.map((highlight) => (
+                              <p key={highlight} className="rounded-xl bg-[#f8f4ec] px-4 py-3 text-sm text-[#4d4d4d]">{highlight}</p>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </div>
+            </article>
+
+            <article className="overflow-hidden rounded-[1.8rem] border border-black/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+              <img src={IMAGES.journal} alt="Decor by pax packages" className="h-[220px] w-full object-cover" />
+              <div className="p-6">
+                <p className="text-xs uppercase tracking-[0.26em] text-[#8a816e]">{isSw ? 'PAX na photoshoot' : 'PAX and photoshoot'}</p>
+                <Accordion type="single" collapsible className="mt-4">
+                  {decorByPax.map((item) => (
+                    <AccordionItem key={item.title} value={item.title}>
+                      <AccordionTrigger className="text-left">
+                        <div>
+                          <p className="text-sm font-semibold text-[#161616]">{item.title}</p>
+                          <p className="text-sm text-[#7a151b]">{formatTZS(item.price)}</p>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid gap-2">
+                          {item.items.map((entry) => (
+                            <p key={entry} className="rounded-xl bg-[#f8f4ec] px-4 py-3 text-sm text-[#4d4d4d]">{entry}</p>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                  <AccordionItem value="photoshoot">
+                    <AccordionTrigger className="text-left">
+                      <div>
+                        <p className="text-sm font-semibold text-[#161616]">{photoshootPackage.title}</p>
+                        <p className="text-sm text-[#7a151b]">{formatTZS(photoshootPackage.price)}</p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid gap-2">
+                        {photoshootPackage.items.map((entry) => (
+                          <p key={entry} className="rounded-xl bg-[#f8f4ec] px-4 py-3 text-sm text-[#4d4d4d]">{entry}</p>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section id="contact" className="reveal-on-scroll py-14">
@@ -351,9 +577,9 @@ export default function Index() {
 
             <article className="border border-black/10 bg-white p-6">
               <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
-                <div className="relative overflow-hidden border border-black/10 min-h-[220px]">
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,#f6efe2_0%,#ebd1a2_45%,#7a151b_100%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.55),transparent_30%),linear-gradient(rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[length:auto,26px_26px,26px_26px]" />
+                <div className="grid gap-3">
+                  <img src={IMAGES.editorial} alt="Event planner view" className="min-h-[220px] w-full rounded-[1.4rem] object-cover" />
+                  <img src={IMAGES.suite} alt="Luxury suite setup" className="h-[120px] w-full rounded-[1.2rem] object-cover" />
                 </div>
                 <div>
                   <h4 className="text-lg font-semibold">{isSw ? 'Vifurushi Bora vya Mapambo' : 'Top Decoration Packages'}</h4>
@@ -436,14 +662,15 @@ export default function Index() {
                 <AccordionItem value="decor">
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Vifurushi vya mapambo' : 'Decoration packages'}</AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      <img src={IMAGES.premium} alt="Decoration package detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       {decorationPackages.map((pkg) => (
                         <div key={pkg.title} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
                           <div className="flex items-center justify-between gap-3">
                             <p className="font-semibold text-[#161616]">{getDecorationPackageName(pkg.title)}</p>
                             <p className="text-sm font-semibold text-[#7a151b]">{formatTZS(pkg.price)}</p>
                           </div>
-                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights.slice(0, 4).join(' • ')}</p>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights.join(' • ')}</p>
                         </div>
                       ))}
                     </div>
@@ -453,20 +680,21 @@ export default function Index() {
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Chakula na conference menus' : 'Food and conference menus'}</AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4">
+                      <img src={IMAGES.journal} alt="Food and banquet planning" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       {foodMenus.map((menu) => (
                         <div key={menu.title} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
                           <div className="flex items-center justify-between gap-3">
                             <p className="font-semibold text-[#161616]">{menu.title}</p>
                             <p className="text-sm text-[#5d5d5d]">{isSw ? 'Starter + Buffet' : 'Starter + Buffet'}</p>
                           </div>
-                          <p className="mt-2 text-sm text-[#5d5d5d]">{[...menu.starter, ...menu.buffet].slice(0, 7).join(' • ')}</p>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{[...menu.starter, ...menu.buffet].join(' • ')}</p>
                         </div>
                       ))}
-                      {conferencePackages.slice(0, 2).map((pkg) => (
+                      {conferencePackages.map((pkg) => (
                         <div key={pkg.attendees} className="rounded-2xl border border-black/10 bg-[#f5f2eb] p-4">
                           <p className="font-semibold text-[#161616]">{isSw ? 'Conference' : 'Conference'} {pkg.attendees}</p>
                           <p className="mt-1 text-sm text-[#5d5d5d]">{pkg.pricePoint}</p>
-                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.amenities.slice(0, 6).join(' • ')}</p>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.amenities.join(' • ')}</p>
                         </div>
                       ))}
                     </div>
@@ -476,17 +704,22 @@ export default function Index() {
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Vinywaji na huduma za ziada' : 'Drinks and extra services'}</AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4">
+                      <img src={IMAGES.editorial} alt="Drinks and services detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       <div className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
                         <p className="font-semibold text-[#161616]">{isSw ? 'Vinywaji maarufu' : 'Popular beverages'}</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {beverageList.slice(0, 8).map((drink) => (
+                          {beverageList.map((drink) => (
                             <div key={drink.name} className="flex items-center justify-between gap-3 text-sm text-[#5d5d5d]">
                               <span>{drink.name}</span>
                               <span className="font-medium text-[#161616]">{formatTZS(drink.price)}</span>
                             </div>
                           ))}
                         </div>
-                        <p className="mt-3 text-xs text-[#6a6a6a]">{beverageNotes[0]}</p>
+                        <div className="mt-3 space-y-1">
+                          {beverageNotes.map((note) => (
+                            <p key={note} className="text-xs text-[#6a6a6a]">{note}</p>
+                          ))}
+                        </div>
                       </div>
                       <div className="rounded-2xl border border-black/10 bg-[#f5f2eb] p-4">
                         <p className="font-semibold text-[#161616]">{isSw ? 'Huduma nyingine' : 'Additional services'}</p>
@@ -506,7 +739,8 @@ export default function Index() {
                 <AccordionItem value="operations">
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Taratibu za ukumbi' : 'Hall operations policy'}</AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
+                      <img src={IMAGES.witness} alt="Hall operations detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       {hallOperationsPolicy.map((item) => (
                         <p key={item} className="rounded-2xl bg-[#faf8f4] px-4 py-3 text-sm text-[#5d5d5d]">{item}</p>
                       ))}
@@ -516,7 +750,8 @@ export default function Index() {
                 <AccordionItem value="payment">
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Accounts za malipo' : 'Payment accounts'}</AccordionTrigger>
                   <AccordionContent>
-                    <div className="grid gap-3">
+                    <div className="grid gap-4">
+                      <img src={IMAGES.kilimanjaro} alt="Payment detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       {bankAccounts.map((account) => (
                         <div key={account.bank} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
                           <p className="font-semibold text-[#161616]">{account.bank}</p>
@@ -530,10 +765,23 @@ export default function Index() {
                 <AccordionItem value="important">
                   <AccordionTrigger className="text-left text-base">{isSw ? 'Taarifa muhimu' : 'Important notices'}</AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
+                      <img src={IMAGES['kilimanjaro-garden']} alt="Important notices detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
                       {importantNotices.map((item) => (
                         <p key={item} className="rounded-2xl bg-[#faf8f4] px-4 py-3 text-sm text-[#5d5d5d]">{item}</p>
                       ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="declaration">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Tamko la mteja' : 'Client declaration'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4">
+                      <img src={IMAGES['hall-d']} alt="Client declaration detail" className="h-[220px] w-full rounded-[1.4rem] object-cover" />
+                      <div className="rounded-2xl border border-black/10 bg-[#faf8f4] p-5">
+                        <p className="text-sm leading-relaxed text-[#4d4d4d]">{clientDeclaration}</p>
+                        <p className="mt-4 text-sm font-medium text-[#7a151b]">{isSw ? 'Mawasiliano ya ofisi' : 'Office contact'}: {destinationContact}</p>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>
