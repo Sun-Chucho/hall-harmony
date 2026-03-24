@@ -423,7 +423,7 @@ export default function Index() {
 
         {/* ─── PLANNER ─── */}
         <section id="planner" className="reveal-slide-right py-16">
-          <div className="grid gap-14 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="flex flex-col gap-10">
             <article>
               <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-[#7A151B]">{isSw ? 'Uratibu' : 'Planning'}</p>
               <h3 className="mt-3 text-3xl font-bold tracking-tight">{isSw ? 'Panga na Kuringe' : 'Plan With Kuringe'}</h3>
@@ -433,7 +433,7 @@ export default function Index() {
                 <Link to="/?section=policies"><Button variant="outline" className="rounded-full border-black/10 px-7">{isSw ? 'Soma Sera' : 'Read Policies'}</Button></Link>
               </div>
             </article>
-            <article className="overflow-hidden rounded-2xl border border-black/[.06] bg-white p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+            <article className="w-full max-w-4xl overflow-hidden rounded-2xl border border-black/[.06] bg-white p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
               <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
                 <div className="grid gap-3">
                   <img src={IMAGES.editorial} alt="Event planner" className="min-h-[220px] w-full rounded-2xl object-cover" />
