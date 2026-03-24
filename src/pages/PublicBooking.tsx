@@ -1,6 +1,6 @@
-import { FormEvent, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CalendarDays } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { CalendarDays, ArrowLeft, Check } from 'lucide-react';
 import PublicNavbar from '@/components/landing/PublicNavbar';
 import { Button } from '@/components/ui/button';
 import { useBookings } from '@/contexts/BookingContext';
@@ -44,11 +44,12 @@ const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
 function createRequestId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+const inputClass = 'h-12 w-full rounded-xl border border-black/10 bg-[#faf5f5] px-4 text-sm outline-none transition focus:border-[#7A151B]/30 focus:ring-2 focus:ring-[#7A151B]/10';
+const selectClass = 'h-12 w-full rounded-xl border border-black/10 bg-[#faf5f5] px-4 text-sm outline-none transition focus:border-[#7A151B]/30 focus:ring-2 focus:ring-[#7A151B]/10 appearance-none';
 
 export default function PublicBooking() {
   const { language } = useLanguage();
@@ -65,6 +66,16 @@ export default function PublicBooking() {
   const [activeRequestId, setActiveRequestId] = useState(() => createRequestId());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOtherHallSelected, setIsOtherHallSelected] = useState(false);
+
+  /* scroll-reveal observer */
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('revealed'); observer.unobserve(e.target); } }),
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('[class*="reveal-"]').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
 
   const selectedHall = useMemo(() => HALL_OPTIONS.find((item) => item.name === form.hall), [form.hall]);
   const quote = selectedHall && form.date ? hallPrice(selectedHall.id, form.date) : 0;
@@ -83,11 +94,7 @@ export default function PublicBooking() {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (isSubmitting) return;
-
-    const payload: CreateBookingInput = {
-      ...form,
-      quotedAmount: calculatedAmount,
-    };
+    const payload: CreateBookingInput = { ...form, quotedAmount: calculatedAmount };
     setIsSubmitting(true);
     try {
       const result = await createPublicBooking(payload, activeRequestId);
@@ -97,11 +104,7 @@ export default function PublicBooking() {
         variant: result.ok ? 'default' : 'destructive',
       });
       if (result.ok) {
-        setForm({
-          ...INITIAL_BOOKING,
-          eventName: packageName ? `${packageName} Package Booking` : '',
-          notes: packageName ? `Selected package: ${packageName}` : '',
-        });
+        setForm({ ...INITIAL_BOOKING, eventName: packageName ? `${packageName} Package Booking` : '', notes: packageName ? `Selected package: ${packageName}` : '' });
         setIsOtherHallSelected(false);
         setActiveRequestId(createRequestId());
       }
@@ -111,32 +114,53 @@ export default function PublicBooking() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F7] text-[#1B1B1B]">
+    <div className="min-h-screen bg-white text-[#0A0A0A]">
       <PublicNavbar />
-      <main className="mx-auto max-w-3xl px-4 py-14">
-        <section className="rounded-2xl border border-[#e9e5dc] bg-white p-8 shadow-sm">
-          <div className="mb-6 flex items-center justify-between">
+
+      {/* ─── HERO STRIP ─── */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#0A0A0A] via-[#3B0B12] to-[#7A151B] px-6 pb-20 pt-28 text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_50%)]" />
+        <div className="relative mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.06] px-4 py-1.5">
+            <CalendarDays className="h-4 w-4 text-[#ff9999]" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">{isSw ? 'Uhifadhi wa Moja kwa Moja' : 'Direct Booking'}</span>
+          </div>
+          <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-5xl">{isSw ? 'Hifadhi Tarehe Yako' : 'Reserve Your Date'}</h1>
+          <p className="mt-4 text-[15px] text-white/60">{isSw ? 'Jaza taarifa zako na utume moja kwa moja kwenye mfumo wetu wa uhifadhi.' : 'Fill your details and submit directly to our booking system.'}</p>
+        </div>
+      </section>
+
+      <main className="mx-auto max-w-3xl px-6 py-14">
+        {/* ─── BACK LINK ─── */}
+        <Link to="/" className="reveal-fade-up inline-flex items-center gap-2 text-sm font-medium text-[#0A0A0A]/50 transition hover:text-[#7A151B]">
+          <ArrowLeft className="h-4 w-4" /> {isSw ? 'Rudi Nyumbani' : 'Back Home'}
+        </Link>
+
+        {/* ─── BOOKING FORM ─── */}
+        <section className="reveal-fade-up mt-8 rounded-2xl border border-black/[.06] bg-white p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-[#111111]" style={{ fontFamily: '"Playfair Display", Georgia, serif' }}>
-                {isSw ? 'Sehemu ya Uhifadhi' : 'Booking Section'}
-              </h1>
-              <p className="mt-2 text-sm text-[#777777]">
-                {isSw
-                  ? 'Jaza taarifa zako na utume moja kwa moja kwenye mfumo wetu wa uhifadhi.'
-                  : 'Fill your details and submit directly to our backend booking workflow.'}
-              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7A151B]">{isSw ? 'Sehemu ya Uhifadhi' : 'Booking Form'}</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight">{isSw ? 'Tuma maombi yako' : 'Submit your request'}</h2>
             </div>
-            <CalendarDays className="h-6 w-6 text-[#C6A75E]" />
+            <div className="rounded-xl bg-[#faf5f5] p-3">
+              <CalendarDays className="h-5 w-5 text-[#7A151B]" />
+            </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="mt-8 space-y-5">
+            {/* Name & Phone */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <input className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" placeholder={isSw ? 'Jina la Mteja' : 'Customer Name'} value={form.customerName} onChange={(e) => onChange('customerName', e.target.value)} />
-              <input className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" placeholder={isSw ? 'Namba ya Simu' : 'Phone Number'} value={form.customerPhone} onChange={(e) => onChange('customerPhone', e.target.value)} />
+              <input className={inputClass} placeholder={isSw ? 'Jina la Mteja' : 'Customer Name'} value={form.customerName} onChange={(e) => onChange('customerName', e.target.value)} />
+              <input className={inputClass} placeholder={isSw ? 'Namba ya Simu' : 'Phone Number'} value={form.customerPhone} onChange={(e) => onChange('customerPhone', e.target.value)} />
             </div>
-            <input className="h-11 w-full rounded-xl border border-[#e4ded1] bg-white px-3" placeholder={isSw ? 'Jina la Tukio' : 'Event Name'} value={form.eventName} onChange={(e) => onChange('eventName', e.target.value)} />
+
+            {/* Event Name */}
+            <input className={inputClass} placeholder={isSw ? 'Jina la Tukio' : 'Event Name'} value={form.eventName} onChange={(e) => onChange('eventName', e.target.value)} />
+
+            {/* Event Type & Hall */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <select className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.eventType} onChange={(e) => onChange('eventType', e.target.value)}>
+              <select className={selectClass} value={form.eventType} onChange={(e) => onChange('eventType', e.target.value)}>
                 <option>{isSw ? 'Harusi' : 'Wedding'}</option>
                 <option>{isSw ? 'Mkutano' : 'Conference'}</option>
                 <option>{isSw ? 'Siku ya Kuzaliwa' : 'Birthday'}</option>
@@ -144,14 +168,10 @@ export default function PublicBooking() {
                 <option>{isSw ? 'Nyingine' : 'Other'}</option>
               </select>
               <select
-                className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3"
+                className={selectClass}
                 value={hallSelectionValue}
                 onChange={(e) => {
-                  if (e.target.value === HALL_OTHER_VALUE) {
-                    setIsOtherHallSelected(true);
-                    onChange('hall', '');
-                    return;
-                  }
+                  if (e.target.value === HALL_OTHER_VALUE) { setIsOtherHallSelected(true); onChange('hall', ''); return; }
                   setIsOtherHallSelected(false);
                   onChange('hall', e.target.value);
                 }}
@@ -161,52 +181,72 @@ export default function PublicBooking() {
                 <option value={HALL_OTHER_VALUE}>{isSw ? 'Nyingine' : 'Other hall'}</option>
               </select>
             </div>
-            {isOtherHallSelected ? (
-              <input
-                className="h-11 w-full rounded-xl border border-[#e4ded1] bg-white px-3"
-                placeholder={isSw ? 'Andika jina la ukumbi' : 'Hall name'}
-                value={form.hall}
-                onChange={(e) => onChange('hall', e.target.value)}
-              />
-            ) : null}
+
+            {isOtherHallSelected && (
+              <input className={inputClass} placeholder={isSw ? 'Andika jina la ukumbi' : 'Hall name'} value={form.hall} onChange={(e) => onChange('hall', e.target.value)} />
+            )}
+
+            {/* Date & Times */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <input type="date" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.date} onChange={(e) => onChange('date', e.target.value)} />
-              <input type="time" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.startTime} onChange={(e) => onChange('startTime', e.target.value)} />
-              <input type="time" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" value={form.endTime} onChange={(e) => onChange('endTime', e.target.value)} />
+              <input type="date" className={inputClass} value={form.date} onChange={(e) => onChange('date', e.target.value)} />
+              <input type="time" className={inputClass} value={form.startTime} onChange={(e) => onChange('startTime', e.target.value)} />
+              <input type="time" className={inputClass} value={form.endTime} onChange={(e) => onChange('endTime', e.target.value)} />
             </div>
+
+            {/* Guests & Quote */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <input type="number" className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3" placeholder={isSw ? 'Idadi ya Wageni' : 'Expected Guests'} value={form.expectedGuests || ''} onChange={(e) => onChange('expectedGuests', Number(e.target.value))} />
+              <input type="number" className={inputClass} placeholder={isSw ? 'Idadi ya Wageni' : 'Expected Guests'} value={form.expectedGuests || ''} onChange={(e) => onChange('expectedGuests', Number(e.target.value))} />
               {selectedHall ? (
-                <input
-                  className="h-11 rounded-xl border border-[#e4ded1] bg-[#faf7f1] px-3 text-[#6b6253]"
-                  value={quote > 0 ? formatTZS(quote) : isSw ? 'Bei itaonekana baada ya kuchagua ukumbi na tarehe' : 'Quote auto-calculated after hall/date'}
-                  readOnly
-                />
+                <div className="flex h-12 items-center rounded-xl border border-black/10 bg-[#faf5f5] px-4">
+                  <span className="text-sm font-semibold text-[#7A151B]">{quote > 0 ? formatTZS(quote) : isSw ? 'Bei itaonekana...' : 'Auto-calculated...'}</span>
+                </div>
               ) : (
-                <input
-                  type="number"
-                  className="h-11 rounded-xl border border-[#e4ded1] bg-white px-3"
-                  placeholder={isSw ? 'Andika kiasi cha bei (TZS)' : 'Enter quote amount (TZS)'}
-                  value={form.quotedAmount || ''}
-                  onChange={(e) => onChange('quotedAmount', Number(e.target.value))}
-                />
+                <input type="number" className={inputClass} placeholder={isSw ? 'Andika kiasi cha bei (TZS)' : 'Enter quote amount (TZS)'} value={form.quotedAmount || ''} onChange={(e) => onChange('quotedAmount', Number(e.target.value))} />
               )}
             </div>
-            <textarea className="w-full rounded-xl border border-[#e4ded1] bg-white px-3 py-2" rows={3} placeholder={isSw ? 'Maelezo ya Ziada' : 'Additional Notes'} value={form.notes} onChange={(e) => onChange('notes', e.target.value)} />
 
-            <p className={`text-xs ${conflict ? 'text-red-600' : 'text-emerald-700'}`}>
+            {/* Notes */}
+            <textarea className="w-full rounded-xl border border-black/10 bg-[#faf5f5] px-4 py-3 text-sm outline-none transition focus:border-[#7A151B]/30 focus:ring-2 focus:ring-[#7A151B]/10" rows={3} placeholder={isSw ? 'Maelezo ya Ziada' : 'Additional Notes'} value={form.notes} onChange={(e) => onChange('notes', e.target.value)} />
+
+            {/* Conflict Status */}
+            <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${conflict ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              <Check className="h-4 w-4" />
               {conflict
                 ? isSw ? 'Muda uliochaguliwa tayari umechukuliwa.' : 'Selected slot already occupied.'
                 : isSw ? 'Muda uliochaguliwa unapatikana.' : 'Selected slot is available.'}
-            </p>
-            <Button type="submit" disabled={isSubmitting} className="w-full rounded-full bg-[#1f1f1f] text-white hover:bg-[#2c2c2c] disabled:cursor-not-allowed disabled:opacity-70">
+            </div>
+
+            {/* Submit */}
+            <Button type="submit" disabled={isSubmitting} className="h-12 w-full rounded-full bg-[#7A151B] text-sm font-semibold text-white hover:bg-[#5C0A0F] disabled:cursor-not-allowed disabled:opacity-70">
               {isSubmitting
                 ? (isSw ? 'Inatuma...' : 'Submitting...')
                 : (isSw ? 'Wasilisha Uhifadhi' : 'Submit Booking')}
             </Button>
           </form>
         </section>
+
+        {/* ─── INFO STRIP ─── */}
+        <div className="reveal-scale mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-5 text-center">
+            <p className="text-2xl font-bold text-[#7A151B]">4</p>
+            <p className="mt-1 text-xs text-[#0A0A0A]/40 uppercase tracking-[0.15em]">{isSw ? 'Kumbi' : 'Venues'}</p>
+          </div>
+          <div className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-5 text-center">
+            <p className="text-2xl font-bold text-[#7A151B]">24h</p>
+            <p className="mt-1 text-xs text-[#0A0A0A]/40 uppercase tracking-[0.15em]">{isSw ? 'Jibu Haraka' : 'Response'}</p>
+          </div>
+          <div className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-5 text-center">
+            <p className="text-2xl font-bold text-[#7A151B]">100%</p>
+            <p className="mt-1 text-xs text-[#0A0A0A]/40 uppercase tracking-[0.15em]">{isSw ? 'Salama' : 'Secure'}</p>
+          </div>
+        </div>
       </main>
+
+      {/* ─── FOOTER ─── */}
+      <footer className="bg-[#0A0A0A] px-6 py-12 text-center text-white">
+        <p className="text-xl font-bold">Kuringe <span className="text-[#7A151B]">Halls</span></p>
+        <p className="mt-2 text-xs text-white/30">© {new Date().getFullYear()} All rights reserved.</p>
+      </footer>
     </div>
   );
 }
