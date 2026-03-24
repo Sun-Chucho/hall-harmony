@@ -9,7 +9,22 @@ import { useMessages } from '@/contexts/MessageContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useToast } from '@/hooks/use-toast';
+import { CashDistributionCategory } from '@/types/eventFinance';
 import { PaymentMethod } from '@/types/payment';
+
+const distributionCategories: { value: CashDistributionCategory; label: string }[] = [
+  { value: 'cleaning', label: 'Cleaning' },
+  { value: 'stationary', label: 'Stationary' },
+  { value: 'repairs_maintenance', label: 'Repairs and Maintenance' },
+  { value: 'electricity', label: 'Electricity' },
+  { value: 'petty_cash', label: 'Petty Cash' },
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'decoration', label: 'Decoration' },
+  { value: 'cooling', label: 'Cooling' },
+  { value: 'drink', label: 'Drink' },
+  { value: 'other', label: 'Others' },
+];
 
 function statusLabel(value: string) {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -38,6 +53,7 @@ export default function CashMovement() {
     declineCashTransferRequest,
     confirmCashTransferReceived,
     denyCashTransferReceived,
+    recordCashDistribution,
   } = useEventFinance();
 
   const [message, setMessage] = useState('');
@@ -46,6 +62,10 @@ export default function CashMovement() {
   const [moveCashDateTime, setMoveCashDateTime] = useState(() => toDateTimeLocal(new Date().toISOString()));
   const [requestAmount, setRequestAmount] = useState(0);
   const [requestComment, setRequestComment] = useState('');
+  const [distributionCategory, setDistributionCategory] = useState<CashDistributionCategory>('cleaning');
+  const [distributionAmount, setDistributionAmount] = useState(0);
+  const [distributionReason, setDistributionReason] = useState('');
+  const [distributionOtherDetails, setDistributionOtherDetails] = useState('');
   const [decisionAmount, setDecisionAmount] = useState<Record<string, number>>({});
   const [decisionComment, setDecisionComment] = useState<Record<string, string>>({});
   const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
@@ -75,7 +95,7 @@ export default function CashMovement() {
   };
 
   const pendingRequests = useMemo(
-    () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval' && item.initiatedByRole === 'cashier_2'),
+    () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval'),
     [cashTransfers],
   );
   const sentTransfers = useMemo(
@@ -92,8 +112,8 @@ export default function CashMovement() {
   );
 
   const stats = [
-    { title: 'Pending Requests', value: `${pendingRequests.length}`, description: 'waiting cashier 1 decision' },
-    { title: 'Sent Transfers', value: `${sentTransfers.filter((item) => item.status === 'sent_to_cashier_2').length}`, description: 'waiting cashier 2 confirmation' },
+    { title: 'Pending Requests', value: `${pendingRequests.length}`, description: 'waiting decision' },
+    { title: 'Sent Transfers', value: `${sentTransfers.filter((item) => item.status === 'sent_to_cashier_2').length}`, description: 'awaiting confirmation' },
     { title: 'Received', value: `${sentTransfers.filter((item) => item.status === 'received_by_cashier_2').length}`, description: 'receipt confirmed' },
     { title: 'Total Records', value: `${cashTransfers.length}`, description: 'cash movement trail' },
   ];
@@ -498,18 +518,18 @@ export default function CashMovement() {
     );
   }
 
-  if (user?.role !== 'cashier_1' && user?.role !== 'controller') {
+  if (user?.role !== 'cashier_1' && user?.role !== 'accountant') {
     return (
       <ManagementPageTemplate
         pageTitle="Cash Movement"
-        subtitle="Cash movement actions are available only to Cashier 1 / Controller and Cashier 2."
+        subtitle="Cash movement actions are available only to the cashier desk and accountant control desk."
         stats={stats}
         sections={[
           {
             title: 'Access',
             bullets: [
-              'Use Cashier 1/Controller for send/approve/decline actions.',
-              'Use Cashier 2 for request/received confirmation actions.',
+              'Use the cashier desk for send, approve, decline, and distribution actions.',
+              'Use the accountant desk for oversight and control actions.',
             ],
           },
         ]}
@@ -525,15 +545,15 @@ export default function CashMovement() {
   return (
     <ManagementPageTemplate
       pageTitle="Cash Movement"
-      subtitle="Move cash to Cashier 2 and manage requested cash approvals."
+      subtitle="Manage cashier cash movement, approvals, and distribution records."
       stats={stats}
       sections={[
           {
-            title: 'Cashier 1 Actions',
+            title: 'Cashier Actions',
             bullets: [
-              'Send cash directly to Cashier 2.',
-              'Review requested cash from Cashier 2 and approve with amount or decline.',
-              'Track waiting, received, and denied statuses with date/time and comments.',
+              'Record outgoing cash movement and approvals from one cashier desk.',
+              'Review requested cash and approve with amount or decline.',
+              'Use the Distribution tab to capture the old Cashier 2 distribution work inside Cashier 1.',
             ],
           },
         ]}
@@ -544,13 +564,14 @@ export default function CashMovement() {
             <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
               <TabsTrigger value="requested-cash">Requested Cash</TabsTrigger>
+              <TabsTrigger value="distribution">Distribution</TabsTrigger>
               <TabsTrigger value="history">Cash Moved</TabsTrigger>
               <TabsTrigger value="cancelled-denied">Cancelled/Denied</TabsTrigger>
             </TabsList>
 
             <TabsContent value="move-cash">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Send Cash to Cashier 2</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Record Cash Movement</p>
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   <input type="number" placeholder="Amount to Move (TZS)" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashAmount || ''} onChange={(event) => setMoveCashAmount(Number(event.target.value))} />
                   <input type="text" placeholder="Comment" className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" value={moveCashComment} onChange={(event) => setMoveCashComment(event.target.value)} />
@@ -610,7 +631,7 @@ export default function CashMovement() {
 
             <TabsContent value="requested-cash">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Requested Cash from Cashier 2</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Requested Cash</p>
                 <div className="mt-3 space-y-3">
                   {pendingRequests.length === 0 ? (
                     <p className="text-sm text-slate-600">No pending cash requests.</p>
@@ -700,6 +721,126 @@ export default function CashMovement() {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="distribution">
+              <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Distribution</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <select
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={distributionCategory}
+                      onChange={(event) => setDistributionCategory(event.target.value as CashDistributionCategory)}
+                    >
+                      {distributionCategories.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Amount (TZS)"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      value={distributionAmount || ''}
+                      onChange={(event) => setDistributionAmount(Number(event.target.value))}
+                    />
+                    {distributionCategory === 'other' ? (
+                      <input
+                        type="text"
+                        placeholder="Others details"
+                        className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
+                        value={distributionOtherDetails}
+                        onChange={(event) => setDistributionOtherDetails(event.target.value)}
+                      />
+                    ) : null}
+                    <input
+                      type="text"
+                      placeholder="Reason / Comment"
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm md:col-span-2"
+                      value={distributionReason}
+                      onChange={(event) => setDistributionReason(event.target.value)}
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <Button
+                      size="sm"
+                      disabled={isSubmitting || isRefreshingPage}
+                      onClick={async () => {
+                        if (isSubmitting || isRefreshingPage) return;
+                        if (!canRunAction()) return;
+                        if (!Number.isFinite(distributionAmount) || distributionAmount <= 0) {
+                          const invalidMessage = 'Enter a valid distribution amount greater than zero.';
+                          setMessage(invalidMessage);
+                          toast({ title: 'Invalid amount', description: invalidMessage, variant: 'destructive' });
+                          return;
+                        }
+                        if (!distributionReason.trim()) {
+                          const invalidMessage = 'Distribution reason is required.';
+                          setMessage(invalidMessage);
+                          toast({ title: 'Missing reason', description: invalidMessage, variant: 'destructive' });
+                          return;
+                        }
+                        if (distributionCategory === 'other' && !distributionOtherDetails.trim()) {
+                          const invalidMessage = 'Enter details for Others category.';
+                          setMessage(invalidMessage);
+                          toast({ title: 'Missing details', description: invalidMessage, variant: 'destructive' });
+                          return;
+                        }
+                        setIsSubmitting(true);
+                        const result = await recordCashDistribution({
+                          actionId: crypto.randomUUID(),
+                          category: distributionCategory,
+                          amount: distributionAmount,
+                          reason: distributionReason,
+                          otherDetails: distributionOtherDetails,
+                        });
+                        setMessage(result.message);
+                        toast({
+                          title: result.ok ? 'Distribution saved' : 'Distribution failed',
+                          description: result.message,
+                          variant: result.ok ? 'default' : 'destructive',
+                        });
+                        if (result.ok) {
+                          setDistributionAmount(0);
+                          setDistributionReason('');
+                          setDistributionOtherDetails('');
+                          refreshPageAfterSend('Distribution recorded. Refreshing page...');
+                        }
+                        setIsSubmitting(false);
+                      }}
+                    >
+                      {isSubmitting ? 'Saving...' : isRefreshingPage ? 'Refreshing...' : 'Save Distribution'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Distribution History</p>
+                    <Badge className="bg-slate-100 text-slate-700">{cashDistributions.length} records</Badge>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {cashDistributions.length === 0 ? (
+                      <p className="text-sm text-slate-600">No distribution records yet.</p>
+                    ) : (
+                      cashDistributions.map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-900">
+                              {item.category === 'other'
+                                ? `Others - ${item.customCategoryLabel ?? 'Unspecified'}`
+                                : item.category.replace(/_/g, ' ')}
+                            </p>
+                            <Badge className="bg-slate-200 text-slate-900">TZS {item.amount.toLocaleString()}</Badge>
+                          </div>
+                          <p className="text-slate-500">Reason: {item.reason}</p>
+                          <p className="text-xs text-slate-500">{new Date(item.distributedAt).toLocaleString()}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </TabsContent>

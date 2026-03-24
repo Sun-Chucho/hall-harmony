@@ -1788,14 +1788,14 @@ export default function Bookings() {
   return (
     <ManagementPageTemplate
       pageTitle="Bookings"
-      subtitle={isManager ? 'Hall Manager oversight of booking records and statuses.' : 'Booking and event approval workflow with conflict checks and status controls.'}
+      subtitle={isManager ? 'Managing Director oversight of booking records and statuses.' : 'Booking and event approval workflow with conflict checks and status controls.'}
       stats={stats}
       sections={[
         {
           title: 'Workflow',
           bullets: [
             'Controller manages booking and event approvals.',
-            'Accountant can submit recommendations to Hall Manager.',
+            'Accountant can submit recommendations to Managing Director.',
             'Conflict checks run before a booking is submitted for approval.',
           ],
         },

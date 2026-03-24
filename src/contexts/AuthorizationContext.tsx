@@ -133,7 +133,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   const createApprovalRequest = useCallback((input: CreateApprovalInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (isTransactionBlocked(user.role, policy)) {
-      return { ok: false, message: 'Transactions are currently frozen by the controller.' };
+      return { ok: false, message: 'Transactions are currently frozen by the accountant.' };
     }
 
     const request: ApprovalRequest = {
@@ -203,7 +203,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
   ) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (!hasPermission(user.role, 'approval.override')) {
-      return { ok: false, message: 'Only Controller can override approvals.' };
+      return { ok: false, message: 'Only Accountant can override approvals.' };
     }
 
     const request = approvals.find((item) => item.id === requestId);
@@ -228,8 +228,8 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
 
   const setTransactionsFrozen = useCallback((frozen: boolean, reason: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'controller') {
-      return { ok: false, message: 'Only Controller can freeze or unfreeze transactions.' };
+    if (user.role !== 'accountant') {
+      return { ok: false, message: 'Only Accountant can freeze or unfreeze transactions.' };
     }
 
     const nextPolicy = {

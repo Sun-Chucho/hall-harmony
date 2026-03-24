@@ -27,6 +27,7 @@ import {
   Building2,
   LayoutDashboard,
   Calendar,
+  CreditCard,
   Users,
   Car,
   FileText,
@@ -34,7 +35,6 @@ import {
   Settings,
   LogOut,
   ChevronUp,
-  CreditCard,
   Banknote,
   Package,
   Globe,
@@ -59,7 +59,7 @@ const mainNavItems: NavItem[] = [
     title: 'MD Dashboard',
     icon: LayoutDashboard,
     path: '/managing-director-dashboard',
-    roles: ['managing_director'],
+    roles: ['managing_director', 'manager'],
   },
   {
     title: 'Bookings',
@@ -80,13 +80,13 @@ const financeNavItems: NavItem[] = [
     title: 'Payments',
     icon: CreditCard,
     path: '/payments',
-    roles: ['cashier_1', 'controller', 'accountant'],
+    roles: ['cashier_1', 'accountant'],
   },
   {
     title: 'Cash Movement',
     icon: Banknote,
     path: '/cash-movement',
-    roles: ['cashier_2', 'cashier_1', 'controller', 'accountant'],
+    roles: ['cashier_1', 'accountant'],
   },
 ];
 
@@ -95,52 +95,52 @@ const operationsNavItems: NavItem[] = [
     title: 'Services & Pricing',
     icon: Package,
     path: '/services',
-    roles: ['manager', 'assistant_hall_manager', 'controller'],
+    roles: ['manager', 'assistant_hall_manager', 'accountant'],
   },
   {
     title: 'Inventory & Store',
     icon: Car,
     path: '/rentals',
-    roles: ['manager', 'assistant_hall_manager', 'controller', 'cashier_2', 'store_keeper', 'purchaser'],
+    roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Documents',
     icon: FileText,
     path: '/documents',
-    roles: ['manager', 'assistant_hall_manager', 'cashier_2', 'controller', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
+    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
   },
 ];
 
 const adminNavItems: NavItem[] = [
   {
-    title: 'Controller Console',
+    title: 'Accountant Console',
     icon: ShieldCheck,
     path: '/admin',
-    roles: ['controller'],
+    roles: ['accountant'],
   },
   {
     title: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    roles: ['manager', 'controller', 'accountant', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'store_keeper', 'purchaser'],
+    roles: ['manager', 'accountant', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Messages',
     icon: MessageSquare,
     path: '/messages',
-    roles: ['manager', 'accountant', 'controller'],
+    roles: ['manager', 'accountant'],
   },
   {
     title: 'Web Portal',
     icon: Globe,
     path: '/portal',
-    roles: ['assistant_hall_manager', 'controller'],
+    roles: ['assistant_hall_manager', 'accountant'],
   },
   {
     title: 'Settings',
     icon: Settings,
     path: '/settings',
-    roles: ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller', 'store_keeper', 'purchaser', 'accountant'],
+    roles: ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'],
   },
 ];
 
@@ -179,17 +179,8 @@ export function AppSidebar() {
   const cashier1NavItems: NavItem[] = [
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
-    { title: 'Distributing Money', icon: Package, path: '/distribution' },
     { title: 'Documents', icon: FileText, path: '/documents' },
-    { title: 'Managing Director', icon: CreditCard, path: '/md-transfer' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
-  ];
-
-  const cashier2NavItems: NavItem[] = [
-    { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
-    { title: 'Distributing Money', icon: Package, path: '/distribution' },
-    { title: 'Reports', icon: BarChart3, path: '/reports' },
-    { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   const purchaserNavItems: NavItem[] = [
@@ -253,8 +244,6 @@ export function AppSidebar() {
           renderNavGroup('Assistant Hall', assistantHallNavItems)
         ) : user.role === 'cashier_1' ? (
           renderNavGroup('Cashier 1', cashier1NavItems)
-        ) : user.role === 'cashier_2' ? (
-          renderNavGroup('Cashier 2', cashier2NavItems)
         ) : user.role === 'purchaser' ? (
           renderNavGroup('Purchaser', purchaserNavItems)
         ) : user.role === 'accountant' ? (

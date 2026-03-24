@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -61,15 +61,15 @@ const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
 const CASH_REQUEST_WORKFLOW_CACHE_KEY = 'kuringe_cash_request_workflow_v1';
 
 const manualForms: ManualForm[] = [
-  { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'controller'] },
-  { id: 'delivery_note', title: 'Delivery Note', roles: ['controller', 'store_keeper'] },
-  { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'controller'] },
-  { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'controller'] },
-  { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant', 'controller'] },
-  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_2', 'store_keeper', 'purchaser', 'accountant', 'controller'] },
+  { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'accountant'] },
+  { id: 'delivery_note', title: 'Delivery Note', roles: ['accountant', 'store_keeper'] },
+  { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'accountant'] },
+  { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'accountant'] },
+  { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant'] },
+  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'] },
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
-  { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'controller', 'manager'] },
-  { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_2', 'manager'] },
+  { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'accountant', 'manager'] },
+  { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_1', 'manager'] },
 ];
 
 function inputClass(extra = '') {
@@ -93,7 +93,7 @@ export default function Documents() {
   const [outputFormFilter, setOutputFormFilter] = useState<'all' | FormId>('all');
   const [outputDateFrom, setOutputDateFrom] = useState('');
   const [outputDateTo, setOutputDateTo] = useState('');
-  const [controllerComment, setControllerComment] = useState<Record<string, string>>({});
+  const [accountantComment, setAccountantComment] = useState<Record<string, string>>({});
   const [managerComment, setManagerComment] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -219,9 +219,9 @@ export default function Documents() {
     { title: 'All Form Types', value: String(manualForms.length), description: 'manual register list' },
     { title: 'Submitted Outputs', value: String(outputs.length), description: 'all saved form entries' },
     {
-      title: user?.role === 'controller' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Manager Queue' : 'My Role',
+      title: user?.role === 'accountant' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Manager Queue' : 'My Role',
       value:
-        user?.role === 'controller'
+        user?.role === 'accountant'
           ? String(pendingForController.length)
           : user?.role === 'manager'
             ? String(pendingForManager.length)
@@ -229,8 +229,8 @@ export default function Documents() {
               ? ROLE_LABELS[user.role]
               : 'N/A',
       description:
-        user?.role === 'controller'
-          ? 'awaiting controller decision'
+        user?.role === 'accountant'
+          ? 'awaiting accountant decision'
           : user?.role === 'manager'
             ? 'awaiting hall manager decision'
             : 'current user designation',
@@ -270,10 +270,10 @@ export default function Documents() {
         submittedBy: user.id,
         submittedByRole: user.role,
         fields,
-        status: user.role === 'controller' ? 'pending_manager' : 'pending_controller',
-        reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
-        reviewedBy: user.role === 'controller' ? user.id : undefined,
-        reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
+        status: user.role === 'accountant' ? 'pending_manager' : 'pending_controller',
+        reviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
+        reviewedBy: user.role === 'accountant' ? user.id : undefined,
+        reviewComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Managing Director.' : undefined,
         updatedAt: serverTimestamp(),
       };
       try {
@@ -285,18 +285,18 @@ export default function Documents() {
           submittedBy: user.id,
           submittedByRole: user.role,
           fields,
-          status: user.role === 'controller' ? 'pending_manager' : 'pending_controller',
-          reviewedAt: user.role === 'controller' ? new Date().toISOString() : undefined,
-          reviewedBy: user.role === 'controller' ? user.id : undefined,
-          reviewComment: user.role === 'controller' ? 'Controller submitted and forwarded to Hall Manager.' : undefined,
+          status: user.role === 'accountant' ? 'pending_manager' : 'pending_controller',
+          reviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
+          reviewedBy: user.role === 'accountant' ? user.id : undefined,
+          reviewComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Managing Director.' : undefined,
         };
         setCashRequests((prev) => [localFallback, ...prev]);
       }
 
-      if (user.role === 'controller') {
+      if (user.role === 'accountant') {
         await sendManagerAlert({
-          title: 'Cash Request Pending Hall Manager',
-          body: `Controller submitted/validated a cash request: TZS ${fields.total_requested ?? '0'}. Awaiting Hall Manager decision.`,
+          title: 'Cash Request Pending Managing Director',
+          body: `Accountant submitted/validated a cash request: TZS ${fields.total_requested ?? '0'}. Awaiting Managing Director decision.`,
         });
       }
     }
@@ -320,18 +320,18 @@ export default function Documents() {
   };
 
   const handleControllerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'controller') return;
+    if (!user || user.role !== 'accountant') return;
     if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     const request = cashRequests.find((entry) => entry.id === requestId);
     if (!request) return;
-    const comment = controllerComment[requestId]?.trim() ?? '';
+    const comment = accountantComment[requestId]?.trim() ?? '';
 
     try {
       await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
         status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
         reviewedAt: new Date().toISOString(),
         reviewedBy: user.id,
-        reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
+        reviewComment: comment || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
         updatedAt: serverTimestamp(),
       });
     } catch {
@@ -343,7 +343,7 @@ export default function Documents() {
                 status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
                 reviewedAt: new Date().toISOString(),
                 reviewedBy: user.id,
-                reviewComment: comment || (decision === 'approve' ? 'Approved by controller.' : 'Declined by controller.'),
+                reviewComment: comment || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
               }
             : entry,
         ),
@@ -352,8 +352,8 @@ export default function Documents() {
 
     if (decision === 'approve') {
       await sendManagerAlert({
-        title: 'Cash Request Pending Hall Manager',
-        body: `Cash request ${request.id} approved by controller and forwarded to Hall Manager. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
+        title: 'Cash Request Pending Managing Director',
+        body: `Cash request ${request.id} approved by accountant and forwarded to Managing Director. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
       });
     }
   };
@@ -577,7 +577,7 @@ export default function Documents() {
                   {formShell('cash_request', 'Cash Request Form', (
                     <>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                        Cash request submissions are routed to Controller first, then approved requests are forwarded to Hall Manager.
+                        Cash request submissions are routed to the accountant first, then approved requests are forwarded to Managing Director.
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4 grid gap-3 md:grid-cols-2">
                         <input name="pef_no" className={inputClass()} placeholder="PEF No" />
@@ -686,11 +686,11 @@ export default function Documents() {
             </div>
           ) : null}
 
-          {user?.role === 'controller' ? (
+          {user?.role === 'accountant' ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Controller Cash Request Queue</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Accountant Cash Request Queue</p>
               <p className="mt-1 text-sm text-slate-600">
-                Review cash request forms and forward approved requests to Hall Manager.
+                Review cash request forms and forward approved requests to Managing Director.
               </p>
               <div className="mt-3 space-y-3">
                 {pendingForController.length === 0 ? (
@@ -707,9 +707,9 @@ export default function Documents() {
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
                           className={inputClass('h-9 w-[320px]')}
-                          placeholder="Controller comment"
-                          value={controllerComment[entry.id] ?? ''}
-                          onChange={(event) => setControllerComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                          placeholder="Accountant comment"
+                          value={accountantComment[entry.id] ?? ''}
+                          onChange={(event) => setAccountantComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
                         />
                         <Button size="sm" onClick={() => void handleControllerCashDecision(entry.id, 'approve')}>
                           Approve
@@ -727,13 +727,13 @@ export default function Documents() {
 
           {user?.role === 'manager' ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Hall Manager Cash Request Decisions</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Managing Director Cash Request Decisions</p>
               <p className="mt-1 text-sm text-slate-600">
-                Review controller-forwarded cash requests and approve or decline with reason.
+                Review accountant-forwarded cash requests and approve or decline with reason.
               </p>
               <div className="mt-3 space-y-3">
                 {pendingForManager.length === 0 ? (
-                  <p className="text-sm text-slate-500">No cash requests waiting for Hall Manager.</p>
+                  <p className="text-sm text-slate-500">No cash requests waiting for Managing Director.</p>
                 ) : (
                   pendingForManager.map((entry) => (
                     <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
@@ -742,7 +742,7 @@ export default function Documents() {
                       </p>
                       <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
                       <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
-                      <p className="text-slate-500">Controller note: {entry.reviewComment ?? '-'}</p>
+                      <p className="text-slate-500">Accountant note: {entry.reviewComment ?? '-'}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
                           className={inputClass('h-9 w-[320px]')}

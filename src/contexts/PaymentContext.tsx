@@ -147,11 +147,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
   const recordPayment = useCallback(async (input: CreatePaymentInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') {
-      return { ok: false, message: 'Only Cashier 1 or Controller can record payments.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') {
+      return { ok: false, message: 'Only Cashier or Accountant can record payments.' };
     }
-    if (policy.transactionsFrozen && user.role !== 'controller') {
-      return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') {
+      return { ok: false, message: 'Transactions are frozen by accountant.' };
     }
     const booking = bookings.find((item) => item.id === input.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
@@ -226,11 +226,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
   const updatePayment = useCallback(async (paymentId: string, input: UpdatePaymentInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'cashier_2' && user.role !== 'controller') {
-      return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can edit payments.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') {
+      return { ok: false, message: 'Only Cashier or Accountant can edit payments.' };
     }
-    if (policy.transactionsFrozen && user.role !== 'controller') {
-      return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') {
+      return { ok: false, message: 'Transactions are frozen by accountant.' };
     }
 
     const target = payments.find((item) => item.id === paymentId);
@@ -289,8 +289,8 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
   const setBookingPaymentStatus = useCallback(async (bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') {
-      return { ok: false, message: 'Only Cashier 1 or Controller can set payment status.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') {
+      return { ok: false, message: 'Only Cashier or Accountant can set payment status.' };
     }
     if (!bookings.some((item) => item.id === bookingId)) {
       return { ok: false, message: 'Booking not found.' };

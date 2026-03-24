@@ -135,8 +135,8 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const createBudget = useCallback((input: BudgetInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can create event budgets.' };
-    if (policy.transactionsFrozen && user.role !== 'controller') return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can create event budgets.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') return { ok: false, message: 'Transactions are frozen by accountant.' };
 
     const booking = findBooking(input.bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
@@ -175,8 +175,8 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const requestAllocation = useCallback((input: AllocationInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can request allocations.' };
-    if (policy.transactionsFrozen && user.role !== 'controller') return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can request allocations.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') return { ok: false, message: 'Transactions are frozen by accountant.' };
     const budget = budgets.find((item) => item.id === input.budgetId);
     if (!budget) return { ok: false, message: 'Budget not found.' };
     if (input.requestedAmount <= 0) return { ok: false, message: 'Requested amount must be greater than zero.' };
@@ -210,17 +210,17 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     setAllocations((prev) => [request, ...prev]);
     void setDoc(doc(db, ALLOCATIONS_COLLECTION, request.id), { ...request, updatedAt: serverTimestamp() }, { merge: true });
     appendLog('allocation.requested', request.id, `Allocation requested for ${budget.bookingId}`);
-    return { ok: true, message: 'Allocation request submitted for controller approval.', requestId: request.id };
+    return { ok: true, message: 'Allocation request submitted for accountant approval.', requestId: request.id };
   }, [allocations, appendLog, budgets, createApprovalRequest, policy.transactionsFrozen, user]);
   const controllerDecision = useCallback((requestId: string, decision: 'approved' | 'rejected', comment: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'controller') return { ok: false, message: 'Only Controller can decide allocation requests.' };
+    if (user.role !== 'accountant') return { ok: false, message: 'Only Accountant can decide allocation requests.' };
     const request = allocations.find((item) => item.id === requestId);
     if (!request) return { ok: false, message: 'Allocation request not found.' };
-    if (request.status !== 'pending_controller') return { ok: false, message: 'Request is not pending controller decision.' };
+    if (request.status !== 'pending_controller') return { ok: false, message: 'Request is not pending accountant decision.' };
     if (!request.approvalId) return { ok: false, message: 'Missing approval reference.' };
 
-    const review = reviewApproval(request.approvalId, decision, comment || 'Controller decision');
+    const review = reviewApproval(request.approvalId, decision, comment || 'Accountant decision');
     if (!review.ok) return { ok: false, message: review.message };
 
     const patch = {
@@ -231,18 +231,18 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     const updated = { ...request, ...patch };
     setAllocations((prev) => prev.map((item) => (item.id === requestId ? updated : item)));
     void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
-    appendLog(decision === 'approved' ? 'allocation.approved' : 'allocation.rejected', requestId, comment || 'Controller decision recorded');
-    return { ok: true, message: `Allocation ${decision} by controller.` };
+    appendLog(decision === 'approved' ? 'allocation.approved' : 'allocation.rejected', requestId, comment || 'Accountant decision recorded');
+    return { ok: true, message: `Allocation ${decision} by accountant.` };
   }, [allocations, appendLog, reviewApproval, user]);
 
   const releaseFunds = useCallback((requestId: string, releaseReference: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can release funds.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can release funds.' };
     if (!releaseReference.trim()) return { ok: false, message: 'Release reference is required.' };
 
     const request = allocations.find((item) => item.id === requestId);
     if (!request) return { ok: false, message: 'Allocation request not found.' };
-    if (request.status !== 'approved_controller') return { ok: false, message: 'Allocation must be controller-approved before release.' };
+    if (request.status !== 'approved_controller') return { ok: false, message: 'Allocation must be accountant-approved before release.' };
 
     const financials = getBookingFinancials(request.bookingId);
     if (financials.totalPaid < request.requestedAmount) return { ok: false, message: 'Insufficient received funds for this release.' };
@@ -257,7 +257,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     setAllocations((prev) => prev.map((item) => (item.id === requestId ? updated : item)));
     void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
     appendLog('allocation.released', requestId, `Funds released with reference ${releaseReference.trim()}`);
-    return { ok: true, message: 'Funds released to Cashier 2 for distribution.' };
+    return { ok: true, message: 'Funds released for cashier distribution.' };
   }, [allocations, appendLog, getBookingFinancials, user]);
 
   const getAllocationSummary = useCallback((requestId: string) => {
@@ -269,8 +269,8 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const addDistribution = useCallback((input: DistributionInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can distribute funds.' };
-    if (policy.transactionsFrozen && user.role !== 'controller') return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can distribute funds.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') return { ok: false, message: 'Transactions are frozen by accountant.' };
     const request = allocations.find((item) => item.id === input.allocationRequestId);
     if (!request) return { ok: false, message: 'Allocation request not found.' };
     if (request.status !== 'funds_released') return { ok: false, message: 'Funds must be released before distribution.' };
@@ -312,7 +312,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   }, []);
   const requestCashTransferFromCashier2 = useCallback(async (input: { amount: number; comment: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can request cash.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can request cash.' };
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Requested amount must be greater than zero.' };
     const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
     const duplicateTransfer = cashTransfers.find((entry) => entry.clientActionId === actionId);
@@ -328,15 +328,15 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       decisionComment: '',
       receiveComment: '',
       initiatedByUserId: user.id,
-      initiatedByRole: user.role === 'controller' ? 'cashier_2' : user.role,
+      initiatedByRole: 'cashier_1',
       requestedAt: new Date().toISOString(),
       status: 'pending_cashier_1_approval',
     };
     setCashTransfers((prev) => [transfer, ...prev]);
     try {
       await persistCashTransferEvent(transfer);
-      appendLog('cash_move.requested', transfer.id, `Cashier 2 requested TZS ${requestedAmount.toLocaleString()}`);
-      return { ok: true, message: 'Cash request sent to Cashier 1.', requestId: transfer.id };
+      appendLog('cash_move.requested', transfer.id, `Cashier requested TZS ${requestedAmount.toLocaleString()}`);
+      return { ok: true, message: 'Cash request recorded.', requestId: transfer.id };
     } catch {
       setCashTransfers((prev) => prev.filter((entry) => entry.id !== transfer.id));
       return { ok: false, message: 'Cash request failed to sync. Please try again.' };
@@ -345,7 +345,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const sendCashToCashier2 = useCallback(async (input: { amount: number; comment: string; transferDateTime?: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can send cash to Cashier 2.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can send cash.' };
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
     const transferDate = input.transferDateTime ? new Date(input.transferDateTime) : new Date();
     if (Number.isNaN(transferDate.getTime())) return { ok: false, message: 'Enter a valid transfer date/time.' };
@@ -375,8 +375,8 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     setCashTransfers((prev) => [transfer, ...prev]);
     try {
       await persistCashTransferEvent(transfer);
-      appendLog('cash_move.sent', transfer.id, `Cashier 1 sent TZS ${requestedAmount.toLocaleString()} to Cashier 2`);
-      return { ok: true, message: 'Cash sent. Waiting for Cashier 2 confirmation.', transferId: transfer.id };
+      appendLog('cash_move.sent', transfer.id, `Cashier sent TZS ${requestedAmount.toLocaleString()} for distribution`);
+      return { ok: true, message: 'Cash sent successfully.', transferId: transfer.id };
     } catch {
       setCashTransfers((prev) => prev.filter((entry) => entry.id !== transfer.id));
       return { ok: false, message: 'Cash transfer failed to sync. Please try again.' };
@@ -385,7 +385,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const approveCashTransferRequest = useCallback(async (transferId: string, approvedAmount: number, decisionComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can approve cash requests.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can approve cash requests.' };
     if (!Number.isFinite(approvedAmount) || approvedAmount <= 0) return { ok: false, message: 'Approved amount must be greater than zero.' };
 
     const target = cashTransfers.find((item) => item.id === transferId);
@@ -409,7 +409,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? updated : item)));
     try {
       await persistCashTransferEvent(updated);
-      return { ok: true, message: 'Request approved and cash sent to Cashier 2.' };
+      return { ok: true, message: 'Request approved and cash sent.' };
     } catch {
       setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? target : item)));
       return { ok: false, message: 'Approval failed to sync. Please try again.' };
@@ -418,7 +418,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const declineCashTransferRequest = useCallback(async (transferId: string, decisionComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can decline cash requests.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can decline cash requests.' };
 
     const target = cashTransfers.find((item) => item.id === transferId);
     if (!target) return { ok: false, message: 'Cash request not found.' };
@@ -446,7 +446,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
   }, [cashTransfers, persistCashTransferEvent, user]);
   const confirmCashTransferReceived = useCallback(async (transferId: string, receiveComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can confirm receipt.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can confirm receipt.' };
 
     const target = cashTransfers.find((item) => item.id === transferId);
     if (!target) return { ok: false, message: 'Cash transfer not found.' };
@@ -475,7 +475,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const denyCashTransferReceived = useCallback(async (transferId: string, denyComment: string, actionId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 2 or Controller can deny receipt.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can deny receipt.' };
     if (!denyComment.trim()) return { ok: false, message: 'Deny comment is required.' };
 
     const target = cashTransfers.find((item) => item.id === transferId);
@@ -496,7 +496,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? updated : item)));
     try {
       await persistCashTransferEvent(updated);
-      return { ok: true, message: 'Cash movement denied by Cashier 2.' };
+      return { ok: true, message: 'Cash movement denied.' };
     } catch {
       setCashTransfers((prev) => prev.map((item) => (item.id === transferId ? target : item)));
       return { ok: false, message: 'Receipt denial failed to sync. Please try again.' };
@@ -505,7 +505,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const recordManagingDirectorTransfer = useCallback(async (input: { amount: number; reference?: string; notes?: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1 or Controller can record MD transfers.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can record MD transfers.' };
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, message: 'Amount must be greater than zero.' };
     const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
     const duplicateTransfer = mdTransfers.find((entry) => entry.clientActionId === actionId);
@@ -532,8 +532,8 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
 
   const recordCashDistribution = useCallback(async (input: { actionId?: string; category: CashDistributionCategory; amount: number; reason: string; otherDetails?: string; }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_2' && user.role !== 'cashier_1' && user.role !== 'controller') return { ok: false, message: 'Only Cashier 1, Cashier 2, or Controller can record cash distributions.' };
-    if (policy.transactionsFrozen && user.role !== 'controller') return { ok: false, message: 'Transactions are frozen by controller.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can record cash distributions.' };
+    if (policy.transactionsFrozen && user.role !== 'accountant') return { ok: false, message: 'Transactions are frozen by accountant.' };
     const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
     const duplicateDistribution = cashDistributions.find((entry) => entry.clientActionId === actionId);
     if (duplicateDistribution) return { ok: true, message: 'Cash distribution already submitted.', distributionId: duplicateDistribution.id };

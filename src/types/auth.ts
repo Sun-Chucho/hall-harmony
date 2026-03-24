@@ -26,28 +26,28 @@ export interface AuthState {
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  manager: 'Hall Manager',
+  manager: 'Managing Director',
   managing_director: 'Managing Director',
   assistant_hall_manager: 'Assistant Hall Manager & Receptionist',
-  cashier_1: 'Cashier 1 (Payments)',
-  cashier_2: 'Cashier 2 (Event Allocation)',
-  controller: 'Controller',
+  cashier_1: 'Cashier (Payments & Distribution)',
+  cashier_2: 'Cashier 2 (Legacy)',
+  controller: 'Controller (Legacy)',
   store_keeper: 'Overall Storekeeper',
   purchaser: 'Purchaser',
-  accountant: 'Accountant',
+  accountant: 'Accountant (Control Authority)',
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   manager: 'Oversees hall operations, bookings, and service delivery.',
   managing_director: 'Reviews executive fund distribution and high-level business performance.',
   assistant_hall_manager: 'Handles reception and daily booking coordination.',
-  cashier_1: 'Manages customer payments and receipts.',
-  cashier_2: 'Supports event allocation and payment processing.',
-  controller: 'Authorizes controls and final financial approvals.',
+  cashier_1: 'Manages customer payments, allocations, cash movement, and distributions.',
+  cashier_2: 'Legacy cashier role retained only for historical compatibility.',
+  controller: 'Legacy controller role retained only for historical compatibility.',
   store_keeper: 'Maintains stock records and store accountability.',
   purchaser: 'Handles purchasing and supplier coordination.',
-  accountant: 'Manages accounting records, reconciliation, and reporting.',
+  accountant: 'Manages accounting records, reconciliation, reporting, and approval controls.',
 };
 
-export const PASSWORD_RESET_AUTHORITIES: UserRole[] = ['controller', 'manager'];
-export const ROLE_CHANGE_AUTHORITIES: UserRole[] = ['controller', 'manager'];
+export const PASSWORD_RESET_AUTHORITIES: UserRole[] = ['accountant', 'manager'];
+export const ROLE_CHANGE_AUTHORITIES: UserRole[] = ['accountant', 'manager'];

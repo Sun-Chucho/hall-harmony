@@ -7,6 +7,7 @@ import PublicNavbar from '@/components/landing/PublicNavbar';
 import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { destinationProfiles } from '@/lib/destinationProfiles';
+import heroVideo from '../../HALLS.mp4';
 
 const CONTACT_EMAIL = 'kuringenexus.moshi@gmail.com';
 
@@ -121,7 +122,17 @@ export default function Index() {
       <PublicNavbar ctaLabel={isSw ? 'Hifadhi Tarehe Yako' : 'Book Your Date'} />
 
       <section className="relative isolate h-[82vh] min-h-[560px] overflow-hidden px-4">
-        <img src={IMAGES.hero} alt="Kuringe wedding arrival" className="absolute inset-0 -z-20 h-full w-full object-cover" />
+        <video
+          className="absolute inset-0 -z-20 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-label="Kuringe Halls hero video"
+        >
+          <source src={heroVideo} type="video/mp4" />
+        </video>
         <div className="absolute inset-0 -z-10 bg-black/45" />
         <div className="mx-auto flex h-full max-w-7xl items-center justify-center text-center">
           <div className="max-w-3xl text-white reveal-on-scroll">

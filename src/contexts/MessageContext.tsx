@@ -1,4 +1,4 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
@@ -106,7 +106,7 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
 
     try {
       await addDoc(collection(db, COLLECTION), payload);
-      return { ok: true, message: 'Alert sent to Hall Manager.' };
+      return { ok: true, message: 'Alert sent to Managing Director.' };
     } catch {
       const fallback: ManagerMessage = {
         id: `LOCAL-${Date.now()}`,

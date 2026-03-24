@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
@@ -27,7 +29,7 @@ type MdAuditItem = {
 export default function ManagingDirectorDashboard() {
   const { bookings } = useBookings();
   const { payments } = usePayments();
-  const { mdTransfers, logs } = useEventFinance();
+  const { mdTransfers, cashTransfers, logs } = useEventFinance();
   const { approvals, auditLog } = useAuthorization();
 
   const metrics = useMemo(() => {
@@ -111,6 +113,14 @@ export default function ManagingDirectorDashboard() {
       .slice(0, 120);
   }, [approvals, auditLog, bookings, logs, mdTransfers, payments]);
 
+  const moneyMovementRows = useMemo(
+    () => cashTransfers
+      .filter((item) => item.initiatedByRole === 'cashier_1' || Boolean(item.sentByUserId))
+      .sort((a, b) => new Date(b.sentAt ?? b.requestedAt).getTime() - new Date(a.sentAt ?? a.requestedAt).getTime())
+      .slice(0, 120),
+    [cashTransfers],
+  );
+
   return (
     <DashboardLayout title="Managing Director Dashboard">
       <div className="space-y-6">
@@ -172,32 +182,75 @@ export default function ManagingDirectorDashboard() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Full Executive Audit Feed</CardTitle>
-            <CardDescription>
-              Unified live feed from bookings, payments, approvals, authorization audit, finance audit, and MD transfers.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {consolidatedAudit.length === 0 ? (
-              <p className="text-sm text-slate-500">No audit activity recorded yet.</p>
-            ) : (
-              consolidatedAudit.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.category}</p>
-                      <p className="text-xs text-slate-500">{new Date(item.timestamp).toLocaleString()}</p>
+        <Tabs defaultValue="money-movement" className="space-y-4">
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="money-movement">Money Movement</TabsTrigger>
+            <TabsTrigger value="executive-audit">Executive Audit</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="money-movement">
+            <Card>
+              <CardHeader>
+                <CardTitle>Money Movement From Cashier 1</CardTitle>
+                <CardDescription>
+                  Live cash movement records synced from backend `cash_transfers`.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {moneyMovementRows.length === 0 ? (
+                  <p className="text-sm text-slate-500">No cashier money movements recorded yet.</p>
+                ) : (
+                  moneyMovementRows.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{item.id}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-slate-200 text-slate-900">{item.status.replace(/_/g, ' ')}</Badge>
+                          <Badge className="bg-emerald-100 text-emerald-700">{formatTZS(item.approvedAmount || item.requestedAmount)}</Badge>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Received: {item.receivedAt ? new Date(item.receivedAt).toLocaleString() : '-'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Request: {item.requestComment || '-'} | Decision: {item.decisionComment || '-'} | Receive/Deny: {item.receiveComment || '-'}
+                      </p>
                     </div>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-600">{item.detail}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="executive-audit">
+            <Card>
+              <CardHeader>
+                <CardTitle>Full Executive Audit Feed</CardTitle>
+                <CardDescription>
+                  Unified live feed from bookings, payments, approvals, authorization audit, finance audit, and MD transfers.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {consolidatedAudit.length === 0 ? (
+                  <p className="text-sm text-slate-500">No audit activity recorded yet.</p>
+                ) : (
+                  consolidatedAudit.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <div className="text-right">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.category}</p>
+                          <p className="text-xs text-slate-500">{new Date(item.timestamp).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">{item.detail}</p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

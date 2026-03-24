@@ -35,8 +35,6 @@ service cloud.firestore {
         'managing_director',
         'assistant_hall_manager',
         'cashier_1',
-        'cashier_2',
-        'controller',
         'store_keeper',
         'purchaser',
         'accountant'
@@ -44,7 +42,7 @@ service cloud.firestore {
     }
 
     function canMutateBookings() {
-      return hasAnyRole(['manager', 'controller', 'cashier_1'])
+      return hasAnyRole(['manager', 'accountant', 'cashier_1'])
         || (
           hasRole('assistant_hall_manager')
           && resource.data.createdByUserId == request.auth.uid
@@ -59,11 +57,11 @@ service cloud.firestore {
     }
 
     function canReadPayments() {
-      return hasAnyRole(['manager', 'managing_director', 'cashier_1', 'controller', 'accountant']);
+      return hasAnyRole(['manager', 'managing_director', 'cashier_1', 'accountant']);
     }
 
     function canWritePayments() {
-      return hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
+      return hasAnyRole(['cashier_1', 'accountant']);
     }
 
     function canReadEventFinance() {
@@ -72,8 +70,6 @@ service cloud.firestore {
         'managing_director',
         'assistant_hall_manager',
         'cashier_1',
-        'cashier_2',
-        'controller',
         'store_keeper',
         'purchaser',
         'accountant'
@@ -81,11 +77,11 @@ service cloud.firestore {
     }
 
     function canManageInventory() {
-      return hasAnyRole(['store_keeper', 'controller']);
+      return hasAnyRole(['store_keeper', 'accountant']);
     }
 
     function canAccessDocumentsModule() {
-      return hasAnyRole(['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'store_keeper', 'purchaser']);
+      return hasAnyRole(['manager', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser']);
     }
 
     function hasFreshActionNonce() {
@@ -98,14 +94,14 @@ service cloud.firestore {
 
     match /system_state/session_control {
       allow read: if isActiveStaff();
-      allow write: if hasAnyRole(['manager', 'controller'])
+      allow write: if hasAnyRole(['manager', 'accountant'])
         && request.resource.data.writeToken == 'action_v1'
         && hasFreshActionNonce();
     }
 
     match /system_state/{docId} {
       allow read: if isActiveStaff();
-      allow write: if hasAnyRole(['manager', 'controller'])
+      allow write: if hasAnyRole(['manager', 'accountant'])
         && request.resource.data.writeToken == 'action_v1'
         && hasFreshActionNonce();
     }
@@ -115,7 +111,7 @@ service cloud.firestore {
         || (
           isActiveStaff()
           && (
-            hasAnyRole(['manager', 'controller', 'cashier_1'])
+            hasAnyRole(['manager', 'accountant', 'cashier_1'])
             || (
               hasRole('assistant_hall_manager')
               && request.resource.data.createdByUserId == request.auth.uid
@@ -138,42 +134,42 @@ service cloud.firestore {
 
     match /authorization_policy/{docId} {
       allow read: if isActiveStaff();
-      allow write: if hasRole('controller');
+      allow write: if hasRole('accountant');
     }
 
     match /authorization_approvals/{approvalId} {
       allow read: if isActiveStaff();
-      allow write: if hasAnyRole(['manager', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller']);
+      allow write: if hasAnyRole(['manager', 'assistant_hall_manager', 'cashier_1', 'accountant']);
     }
 
     match /event_budgets/{docId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_2', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /event_allocations/{docId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /event_distributions/{docId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_2', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /cash_transfers/{transferId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /md_transfers/{docId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_1', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /cash_distributions/{docId} {
       allow read: if canReadEventFinance();
-      allow write: if hasAnyRole(['cashier_1', 'cashier_2', 'controller']);
+      allow write: if hasAnyRole(['cashier_1', 'accountant']);
     }
 
     match /inventory_items/{itemId} {
@@ -198,7 +194,7 @@ service cloud.firestore {
 
     match /staff_users/{userId} {
       allow read: if true;
-      allow write: if hasAnyRole(['manager', 'controller']);
+      allow write: if hasAnyRole(['manager', 'accountant']);
     }
 
     match /manager_messages/{messageId} {
@@ -208,7 +204,7 @@ service cloud.firestore {
       allow read: if hasRole('manager')
         || (isActiveStaff() && resource.data.fromUserId == request.auth.uid);
       allow update: if hasRole('manager');
-      allow delete: if hasAnyRole(['manager', 'controller']);
+      allow delete: if hasAnyRole(['manager', 'accountant']);
     }
 
     match /document_form_outputs/{docId} {

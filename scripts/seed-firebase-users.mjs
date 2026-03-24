@@ -48,15 +48,15 @@ const staffUsers = [
     uid: '4',
     email: 'anna.barnaba@kuringe.co.tz',
     name: 'Anna Barnaba',
-    role: 'cashier_2',
-    isActive: true,
+    role: 'cashier_1',
+    isActive: false,
   },
   {
     uid: '5',
     email: 'augustino.kilindo@kuringe.co.tz',
     name: 'Augustino George Kilindo',
-    role: 'controller',
-    isActive: true,
+    role: 'accountant',
+    isActive: false,
   },
   {
     uid: '6',
@@ -142,8 +142,8 @@ async function main() {
 
       await auth.setCustomUserClaims(user.uid, {
         role: user.role,
-        canResetPasswords: ['manager', 'controller'].includes(user.role),
-        canChangeRoles: ['manager', 'controller'].includes(user.role),
+        canResetPasswords: ['manager', 'accountant'].includes(user.role),
+        canChangeRoles: ['manager', 'accountant'].includes(user.role),
       });
 
       try {

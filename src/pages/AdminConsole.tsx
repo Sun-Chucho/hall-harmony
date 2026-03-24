@@ -92,18 +92,18 @@ export default function AdminConsole() {
 
   const handleOverride = (requestId: string, decision: 'approved' | 'rejected') => {
     if (!confirmAction(`Are you sure you want to override this request as ${decision}?`)) return;
-    const response = overrideApproval(requestId, decision, decisionComment || 'Override by controller');
+    const response = overrideApproval(requestId, decision, decisionComment || 'Override by accountant');
     setStatusMessage(response.message);
   };
 
   if (!user) return null;
 
   return (
-    <DashboardLayout title="Controller Console">
+    <DashboardLayout title="Accountant Console">
       <div className="space-y-6 text-slate-900">
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Authorization</p>
-          <h1 className="text-3xl font-bold">Controller approvals and policy controls</h1>
+          <h1 className="text-3xl font-bold">Accountant approvals and policy controls</h1>
           <p className="text-sm text-slate-600">
             Final approval authority, workflow overrides, and transaction freeze controls.
           </p>
@@ -149,7 +149,7 @@ export default function AdminConsole() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-slate-600">
-                Freeze blocks transactional actions for all roles except controller.
+                Freeze blocks transactional actions for all roles except accountant.
               </p>
               <input
                 type="text"

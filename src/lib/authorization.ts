@@ -100,7 +100,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   cashier_1: [
     'payment.record',
     'payment.read',
+    'fund.allocate',
     'fund.transfer.request',
+    'approval.review.final',
     'approval.review.money',
   ],
   cashier_2: [
@@ -137,9 +139,25 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'purchase.request',
   ],
   accountant: [
+    'booking.read',
+    'booking.write',
+    'booking.approve',
+    'event.approve',
+    'payment.record',
     'payment.read',
+    'fund.allocate',
+    'fund.transfer.request',
+    'purchase.request',
+    'purchase.approve',
+    'inventory.manage',
     'report.read',
     'report.export',
+    'approval.review.minor',
+    'approval.review.money',
+    'approval.review.final',
+    'approval.override',
+    'transaction.freeze',
+    'transaction.unfreeze',
     'audit.read',
   ],
 };
@@ -156,32 +174,30 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
     'purchaser',
     'accountant',
   ],
-  '/bookings': ['manager', 'assistant_hall_manager', 'cashier_1', 'controller', 'accountant'],
+  '/bookings': ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant'],
   '/bookings/submitted': ['assistant_hall_manager'],
   '/customers': ['manager', 'assistant_hall_manager'],
-  '/payments': ['cashier_1', 'controller', 'accountant'],
-  '/cash-movement': ['cashier_2', 'cashier_1', 'controller', 'accountant'],
-  '/services': ['manager', 'controller'],
-  '/rentals': ['manager', 'assistant_hall_manager', 'controller', 'store_keeper', 'purchaser'],
-  '/documents': ['manager', 'assistant_hall_manager', 'controller', 'cashier_1', 'store_keeper', 'purchaser'],
-  '/reports': ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'cashier_2', 'controller', 'store_keeper', 'purchaser', 'accountant'],
-  '/managing-director-dashboard': ['managing_director'],
-  '/portal': ['controller'],
+  '/payments': ['cashier_1', 'accountant'],
+  '/cash-movement': ['cashier_1', 'accountant'],
+  '/services': ['manager', 'accountant'],
+  '/rentals': ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
+  '/documents': ['manager', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser'],
+  '/reports': ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
+  '/managing-director-dashboard': ['managing_director', 'manager'],
+  '/portal': ['accountant'],
   '/settings': [
     'manager',
     'managing_director',
     'assistant_hall_manager',
     'cashier_1',
-    'cashier_2',
-    'controller',
     'store_keeper',
     'purchaser',
     'accountant',
   ],
-  '/admin': ['controller'],
-  '/md-transfer': ['cashier_1', 'controller'],
-  '/distribution': ['cashier_1', 'cashier_2', 'controller'],
-  '/messages': ['manager', 'accountant', 'controller'],
+  '/admin': ['accountant'],
+  '/md-transfer': ['cashier_1', 'accountant'],
+  '/distribution': ['cashier_1', 'accountant'],
+  '/messages': ['manager', 'accountant'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
@@ -204,5 +220,5 @@ export function canReviewApproval(role: UserRole, level: ApprovalLevel): boolean
 }
 
 export function isTransactionBlocked(role: UserRole, policy: SystemPolicy): boolean {
-  return policy.transactionsFrozen && role !== 'controller';
+  return policy.transactionsFrozen && role !== 'accountant' && role !== 'controller';
 }

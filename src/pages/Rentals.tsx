@@ -287,14 +287,14 @@ export default function Rentals() {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory"
-        subtitle="Hall Manager inventory oversight (view-only)."
+        subtitle="Managing Director inventory oversight (view-only)."
         stats={stats}
         sections={[
           {
             title: 'Inventory Oversight',
             bullets: [
               'View stock table, stock in/out history, and damaged items.',
-              'No inventory edits are allowed for Hall Manager.',
+              'No inventory edits are allowed for Managing Director.',
             ],
           },
         ]}

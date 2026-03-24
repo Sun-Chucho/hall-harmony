@@ -112,7 +112,7 @@ export default function Payments() {
     },
   ];
 
-  const canRecordPayments = user?.role === 'cashier_1' || user?.role === 'controller';
+  const canRecordPayments = user?.role === 'cashier_1' || user?.role === 'accountant';
 
   const handleRecordPayment = async () => {
     if (isSubmitting || isRefreshingPage) return;

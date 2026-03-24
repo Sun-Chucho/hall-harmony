@@ -15,8 +15,6 @@ const STAFF_ROLES: UserRole[] = [
   'manager',
   'assistant_hall_manager',
   'cashier_1',
-  'cashier_2',
-  'controller',
   'store_keeper',
   'purchaser',
   'accountant',
@@ -51,7 +49,7 @@ export default function Settings() {
   });
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
 
-  const canManageUsers = user?.role === 'manager' || user?.role === 'controller';
+  const canManageUsers = user?.role === 'manager' || user?.role === 'accountant';
 
   const visibleUsers = useMemo(
     () => [...staffUsers].sort((a, b) => a.name.localeCompare(b.name)),

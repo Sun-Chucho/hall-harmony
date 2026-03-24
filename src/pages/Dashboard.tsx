@@ -109,7 +109,7 @@ export default function Dashboard() {
         { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Paying customers', icon: Users },
       ],
       cashier_2: [
-        { title: 'Pending Allocations', value: String(metrics.pendingAllocations), hint: 'Awaiting controller', icon: Clock },
+        { title: 'Pending Allocations', value: String(metrics.pendingAllocations), hint: 'Legacy role visibility', icon: Clock },
         { title: 'Released Allocations', value: String(metrics.releasedAllocations), hint: 'Ready for spending', icon: CheckCircle2 },
         { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Not yet closed', icon: AlertCircle },
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Finance + authorization logs', icon: Calendar },
@@ -135,8 +135,9 @@ export default function Dashboard() {
       accountant: [
         { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
         { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Transactions today', icon: Calendar },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Outstanding allocations', icon: AlertCircle },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance logs', icon: Clock },
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Approval controls now handled here', icon: AlertCircle },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Outstanding allocations', icon: Clock },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance logs', icon: CheckCircle2 },
       ],
     }),
     [metrics],

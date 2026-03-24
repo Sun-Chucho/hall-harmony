@@ -15,18 +15,16 @@ const ROLE_ORDER: UserRole[] = [
   'managing_director',
   'assistant_hall_manager',
   'cashier_1',
-  'cashier_2',
-  'controller',
   'store_keeper',
   'purchaser',
   'accountant',
 ];
 
 const SHORT_ROLE_LABELS: Record<UserRole, { en: string; sw: string }> = {
-  manager: { en: 'Hall Manager', sw: 'Meneja wa Ukumbi' },
+  manager: { en: 'Managing Director', sw: 'Mkurugenzi Mkuu' },
   managing_director: { en: 'Managing Director', sw: 'Mkurugenzi Mkuu' },
   assistant_hall_manager: { en: 'Assistant Hall Manager & Receptionist', sw: 'Msaidizi wa Meneja wa Ukumbi na Mapokezi' },
-  cashier_1: { en: 'Cashier 1', sw: 'Keshia 1' },
+  cashier_1: { en: 'Cashier', sw: 'Keshia' },
   cashier_2: { en: 'Cashier 2', sw: 'Keshia 2' },
   controller: { en: 'Controller', sw: 'Mkaguzi Mkuu' },
   store_keeper: { en: 'Storekeeper', sw: 'Msimamizi wa Ghala' },
@@ -38,7 +36,7 @@ const ROLE_DESCRIPTIONS: Record<UserRole, { en: string; sw: string }> = {
   manager: { en: 'Oversees hall operations, bookings, and service delivery.', sw: 'Anasimamia uendeshaji wa ukumbi, bookings, na utoaji huduma.' },
   managing_director: { en: 'Reviews executive fund distribution and business performance.', sw: 'Anapitia mgawanyo wa fedha za juu na utendaji wa biashara.' },
   assistant_hall_manager: { en: 'Handles reception and daily booking coordination.', sw: 'Anashughulikia mapokezi na uratibu wa bookings za kila siku.' },
-  cashier_1: { en: 'Manages customer payments and receipts.', sw: 'Anasimamia malipo ya wateja na stakabadhi.' },
+  cashier_1: { en: 'Manages payments, allocations, cash movement, and distribution.', sw: 'Anasimamia malipo, mgao, mzunguko wa fedha, na usambazaji.' },
   cashier_2: { en: 'Supports event allocation and payment processing.', sw: 'Anasaidia ugawaji wa fedha za matukio na uchakataji wa malipo.' },
   controller: { en: 'Authorizes controls and final approvals.', sw: 'Anatoa idhini za udhibiti na maamuzi ya mwisho.' },
   store_keeper: { en: 'Maintains stock records and store accountability.', sw: 'Anatunza kumbukumbu za stock na uwajibikaji wa ghala.' },
@@ -48,7 +46,6 @@ const ROLE_DESCRIPTIONS: Record<UserRole, { en: string; sw: string }> = {
 
 function getDashboardRoute(role: UserRole) {
   if (role === 'cashier_1') return '/bookings';
-  if (role === 'cashier_2') return '/cash-movement';
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
 }
 
