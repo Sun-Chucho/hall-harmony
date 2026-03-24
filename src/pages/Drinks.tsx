@@ -10,14 +10,6 @@ const formatTZS = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const categoryImages: Record<string, string> = {
-  beer: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1600&q=80',
-  soft: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=1600&q=80',
-  juice: 'https://images.unsplash.com/photo-1603569283847-aa295f0d016a?auto=format&fit=crop&w=1600&q=80',
-  water: 'https://images.unsplash.com/photo-1560847468-5eef330f455a?auto=format&fit=crop&w=1600&q=80',
-  premium: 'https://images.unsplash.com/photo-1516594915697-87eb3b1c14ea?auto=format&fit=crop&w=1600&q=80',
-};
-
 const categorized = [
   {
     key: 'beer',
@@ -93,12 +85,8 @@ export default function Drinks() {
         {categorized.map((category) => (
           <section key={category.key} className="grid gap-6 lg:grid-cols-[1fr_1.2fr] items-stretch">
             <article className="relative overflow-hidden border border-black/10 min-h-[260px]">
-              <img
-                src={categoryImages[category.key]}
-                alt={isSw ? category.titleSw : category.titleEn}
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,#0d1321_0%,#1d3557_48%,#9f7a36_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.22),transparent_26%),linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[length:auto,28px_28px,28px_28px]" />
               <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
                 <p className="text-xs uppercase tracking-[0.22em] text-white/80">{isSw ? 'Kundi la Vinywaji' : 'Drink Category'}</p>
                 <h2 className="mt-2 text-2xl font-semibold">{isSw ? category.titleSw : category.titleEn}</h2>

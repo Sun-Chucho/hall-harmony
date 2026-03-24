@@ -7,18 +7,17 @@ import PublicNavbar from '@/components/landing/PublicNavbar';
 import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { destinationProfiles } from '@/lib/destinationProfiles';
+import { SITE_IMAGES, VENUE_IMAGE_BY_ID } from '@/lib/siteImages';
 import heroVideo from '../../HALLS.mp4';
 
 const CONTACT_EMAIL = 'kuringenexus.moshi@gmail.com';
 
 const IMAGES = {
-  hero: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=2200&q=80',
-  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1600&q=80',
-  kilimanjaro: 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?auto=format&fit=crop&w=1600&q=80',
-  'kilimanjaro-garden': 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1600&q=80',
-  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1600&q=80',
-  story: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2200&q=80',
-  suite: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2200&q=80',
+  witness: VENUE_IMAGE_BY_ID.witness,
+  kilimanjaro: VENUE_IMAGE_BY_ID.kilimanjaro,
+  'kilimanjaro-garden': VENUE_IMAGE_BY_ID['kilimanjaro-garden'],
+  'hall-d': VENUE_IMAGE_BY_ID['hall-d'],
+  suite: SITE_IMAGES.lounge,
 };
 
 const STORY_CARDS = [
@@ -29,7 +28,7 @@ const STORY_CARDS = [
     noteSw: 'Mpangilio wa meza wa kifahari na muunganiko wa muundo kwa mapokezi ya kiwango cha juu.',
     tagEn: 'Feature Story',
     tagSw: 'Hadithi Maalum',
-    image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1200&q=80',
+    image: SITE_IMAGES.premium,
     to: '/stories#feature-story',
   },
   {
@@ -39,7 +38,7 @@ const STORY_CARDS = [
     noteSw: 'Sherehe ya wageni 600 iliyoandaliwa kwa taa maalum na mpangilio wa stage.',
     tagEn: 'Event Journal',
     tagSw: 'Jarida la Tukio',
-    image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80',
+    image: SITE_IMAGES.journal,
     to: '/stories#event-journal',
   },
   {
@@ -49,7 +48,7 @@ const STORY_CARDS = [
     noteSw: 'Mpangilio unaobadilika kwa mikutano ya karibu na chakula cha jioni.',
     tagEn: 'Planning Guide',
     tagSw: 'Mwongozo wa Mipango',
-    image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
+    image: SITE_IMAGES.editorial,
     to: '/stories#planning-guide',
   },
 ];
@@ -224,9 +223,8 @@ export default function Index() {
         </section>
 
         <section className="reveal-on-scroll py-16">
-          <article className="relative min-h-[420px] overflow-hidden">
-            <img src={IMAGES.story} alt={isSw ? 'Mpangilio maalum wa kifahari' : 'Premium featured setup'} className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-black/45" />
+          <article className="relative min-h-[420px] overflow-hidden bg-[linear-gradient(135deg,#14070a_0%,#3b0b12_42%,#a80c10_100%)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_36%),linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[length:auto,34px_34px,34px_34px]" />
             <div className="relative flex min-h-[420px] items-center p-8 md:p-14">
               <div className="max-w-xl text-white">
                 <p className="text-xs uppercase tracking-[0.3em] text-white/80">{isSw ? 'Uzoefu Maalum' : 'Featured Experience'}</p>
@@ -341,12 +339,8 @@ export default function Index() {
             <article className="border border-black/10 bg-white p-6">
               <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
                 <div className="relative overflow-hidden border border-black/10 min-h-[220px]">
-                  <img
-                    src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80"
-                    alt={isSw ? 'Onyesho la mapambo' : 'Decoration showcase'}
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                  <div className="absolute inset-0 bg-[linear-gradient(135deg,#f6efe2_0%,#ebd1a2_45%,#7a151b_100%)]" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.55),transparent_30%),linear-gradient(rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[length:auto,26px_26px,26px_26px]" />
                 </div>
                 <div>
                   <h4 className="text-lg font-semibold">{isSw ? 'Vifurushi Bora vya Mapambo' : 'Top Decoration Packages'}</h4>

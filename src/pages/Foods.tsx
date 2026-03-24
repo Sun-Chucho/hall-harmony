@@ -51,13 +51,8 @@ export default function Foods() {
               </Link>
             </div>
           </article>
-          <article className="relative overflow-hidden border border-black/10 min-h-[320px]">
-            <img
-              src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1800&q=80"
-              alt="Catering service"
-              className="h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+          <article className="relative overflow-hidden border border-black/10 min-h-[320px] bg-[linear-gradient(135deg,#130b0d_0%,#7a151b_54%,#d8b16a_100%)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.32),transparent_24%),linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] bg-[length:auto,32px_32px,32px_32px]" />
             <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
               <p className="text-xs uppercase tracking-[0.22em] text-white/80">{isSw ? 'Catering Program' : 'Catering Program'}</p>
               <p className="mt-2 text-2xl font-semibold">{isSw ? 'Kutoka Starter hadi Buffet, yote yameratibiwa' : 'From Starter to Buffet, fully coordinated'}</p>

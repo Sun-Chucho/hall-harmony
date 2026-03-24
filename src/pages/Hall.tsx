@@ -15,13 +15,7 @@ import {
   importantNotices,
   photoshootPackage,
 } from '@/lib/destinationProfiles';
-
-const hallImages: Record<string, string> = {
-  witness: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=2000&q=80',
-  kilimanjaro: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=2000&q=80',
-  'kilimanjaro-garden': 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=2000&q=80',
-  'hall-d': 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=2000&q=80',
-};
+import { VENUE_IMAGE_BY_ID } from '@/lib/siteImages';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-TZ', {
@@ -87,7 +81,7 @@ const Hall = () => {
     );
   }
 
-  const heroImage = hallImages[profile.id];
+  const heroImage = VENUE_IMAGE_BY_ID[profile.id];
   const quote = bookForm.date ? rateForDay(profile.standardRentalRates, new Date(bookForm.date).getDay()) : 0;
 
   const handleScheduleSubmit = (event: FormEvent<HTMLFormElement>) => {

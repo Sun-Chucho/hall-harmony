@@ -3,6 +3,7 @@ import { ArrowRight, Check, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PublicNavbar from '@/components/landing/PublicNavbar';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { SITE_IMAGES } from '@/lib/siteImages';
 
 const STORIES = [
   {
@@ -10,7 +11,7 @@ const STORIES = [
     tag: 'Feature Story',
     title: 'Nymphenburg Porcelain Style Setup',
     note: 'Elegant table styling and layered textures for premium receptions.',
-    image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=1800&q=80',
+    image: SITE_IMAGES.premium,
     detail:
       'This setup combines porcelain tone layering, warm gold accents, and balanced centerpiece geometry to maintain visual harmony from stage line to guest seating.',
   },
@@ -19,7 +20,7 @@ const STORIES = [
     tag: 'Event Journal',
     title: 'Hall A Signature Wedding',
     note: 'A 600-guest celebration built around custom lighting and stage reveals.',
-    image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1800&q=80',
+    image: SITE_IMAGES.journal,
     detail:
       'The Hall A flow used timed lighting scenes, mapped aisle movement, and a layered dance-floor reveal to coordinate photography, speeches, and live moments without delays.',
   },
@@ -28,7 +29,7 @@ const STORIES = [
     tag: 'Planning Guide',
     title: 'Boardroom to Banquet in Hall D',
     note: 'Flexible transitions for intimate meetings and evening dinners.',
-    image: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1800&q=80',
+    image: SITE_IMAGES.editorial,
     detail:
       'Hall D layouts can move from conference mode to dining mode in one service window by pre-zoning decor, cable routes, and table staging before first guest arrival.',
   },
@@ -44,7 +45,7 @@ export default function Stories() {
 
       <section className="relative isolate h-[60vh] min-h-[460px] overflow-hidden px-4">
         <img
-          src="https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=2200&q=80"
+          src={SITE_IMAGES.lounge}
           alt="Kuringe stories"
           className="absolute inset-0 -z-20 h-full w-full object-cover"
         />
