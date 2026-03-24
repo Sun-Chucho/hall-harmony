@@ -191,7 +191,7 @@ export default function ManagingDirectorDashboard() {
           <TabsContent value="money-movement">
             <Card>
               <CardHeader>
-                <CardTitle>Money Movement From Cashier 1</CardTitle>
+                <CardTitle>Money Movement From Cashier</CardTitle>
                 <CardDescription>
                   Live cash movement records synced from backend `cash_transfers`.
                 </CardDescription>

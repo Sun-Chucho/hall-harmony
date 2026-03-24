@@ -226,7 +226,7 @@ export default function Dashboard() {
                       <p className="text-xs text-slate-600">{booking.hall}</p>
                       {booking.pastBookingSubmission ? (
                         <p className="text-[11px] font-semibold text-violet-700">
-                          Past Record: {booking.pastBookingApprovalStatus?.replace(/_/g, ' ') ?? 'pending cashier 1'}
+                          Past Record: {booking.pastBookingApprovalStatus?.replace(/_/g, ' ') ?? 'pending cashier'}
                           {booking.pastReviewedAt ? ` | ${new Date(booking.pastReviewedAt).toLocaleDateString()}` : ''}
                         </p>
                       ) : null}

@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBookings } from '@/contexts/BookingContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { usePayments } from '@/contexts/PaymentContext';
@@ -41,18 +40,12 @@ export default function CashMovement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { sendManagerAlert } = useMessages();
-  const { bookings } = useBookings();
   const { payments, getBookingFinancials, updatePayment } = usePayments();
   const {
     cashTransfers,
     mdTransfers,
     cashDistributions,
     sendCashToCashier2,
-    requestCashTransferFromCashier2,
-    approveCashTransferRequest,
-    declineCashTransferRequest,
-    confirmCashTransferReceived,
-    denyCashTransferReceived,
     recordCashDistribution,
   } = useEventFinance();
 
@@ -60,14 +53,10 @@ export default function CashMovement() {
   const [moveCashAmount, setMoveCashAmount] = useState(0);
   const [moveCashComment, setMoveCashComment] = useState('');
   const [moveCashDateTime, setMoveCashDateTime] = useState(() => toDateTimeLocal(new Date().toISOString()));
-  const [requestAmount, setRequestAmount] = useState(0);
-  const [requestComment, setRequestComment] = useState('');
   const [distributionCategory, setDistributionCategory] = useState<CashDistributionCategory>('cleaning');
   const [distributionAmount, setDistributionAmount] = useState(0);
   const [distributionReason, setDistributionReason] = useState('');
   const [distributionOtherDetails, setDistributionOtherDetails] = useState('');
-  const [decisionAmount, setDecisionAmount] = useState<Record<string, number>>({});
-  const [decisionComment, setDecisionComment] = useState<Record<string, string>>({});
   const [receiveComment, setReceiveComment] = useState<Record<string, string>>({});
   const [oversightComment, setOversightComment] = useState<Record<string, string>>({});
   const [selectedPaymentBookingId, setSelectedPaymentBookingId] = useState('');
@@ -94,16 +83,8 @@ export default function CashMovement() {
     return true;
   };
 
-  const pendingRequests = useMemo(
-    () => cashTransfers.filter((item) => item.status === 'pending_cashier_1_approval'),
-    [cashTransfers],
-  );
   const sentTransfers = useMemo(
     () => cashTransfers.filter((item) => item.status === 'sent_to_cashier_2' || item.status === 'received_by_cashier_2'),
-    [cashTransfers],
-  );
-  const incomingForCashier2 = useMemo(
-    () => cashTransfers.filter((item) => item.status === 'sent_to_cashier_2'),
     [cashTransfers],
   );
   const deniedOrCancelledTransfers = useMemo(
@@ -112,9 +93,9 @@ export default function CashMovement() {
   );
 
   const stats = [
-    { title: 'Pending Requests', value: `${pendingRequests.length}`, description: 'waiting decision' },
     { title: 'Sent Transfers', value: `${sentTransfers.filter((item) => item.status === 'sent_to_cashier_2').length}`, description: 'awaiting confirmation' },
     { title: 'Received', value: `${sentTransfers.filter((item) => item.status === 'received_by_cashier_2').length}`, description: 'receipt confirmed' },
+    { title: 'Distributions', value: `${cashDistributions.length}`, description: 'cash usage entries' },
     { title: 'Total Records', value: `${cashTransfers.length}`, description: 'cash movement trail' },
   ];
 
@@ -253,12 +234,12 @@ export default function CashMovement() {
       pageTitle="Cash Movement"
       subtitle="Manage cashier cash movement, approvals, and distribution records."
       stats={stats}
-      sections={[
+        sections={[
           {
             title: 'Cashier Actions',
             bullets: [
-              'Record outgoing cash movement and approvals from one cashier desk.',
-              'Review requested cash and approve with amount or decline.',
+              'Record outgoing cash movement from the single cashier desk.',
+              'Track sent, received, and declined movements in one place.',
               'Use the Distribution tab to capture all distribution work inside the single cashier desk.',
             ],
           },
@@ -269,7 +250,6 @@ export default function CashMovement() {
           <Tabs defaultValue="move-cash" className="space-y-4">
             <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
-              <TabsTrigger value="requested-cash">Requested Cash</TabsTrigger>
               <TabsTrigger value="distribution">Distribution</TabsTrigger>
               <TabsTrigger value="history">Cash Moved</TabsTrigger>
               <TabsTrigger value="cancelled-denied">Cancelled/Denied</TabsTrigger>
@@ -331,102 +311,6 @@ export default function CashMovement() {
                   >
                     {isSubmitting ? 'Sending...' : isRefreshingPage ? 'Refreshing...' : 'Send'}
                   </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="requested-cash">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Requested Cash</p>
-                <div className="mt-3 space-y-3">
-                  {pendingRequests.length === 0 ? (
-                    <p className="text-sm text-slate-600">No pending cash requests.</p>
-                  ) : (
-                    pendingRequests.map((item) => (
-                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900">{item.id}</p>
-                          <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
-                        </div>
-                        <p className="text-slate-600">Requested: TZS {item.requestedAmount.toLocaleString()}</p>
-                        <p className="text-slate-500">Comment: {item.requestComment || '-'}</p>
-                        <p className="text-xs text-slate-500">{new Date(item.requestedAt).toLocaleString()}</p>
-                        <div className="mt-2 grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
-                          <input
-                            type="number"
-                            placeholder="Approved amount"
-                            className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                            value={decisionAmount[item.id] || ''}
-                            onChange={(event) => setDecisionAmount((prev) => ({ ...prev, [item.id]: Number(event.target.value) }))}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Decision comment"
-                            className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                            value={decisionComment[item.id] ?? ''}
-                            onChange={(event) => setDecisionComment((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                          />
-                          <Button
-                            size="sm"
-                            disabled={isSubmitting}
-                            onClick={async () => {
-                              if (isSubmitting) return;
-                              if (!canRunAction()) return;
-                              const amount = decisionAmount[item.id] || 0;
-                              if (!Number.isFinite(amount) || amount <= 0) {
-                                setMessage('Enter a valid approved amount greater than zero.');
-                                toast({ title: 'Invalid approved amount', description: 'Enter a valid approved amount greater than zero.', variant: 'destructive' });
-                                return;
-                              }
-                              if (!(decisionComment[item.id] ?? '').trim()) {
-                                const invalidMessage = 'Decision comment is required.';
-                                setMessage(invalidMessage);
-                                toast({ title: 'Missing decision comment', description: invalidMessage, variant: 'destructive' });
-                                return;
-                              }
-                              setIsSubmitting(true);
-                              const result = await approveCashTransferRequest(item.id, amount, decisionComment[item.id] ?? '', crypto.randomUUID());
-                              setMessage(result.message);
-                              toast({
-                                title: result.ok ? 'Request approved' : 'Approval failed',
-                                description: result.message,
-                                variant: result.ok ? 'default' : 'destructive',
-                              });
-                              setIsSubmitting(false);
-                            }}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isSubmitting}
-                            onClick={async () => {
-                              if (isSubmitting) return;
-                              if (!canRunAction()) return;
-                              if (!(decisionComment[item.id] ?? '').trim()) {
-                                const invalidMessage = 'Decision comment is required.';
-                                setMessage(invalidMessage);
-                                toast({ title: 'Missing decision comment', description: invalidMessage, variant: 'destructive' });
-                                return;
-                              }
-                              setIsSubmitting(true);
-                              const result = await declineCashTransferRequest(item.id, decisionComment[item.id] ?? '', crypto.randomUUID());
-                              setMessage(result.message);
-                              toast({
-                                title: result.ok ? 'Request declined' : 'Decline failed',
-                                description: result.message,
-                                variant: result.ok ? 'default' : 'destructive',
-                              });
-                              setIsSubmitting(false);
-                            }}
-                          >
-                            Decline
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
             </TabsContent>
@@ -602,7 +486,7 @@ export default function CashMovement() {
                           {item.status === 'denied_by_cashier_2' ? (
                             <Badge className="bg-rose-100 text-rose-700">Receipt Denied</Badge>
                           ) : (
-                            <Badge className="bg-rose-100 text-rose-700">Declined by Cashier 1</Badge>
+                            <Badge className="bg-rose-100 text-rose-700">Declined by Cashier</Badge>
                           )}
                         </div>
                         <p className="text-slate-600">Amount: TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>

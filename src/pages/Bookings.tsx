@@ -344,7 +344,7 @@ export default function Bookings() {
         ? await updateBooking(editingBookingId, form)
         : await createBooking(form, { actionId: crypto.randomUUID() });
       if (assistantFlow && result.ok && !editingBookingId) {
-        setMessage('Booked and sent to Cashier 1 dashboard.');
+        setMessage('Booked and sent to Cashier dashboard.');
       } else {
         setMessage(result.message);
       }
@@ -571,7 +571,7 @@ export default function Bookings() {
           subtitle="Standalone list of bookings submitted from Assistant Hall desk."
           stats={[
             { title: 'My Bookings', value: `${assistantBookings.length}`, description: 'all submitted records' },
-            { title: 'Sent to Cashier 1', value: `${sentToCashierCount}`, description: 'waiting payment workflow' },
+            { title: 'Sent to Cashier', value: `${sentToCashierCount}`, description: 'waiting payment workflow' },
             { title: 'Pending', value: `${assistantBookings.filter((entry) => entry.bookingStatus === 'pending').length}`, description: 'still pending approval' },
             { title: 'Updated', value: `${assistantBookings.filter((entry) => (entry.revision ?? 0) > 0).length}`, description: 'records edited at least once' },
           ]}
@@ -592,7 +592,7 @@ export default function Bookings() {
                         <p className="font-semibold text-slate-900">{booking.eventName}</p>
                         <div className="flex items-center gap-2">
                           {booking.revision ? <Badge className="bg-amber-100 text-amber-800">Updated x{booking.revision}</Badge> : null}
-                          <Badge className="bg-blue-100 text-blue-700">Sent to Cashier 1</Badge>
+                          <Badge className="bg-blue-100 text-blue-700">Sent to Cashier</Badge>
                         </div>
                       </div>
                       <p className="mt-1 text-slate-600">{booking.hall} | {booking.date} | {booking.startTime}-{booking.endTime}</p>
@@ -616,10 +616,10 @@ export default function Bookings() {
     return (
       <ManagementPageTemplate
         pageTitle="Bookings"
-        subtitle="Hall Registration form and booking handoff to Cashier 1."
+        subtitle="Hall registration form and booking handoff to the cashier desk."
         stats={[
           { title: "Today's Bookings", value: stats[0].value, description: 'scheduled for today' },
-          { title: 'Sent to Cashier 1', value: `${sentToCashierCount}`, description: 'waiting for payment processing' },
+          { title: 'Sent to Cashier', value: `${sentToCashierCount}`, description: 'waiting for payment processing' },
           { title: 'My Bookings', value: `${assistantBookings.length}`, description: 'created by you' },
           { title: 'Pending', value: `${assistantBookings.filter((entry) => entry.bookingStatus === 'pending').length}`, description: 'in booking workflow' },
         ]}
@@ -628,7 +628,7 @@ export default function Bookings() {
             title: 'Assistant Booking Workflow',
             bullets: [
               'Fill hall registration details and quoted amount.',
-              'Use Book to send booking to Cashier 1 dashboard.',
+              'Use Book to send booking to the cashier dashboard.',
               'Inventory is visible as overview only.',
             ],
           },
@@ -722,7 +722,7 @@ export default function Bookings() {
                     <Button size="sm" disabled={isSavingBooking || isRefreshingPage || !isBookingFormComplete} onClick={() => void handleCreateBooking(true)}>
                       {isSavingBooking
                         ? 'Saving...'
-                        : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier 1'}
+                        : editingBookingId ? 'Save Booking Changes' : 'Book & Send to Cashier'}
                     </Button>
                     {editingBookingId ? (
                       <Button size="sm" variant="outline" disabled={isRefreshingPage} onClick={() => { setEditingBookingId(null); setForm(initialForm); setFormHallIsOther(false); }}>
@@ -1037,7 +1037,7 @@ export default function Bookings() {
     return (
       <ManagementPageTemplate
         pageTitle="Bookings"
-        subtitle="Cashier 1 workflow for approvals, partial payments, and completed payments."
+        subtitle="Cashier workflow for approvals, partial payments, and completed payments."
         stats={[
           { title: 'Pending Approval', value: `${pendingApprovalBookings.length}`, description: 'bookings not yet confirmed' },
           { title: 'Pending Payment', value: `${partialPaymentBookings.length}`, description: 'approved bookings under payment processing' },
@@ -1046,7 +1046,7 @@ export default function Bookings() {
         ]}
         sections={[
           {
-            title: 'Cashier 1 Booking Payment Workflow',
+            title: 'Cashier Booking Payment Workflow',
             bullets: [
               'Pending Approval tab is for bookings waiting cashier confirmation.',
               'Pending Payment tab lists approved bookings for installment updates.',
@@ -1236,7 +1236,7 @@ export default function Bookings() {
                           <>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-semibold text-slate-900">{entry.id} | {entry.eventName}</p>
-                        <Badge className="bg-amber-100 text-amber-800">Pending Cashier 1</Badge>
+                        <Badge className="bg-amber-100 text-amber-800">Pending Cashier</Badge>
                       </div>
                       <p className="text-slate-600">{entry.customerName} ({entry.customerPhone})</p>
                       <p className="text-slate-500">{entry.hall} | {entry.date} | {entry.startTime}-{entry.endTime}</p>
@@ -1294,7 +1294,7 @@ export default function Bookings() {
                               amount,
                               method: pastApprovalMethod[entry.id] ?? 'cash',
                               receivedAt: pastApprovalDateTime[entry.id] ?? getDefaultPaidDateTime(),
-                              notes: pastApprovalNotes[entry.id] ?? 'Past booking payment recorded by Cashier 1',
+                              notes: pastApprovalNotes[entry.id] ?? 'Past booking payment recorded by Cashier',
                             });
                             if (!paymentResult.ok) {
                               setMessage(paymentResult.message);

@@ -361,7 +361,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       requestedAmount,
       approvedAmount: requestedAmount,
       requestComment: input.comment.trim(),
-      decisionComment: 'Direct transfer by Cashier 1',
+      decisionComment: 'Direct transfer by Cashier',
       receiveComment: '',
       initiatedByUserId: user.id,
       initiatedByRole: 'cashier_1',

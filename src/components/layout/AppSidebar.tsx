@@ -243,7 +243,7 @@ export function AppSidebar() {
         {user.role === 'assistant_hall_manager' ? (
           renderNavGroup('Assistant Hall', assistantHallNavItems)
         ) : user.role === 'cashier_1' ? (
-          renderNavGroup('Cashier 1', cashier1NavItems)
+          renderNavGroup('Cashier', cashier1NavItems)
         ) : user.role === 'purchaser' ? (
           renderNavGroup('Purchaser', purchaserNavItems)
         ) : user.role === 'accountant' ? (

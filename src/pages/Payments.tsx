@@ -103,7 +103,7 @@ export default function Payments() {
 
   const sections = [
     {
-      title: 'Cashier 1 Controls',
+      title: 'Cashier Controls',
       bullets: [
         'Record payment method and amount for each booking.',
         'Mark booking payment status: pending, deposit paid, partial, or fully paid.',
