@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const links = [
-  { labelKey: 'nav.packages', to: '/packages' },
-  { labelKey: 'nav.catering', to: '/catering' },
-  { labelKey: 'nav.drinks', to: '/drinks' },
-  { labelKey: 'nav.policies', to: '/taratibu' },
+  { labelKey: 'nav.venues', to: '/?section=destinations' },
+  { labelKey: 'nav.packages', to: '/?section=packages' },
+  { labelKey: 'nav.catering', to: '/?section=planner' },
+  { labelKey: 'nav.policies', to: '/?section=policies' },
 ];
 
 type PublicNavbarProps = {

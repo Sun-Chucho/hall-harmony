@@ -25,16 +25,8 @@ import Documents from "./pages/Documents";
 import Reports from "./pages/Reports";
 import Portal from "./pages/Portal";
 import Settings from "./pages/Settings";
-import Foods from "./pages/Foods";
-import Drinks from "./pages/Drinks";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Index";
-import Venues from "./pages/Venues";
-import Stories from "./pages/Stories";
-import Pricing from "./pages/Pricing";
-import Taratibu from "./pages/Taratibu";
-import Muhimu from "./pages/Muhimu";
-import Packages from "./pages/Packages";
 import Hall from "./pages/Hall";
 import PublicBooking from "./pages/PublicBooking";
 import AdminConsole from "./pages/AdminConsole";
@@ -97,15 +89,15 @@ const App = () => {
                           <Routes>
                           <Route path="/" element={<Home />} />
                           <Route path="/home" element={<Home />} />
-                          <Route path="/venues" element={<Venues />} />
-                          <Route path="/stories" element={<Stories />} />
+                          <Route path="/venues" element={<Navigate to="/?section=destinations" replace />} />
+                          <Route path="/stories" element={<Navigate to="/?section=planner" replace />} />
                           <Route path="/booking" element={<PublicBooking />} />
-                          <Route path="/pricing" element={<Pricing />} />
-                          <Route path="/drinks" element={<Drinks />} />
-                          <Route path="/catering" element={<Foods />} />
-                          <Route path="/taratibu" element={<Taratibu />} />
-                          <Route path="/muhimu" element={<Muhimu />} />
-                          <Route path="/packages" element={<Packages />} />
+                          <Route path="/pricing" element={<Navigate to="/?section=rates" replace />} />
+                          <Route path="/drinks" element={<Navigate to="/?section=planner" replace />} />
+                          <Route path="/catering" element={<Navigate to="/?section=planner" replace />} />
+                          <Route path="/taratibu" element={<Navigate to="/?section=policies" replace />} />
+                          <Route path="/muhimu" element={<Navigate to="/?section=policies" replace />} />
+                          <Route path="/packages" element={<Navigate to="/?section=packages" replace />} />
                           <Route path="/login" element={<Navigate to="/staff" replace />} />
                           <Route path="/staff" element={<Login />} />
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
@@ -123,7 +115,7 @@ const App = () => {
                           <Route path="/distribution" element={<RouteGuard path="/distribution" transactional><Distribution /></RouteGuard>} />
                           <Route path="/portal" element={<RouteGuard path="/portal"><Portal /></RouteGuard>} />
                           <Route path="/settings" element={<RouteGuard path="/settings"><Settings /></RouteGuard>} />
-                          <Route path="/foods" element={<Foods />} />
+                          <Route path="/foods" element={<Navigate to="/?section=planner" replace />} />
                           <Route path="/halls/:hallId" element={<Hall />} />
                           <Route path="/admin" element={<RouteGuard path="/admin"><AdminConsole /></RouteGuard>} />
                           <Route path="/messages" element={<RouteGuard path="/messages"><Messages /></RouteGuard>} />

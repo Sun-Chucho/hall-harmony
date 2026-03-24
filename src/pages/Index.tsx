@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, Check, Phone, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { decorationPackages } from '@/lib/landingData';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { beverageList, beverageNotes, cakeOptions, conferencePackages, decorationPackages, externalServices } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
 import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { destinationProfiles } from '@/lib/destinationProfiles';
+import { bankAccounts, destinationProfiles, foodMenus, hallOperationsPolicy, importantNotices } from '@/lib/destinationProfiles';
 import { SITE_IMAGES, VENUE_IMAGE_BY_ID } from '@/lib/siteImages';
 import heroVideo from '../../HALLS.mp4';
 
@@ -29,7 +30,7 @@ const STORY_CARDS = [
     tagEn: 'Feature Story',
     tagSw: 'Hadithi Maalum',
     image: SITE_IMAGES.premium,
-    to: '/stories#feature-story',
+    to: '/?section=planner',
   },
   {
     titleEn: 'Hall A Signature Wedding',
@@ -39,7 +40,7 @@ const STORY_CARDS = [
     tagEn: 'Event Journal',
     tagSw: 'Jarida la Tukio',
     image: SITE_IMAGES.journal,
-    to: '/stories#event-journal',
+    to: '/?section=planner',
   },
   {
     titleEn: 'Boardroom to Banquet in Hall D',
@@ -49,7 +50,7 @@ const STORY_CARDS = [
     tagEn: 'Planning Guide',
     tagSw: 'Mwongozo wa Mipango',
     image: SITE_IMAGES.editorial,
-    to: '/stories#planning-guide',
+    to: '/?section=planner',
   },
 ];
 
@@ -72,6 +73,7 @@ const formatTZS = (value: number) =>
   }).format(value);
 
 export default function Index() {
+  const location = useLocation();
   const { language } = useLanguage();
   const isSw = language === 'sw';
   const [showSupportDialog, setShowSupportDialog] = useState(false);
@@ -95,6 +97,17 @@ export default function Index() {
     nodes.forEach((node) => observer.observe(node));
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const section = params.get('section');
+    if (!section) return;
+    const target = document.getElementById(section);
+    if (!target) return;
+    window.setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  }, [location.search]);
 
   const openSupportEmail = () => {
     const subject = isSw ? 'Ombi la Msaada wa Moja kwa Moja' : 'Live Local Support Request';
@@ -187,7 +200,7 @@ export default function Index() {
           </div>
         </section>
 
-        <section className="reveal-on-scroll py-10">
+        <section id="rates" className="reveal-on-scroll py-10">
           <div className="text-center">
             <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Bei za Kukodi Kumbi' : 'Hall Rental Rates'}</h2>
             <p className="mt-3 text-sm text-[#6f6f6f]">{isSw ? 'Kumbi zote na bei rasmi kulingana na siku.' : 'All halls with their official day-based pricing.'}</p>
@@ -234,8 +247,8 @@ export default function Index() {
                     ? 'Unganisha ngazi za mapambo ya ubora wa juu, stage, na mpangilio maalum wa mtiririko ili tukio liende kwa mpangilio kamili.'
                     : 'Combine premium decor tiers, staging, and tailored flow plans to deliver a seamless event story from welcome to finale.'}
                 </p>
-                <Link to="/stories#featured-experience" className="mt-6 inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#E6CB8E]">
-                  {isSw ? 'Tazama Uzoefu Kamili' : 'View Full Experience'} <ArrowRight className="h-4 w-4" />
+                <Link to="/?section=planner" className="mt-6 inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#E6CB8E]">
+                  {isSw ? 'Tazama Maelezo Kamili' : 'View Full Details'} <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>
@@ -261,25 +274,25 @@ export default function Index() {
                 </div>
               </article>
             ))}
-            <Link to="/stories" className="md:col-span-12 mt-2 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
-              {isSw ? 'Tazama hadithi zaidi' : 'See more stories'} <ArrowRight className="h-4 w-4" />
+            <Link to="/?section=planner" className="md:col-span-12 mt-2 inline-flex items-center gap-2 text-sm font-medium text-[#1f1f1f]">
+              {isSw ? 'Tazama maelezo zaidi' : 'See more details'} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
 
-        <section className="reveal-on-scroll py-14">
+        <section id="packages" className="reveal-on-scroll py-14">
           <article className="relative overflow-hidden bg-black px-6 py-20 text-center text-white md:px-12">
             <img src={IMAGES.suite} alt={isSw ? 'Mpangilio wa kifurushi cha kifahari' : 'Premium suite styling'} className="absolute inset-0 h-full w-full object-cover opacity-30" />
             <div className="relative mx-auto max-w-2xl">
               <h2 className="text-4xl font-semibold md:text-5xl">{isSw ? 'Vifurushi vya Kipekee' : 'Sensational Suites'}</h2>
               <p className="mt-4 text-sm text-white/85 md:text-base">{isSw ? 'Chagua ngazi ya kifurushi kulingana na ukubwa wa tukio na mahitaji ya uzalishaji.' : 'Choose package levels based on event scale, production needs, and guest impact.'}</p>
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-                <Link to="/packages">
+                <Link to="/?section=packages">
                   <Button className="rounded-full bg-white px-6 text-[#111111] hover:bg-white/90">{isSw ? 'Tazama Vifurushi' : 'View Packages'}</Button>
                 </Link>
-                <Link to="/catering">
+                <Link to="/?section=planner">
                   <Button variant="outline" className="rounded-full border-white/40 bg-transparent px-6 text-white hover:bg-white/15">
-                    {isSw ? 'Tazama Catering' : 'View Catering'}
+                    {isSw ? 'Angalia Maelezo Zaidi' : 'See More Details'}
                   </Button>
                 </Link>
               </div>
@@ -294,14 +307,14 @@ export default function Index() {
           </article>
         </section>
 
-        <section className="reveal-on-scroll py-14">
+        <section id="contact" className="reveal-on-scroll py-14">
           <article className="bg-black px-6 py-14 text-center text-white md:px-12">
             <div className="grid gap-5 md:grid-cols-3">
               <Link to="/booking" className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black">
                 {isSw ? 'Uhifadhi wa Haraka' : 'Instant Booking'}
               </Link>
-              <Link to="/venues" className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black">
-                {isSw ? 'Ziara za Utambuzi' : 'Discovery Tours'}
+              <Link to="/?section=destinations" className="border border-white/30 px-4 py-8 text-xl transition hover:bg-white hover:text-black">
+                {isSw ? 'Chunguza Kumbi' : 'Explore Venues'}
               </Link>
               <button
                 type="button"
@@ -314,7 +327,7 @@ export default function Index() {
           </article>
         </section>
 
-        <section className="reveal-on-scroll py-14">
+        <section id="planner" className="reveal-on-scroll py-14">
           <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr]">
             <article>
               <h3 className="text-3xl font-semibold">{isSw ? 'Panga na Kuringe' : 'Plan With Kuringe'}</h3>
@@ -330,7 +343,7 @@ export default function Index() {
                 <Link to="/booking">
                   <Button className="rounded-full bg-[#121212] px-7 text-white hover:bg-[#272727]">{isSw ? 'Anza Uhifadhi' : 'Start Booking'}</Button>
                 </Link>
-                <Link to="/taratibu">
+                <Link to="/?section=policies">
                   <Button variant="outline" className="rounded-full border-black/20 px-7">{isSw ? 'Soma Sera' : 'Read Policies'}</Button>
                 </Link>
               </div>
@@ -364,6 +377,171 @@ export default function Index() {
           </div>
         </section>
 
+        <section className="reveal-on-scroll py-6">
+          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+            <article className="overflow-hidden border border-black/10 bg-white p-6 md:p-8">
+              <p className="text-xs uppercase tracking-[0.28em] text-[#8a8a8a]">{isSw ? 'Maelezo Yanayofunguka' : 'Expandable Details'}</p>
+              <h2 className="mt-4 text-3xl font-semibold md:text-4xl">
+                {isSw ? 'Taarifa Zote Muhimu Zimebaki Hapa Kwenye Ukurasa Mmoja' : 'Everything Important Lives on This Single Landing Page'}
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[#5b5b5b]">
+                {isSw
+                  ? 'Badala ya kurasa nyingi za maelezo, tumebaki na ukurasa mmoja wenye vifungo vya kufungua maelezo ya kina pale tu mgeni anapovihitaji.'
+                  : 'Instead of scattering visitors across multiple detail pages, the site now keeps deeper information behind click-to-open sections on one polished homepage.'}
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link to="/booking">
+                  <Button className="rounded-full bg-[#121212] px-6 text-white hover:bg-[#272727]">{isSw ? 'Omba Uhifadhi' : 'Request Booking'}</Button>
+                </Link>
+                <Link to="/?section=policies">
+                  <Button variant="outline" className="rounded-full border-black/20 px-6">{isSw ? 'Soma Masharti' : 'Review Policies'}</Button>
+                </Link>
+              </div>
+            </article>
+
+            <article className="overflow-hidden border border-black/10 bg-[#111111] p-6 text-white md:p-8">
+              <p className="text-xs uppercase tracking-[0.28em] text-white/55">{isSw ? 'Muhtasari wa Haraka' : 'Quick Summary'}</p>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/55">{isSw ? 'Kumbi' : 'Venues'}</p>
+                  <p className="mt-2 text-2xl font-semibold">{destinationProfiles.length}</p>
+                  <p className="mt-1 text-sm text-white/75">{isSw ? 'Kuanzia mikusanyiko ya karibu hadi matukio makubwa' : 'From intimate gatherings to major celebrations'}</p>
+                </div>
+                <div className="border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/55">{isSw ? 'Vifurushi' : 'Packages'}</p>
+                  <p className="mt-2 text-2xl font-semibold">{decorationPackages.length}</p>
+                  <p className="mt-1 text-sm text-white/75">{isSw ? 'Ngazi tofauti za mapambo na uzalishaji' : 'Tiered decor and production options'}</p>
+                </div>
+                <div className="border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/55">{isSw ? 'Menus' : 'Menus'}</p>
+                  <p className="mt-2 text-2xl font-semibold">{foodMenus.length}</p>
+                  <p className="mt-1 text-sm text-white/75">{isSw ? 'Chakula, vinywaji, na huduma za ziada' : 'Food, drinks, and extra service options'}</p>
+                </div>
+                <div className="border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-white/55">{isSw ? 'Mwongozo' : 'Policies'}</p>
+                  <p className="mt-2 text-2xl font-semibold">{hallOperationsPolicy.length + importantNotices.length}</p>
+                  <p className="mt-1 text-sm text-white/75">{isSw ? 'Masharti na taarifa muhimu zimefichwa kwa mpangilio' : 'Terms and key notices stay neatly tucked away'}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="reveal-on-scroll py-10">
+          <div className="grid gap-8 lg:grid-cols-2">
+            <article className="border border-black/10 bg-white p-6 md:p-8">
+              <p className="text-xs uppercase tracking-[0.28em] text-[#8a8a8a]">{isSw ? 'Mahitaji ya Tukio' : 'Event Planning Details'}</p>
+              <h3 className="mt-4 text-2xl font-semibold md:text-3xl">{isSw ? 'Fungua tu kile unachohitaji' : 'Open only the details you need'}</h3>
+              <Accordion type="single" collapsible className="mt-6">
+                <AccordionItem value="decor">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Vifurushi vya mapambo' : 'Decoration packages'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3">
+                      {decorationPackages.map((pkg) => (
+                        <div key={pkg.title} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-[#161616]">{getDecorationPackageName(pkg.title)}</p>
+                            <p className="text-sm font-semibold text-[#7a151b]">{formatTZS(pkg.price)}</p>
+                          </div>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.highlights.slice(0, 4).join(' • ')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="food">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Chakula na conference menus' : 'Food and conference menus'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4">
+                      {foodMenus.map((menu) => (
+                        <div key={menu.title} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-[#161616]">{menu.title}</p>
+                            <p className="text-sm text-[#5d5d5d]">{isSw ? 'Starter + Buffet' : 'Starter + Buffet'}</p>
+                          </div>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{[...menu.starter, ...menu.buffet].slice(0, 7).join(' • ')}</p>
+                        </div>
+                      ))}
+                      {conferencePackages.slice(0, 2).map((pkg) => (
+                        <div key={pkg.attendees} className="rounded-2xl border border-black/10 bg-[#f5f2eb] p-4">
+                          <p className="font-semibold text-[#161616]">{isSw ? 'Conference' : 'Conference'} {pkg.attendees}</p>
+                          <p className="mt-1 text-sm text-[#5d5d5d]">{pkg.pricePoint}</p>
+                          <p className="mt-2 text-sm text-[#5d5d5d]">{pkg.amenities.slice(0, 6).join(' • ')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="drinks">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Vinywaji na huduma za ziada' : 'Drinks and extra services'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
+                        <p className="font-semibold text-[#161616]">{isSw ? 'Vinywaji maarufu' : 'Popular beverages'}</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {beverageList.slice(0, 8).map((drink) => (
+                            <div key={drink.name} className="flex items-center justify-between gap-3 text-sm text-[#5d5d5d]">
+                              <span>{drink.name}</span>
+                              <span className="font-medium text-[#161616]">{formatTZS(drink.price)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-xs text-[#6a6a6a]">{beverageNotes[0]}</p>
+                      </div>
+                      <div className="rounded-2xl border border-black/10 bg-[#f5f2eb] p-4">
+                        <p className="font-semibold text-[#161616]">{isSw ? 'Huduma nyingine' : 'Additional services'}</p>
+                        <p className="mt-2 text-sm text-[#5d5d5d]">{externalServices.join(' • ')}</p>
+                        <p className="mt-3 text-sm text-[#5d5d5d]">{cakeOptions.map((item) => `${item.title} (${item.pricePoint})`).join(' • ')}</p>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </article>
+
+            <article id="policies" className="border border-black/10 bg-white p-6 md:p-8">
+              <p className="text-xs uppercase tracking-[0.28em] text-[#8a8a8a]">{isSw ? 'Sera na Malipo' : 'Policies and Payments'}</p>
+              <h3 className="mt-4 text-2xl font-semibold md:text-3xl">{isSw ? 'Masharti yamefichwa kwa mpangilio safi' : 'Policies stay tucked behind clean buttons'}</h3>
+              <Accordion type="single" collapsible className="mt-6">
+                <AccordionItem value="operations">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Taratibu za ukumbi' : 'Hall operations policy'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {hallOperationsPolicy.map((item) => (
+                        <p key={item} className="rounded-2xl bg-[#faf8f4] px-4 py-3 text-sm text-[#5d5d5d]">{item}</p>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="payment">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Accounts za malipo' : 'Payment accounts'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid gap-3">
+                      {bankAccounts.map((account) => (
+                        <div key={account.bank} className="rounded-2xl border border-black/10 bg-[#faf8f4] p-4">
+                          <p className="font-semibold text-[#161616]">{account.bank}</p>
+                          <p className="mt-1 text-sm text-[#5d5d5d]">{account.name}</p>
+                          <p className="mt-1 text-sm font-medium text-[#7a151b]">{account.account}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="important">
+                  <AccordionTrigger className="text-left text-base">{isSw ? 'Taarifa muhimu' : 'Important notices'}</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {importantNotices.map((item) => (
+                        <p key={item} className="rounded-2xl bg-[#faf8f4] px-4 py-3 text-sm text-[#5d5d5d]">{item}</p>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </article>
+          </div>
+        </section>
+
         <section className="reveal-on-scroll py-8">
           <div className="border-t border-black/15 pt-8">
             <p className="text-center text-2xl">kuringe halls</p>
@@ -387,10 +565,10 @@ export default function Index() {
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-white/60">{isSw ? 'Chunguza' : 'Explore'}</p>
             <ul className="mt-4 space-y-2 text-sm text-white/85">
-              <li><Link to="/packages">{isSw ? 'Vifurushi' : 'Packages'}</Link></li>
-              <li><Link to="/catering">{isSw ? 'Upishi' : 'Catering'}</Link></li>
-              <li><Link to="/drinks">{isSw ? 'Vinywaji' : 'Drinks'}</Link></li>
-              <li><Link to="/stories">{isSw ? 'Hadithi' : 'Stories'}</Link></li>
+              <li><Link to="/?section=destinations">{isSw ? 'Kumbi' : 'Venues'}</Link></li>
+              <li><Link to="/?section=packages">{isSw ? 'Vifurushi' : 'Packages'}</Link></li>
+              <li><Link to="/?section=planner">{isSw ? 'Upishi na Huduma' : 'Catering and Services'}</Link></li>
+              <li><Link to="/?section=policies">{isSw ? 'Sera' : 'Policies'}</Link></li>
             </ul>
           </div>
 
