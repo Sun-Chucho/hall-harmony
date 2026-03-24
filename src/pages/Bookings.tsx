@@ -241,11 +241,11 @@ export default function Bookings() {
   const isAssistantHall = user?.role === 'assistant_hall_manager';
   const isCashier1 = user?.role === 'cashier_1';
   const isManager = user?.role === 'manager';
-  const canManageBookings = user?.role === 'controller';
-  const canFinalizeEvent = user?.role === 'controller';
+  const canManageBookings = user?.role === 'accountant';
+  const canFinalizeEvent = user?.role === 'accountant';
   const canAccountantReview = user?.role === 'accountant';
-  const canCreateBooking = user?.role === 'controller' || user?.role === 'manager';
-  const canDeleteAnyBooking = user?.role === 'controller' || user?.role === 'manager';
+  const canCreateBooking = user?.role === 'accountant' || user?.role === 'manager';
+  const canDeleteAnyBooking = user?.role === 'accountant' || user?.role === 'manager';
 
   const conflict = form.hall && form.date && form.startTime && form.endTime
     ? hasConflict(form)
@@ -1794,7 +1794,7 @@ export default function Bookings() {
         {
           title: 'Workflow',
           bullets: [
-            'Controller manages booking and event approvals.',
+            'Accountant manages booking and event approvals.',
             'Accountant can submit recommendations to Managing Director.',
             'Conflict checks run before a booking is submitted for approval.',
           ],
@@ -1948,7 +1948,7 @@ export default function Bookings() {
                         </>
                       ) : null}
 
-                      {(user?.role === 'controller' || user?.role === 'manager') ? (
+                      {(user?.role === 'accountant' || user?.role === 'manager') ? (
                         <Button size="sm" variant="outline" onClick={() => beginEditBooking(booking.id)}>
                           Edit Booking
                         </Button>

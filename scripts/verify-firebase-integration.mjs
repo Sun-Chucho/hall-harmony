@@ -90,8 +90,8 @@ async function main() {
     const manager = await login(managerEmail, managerPassword);
     const managerRole = await getRoleForCurrentUser();
     record('Manager login', true, `uid=${manager.uid}, role=${managerRole}`);
-    if (managerRole !== 'manager' && managerRole !== 'controller') {
-      record('Manager role check', false, `Expected manager/controller, got ${managerRole}`);
+    if (managerRole !== 'manager' && managerRole !== 'accountant') {
+      record('Manager role check', false, `Expected manager/accountant, got ${managerRole}`);
       return;
     }
 

@@ -220,5 +220,5 @@ export function canReviewApproval(role: UserRole, level: ApprovalLevel): boolean
 }
 
 export function isTransactionBlocked(role: UserRole, policy: SystemPolicy): boolean {
-  return policy.transactionsFrozen && role !== 'accountant' && role !== 'controller';
+  return policy.transactionsFrozen && role !== 'accountant';
 }

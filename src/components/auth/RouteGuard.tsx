@@ -35,7 +35,7 @@ export function RouteGuard({
     return <Navigate to={defaultRoute} replace />;
   }
 
-  if (transactional && policy.transactionsFrozen && user.role !== 'accountant' && user.role !== 'controller') {
+  if (transactional && policy.transactionsFrozen && user.role !== 'accountant') {
     return (
       <div className="mx-auto mt-16 max-w-2xl rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-900">
         <p className="text-xs uppercase tracking-[0.3em]">Transactions Suspended</p>

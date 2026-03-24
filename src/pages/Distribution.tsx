@@ -60,7 +60,7 @@ export default function Distribution() {
     ];
   }, [cashDistributions]);
 
-  const canRecordDistribution = user?.role === 'cashier_1' || user?.role === 'cashier_2' || user?.role === 'controller';
+  const canRecordDistribution = user?.role === 'cashier_1' || user?.role === 'accountant';
 
   return (
     <ManagementPageTemplate

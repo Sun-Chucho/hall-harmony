@@ -539,8 +539,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     decision: Extract<PastBookingApprovalStatus, 'approved_cashier_1' | 'rejected_cashier_1'>,
   ) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (user.role !== 'cashier_1' && user.role !== 'controller') {
-      return { ok: false, message: 'Only Cashier 1 or Controller can review past bookings.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') {
+      return { ok: false, message: 'Only Cashier or Accountant can review past bookings.' };
     }
     const target = bookings.find((booking) => booking.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
@@ -573,13 +573,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'controller' || user.role === 'cashier_1';
+    const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'accountant' || user.role === 'cashier_1';
     if (!canEditAsRole) {
-      return { ok: false, message: 'Only Assistant Hall Manager, Managing Director, or Controller can edit bookings.' };
+      return { ok: false, message: 'Only Assistant Hall Manager, Managing Director, Accountant, or Cashier can edit bookings.' };
     }
     const target = bookings.find((entry) => entry.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
-    const canEditAny = user.role === 'manager' || user.role === 'controller' || user.role === 'cashier_1';
+    const canEditAny = user.role === 'manager' || user.role === 'accountant' || user.role === 'cashier_1';
     if (!canEditAny && target.createdByUserId !== user.id) {
       return { ok: false, message: 'You can only edit your own bookings.' };
     }
@@ -683,7 +683,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     const target = bookings.find((booking) => booking.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
 
-    const isManagerOrController = user.role === 'manager' || user.role === 'controller';
+    const isManagerOrController = user.role === 'manager' || user.role === 'accountant';
     const isOwner = target.createdByUserId === user.id;
     if (!isManagerOrController && !isOwner) {
       return { ok: false, message: 'You can only delete your own bookings.' };
@@ -771,7 +771,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
             eventFinalApprovalId: finalApproval.requestId,
             updatedAt: serverTimestamp(),
           });
-          return { ok: true, message: 'Assistant approval recorded, pending controller final approval.' };
+          return { ok: true, message: 'Assistant approval recorded, pending accountant final approval.' };
         } catch {
           const patch = {
             eventDetailStatus: 'pending_controller' as EventDetailStatus,
@@ -788,7 +788,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
     if (status === 'approved_controller') {
       if (!target.eventFinalApprovalId) return { ok: false, message: 'Missing final approval request.' };
-      reviewApproval(target.eventFinalApprovalId, 'approved', 'Event details approved by controller');
+      reviewApproval(target.eventFinalApprovalId, 'approved', 'Event details approved by accountant');
     }
 
     if (status === 'rejected') {
@@ -798,7 +798,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (status === 'pending_controller' && !policy.finalApprovalRequired) {
-      return { ok: false, message: 'Controller final approval is disabled in policy.' };
+      return { ok: false, message: 'Final approval is disabled in policy.' };
     }
 
     try {

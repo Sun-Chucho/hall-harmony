@@ -69,7 +69,7 @@ export default function Rentals() {
   const openAllocations = allocations.filter((allocation) => allocation.status === 'allocated');
   const stockInMovements = movements.filter((movement) => movement.type === 'stock_in');
   const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
-  const canManage = user?.role === 'store_keeper' || user?.role === 'controller';
+  const canManage = user?.role === 'store_keeper' || user?.role === 'accountant';
 
   const runInventoryAction = (
     action: () => { ok: boolean; message: string },
@@ -472,7 +472,7 @@ export default function Rentals() {
     );
   }
 
-  if (user?.role === 'store_keeper' || user?.role === 'controller') {
+  if (user?.role === 'store_keeper' || user?.role === 'accountant') {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory & Store"
