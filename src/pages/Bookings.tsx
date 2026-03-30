@@ -910,6 +910,8 @@ export default function Bookings() {
   if (isCashier1) {
     const cashierBookings = bookings.filter(
       (entry) =>
+        (entry.assignedToRole === 'cashier_1' || !entry.assignedToRole)
+        &&
         entry.bookingStatus !== 'cancelled'
         && entry.bookingStatus !== 'rejected',
     );

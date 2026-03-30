@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { collection, deleteDoc, doc, getDoc, onSnapshot, query, QueryConstraint, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
@@ -155,6 +155,15 @@ function applyPendingActions(records: BookingRecord[], actions: PendingBookingAc
   }, records);
 }
 
+function upsertBookingRecord(records: BookingRecord[], record: BookingRecord): BookingRecord[] {
+  const withoutTarget = records.filter((entry) => entry.id !== record.id);
+  return [record, ...withoutTarget].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 export function BookingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { policy, createApprovalRequest, reviewApproval } = useAuthorization();
@@ -242,13 +251,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const constraints: QueryConstraint[] = [];
-    if (user.role === 'assistant_hall_manager') {
-      constraints.push(where('createdByUserId', '==', user.id));
-    }
-    const q = constraints.length > 0
-      ? query(collection(db, BOOKINGS_COLLECTION), ...constraints)
-      : query(collection(db, BOOKINGS_COLLECTION));
+    const q = query(collection(db, BOOKINGS_COLLECTION));
     const unsub = onSnapshot(
       q,
       (snapshot) => {
@@ -389,6 +392,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...record,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted for approval.' };
     } catch {
       setBookings((prev) => [record, ...prev]);
@@ -446,6 +450,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...record,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
     } catch {
       return { ok: false, message: 'Unable to submit booking to backend right now. Please check connection and try again.' };
@@ -520,6 +525,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...record,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Past booking recorded successfully.' };
     } catch {
       setBookings((prev) => [record, ...prev]);
@@ -557,6 +563,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...patch,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier and moved to pending payment.' : 'Past booking rejected.' };
     } catch {
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
@@ -625,6 +632,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ...patch,
         updatedAt: serverTimestamp(),
       });
+      setBookings((prev) =>
+        prev.map((entry) =>
+          entry.id === bookingId
+            ? {
+                ...entry,
+                ...patch,
+              }
+            : entry,
+        ),
+      );
       return { ok: true, message: 'Booking updated and highlighted across workflow.' };
     } catch {
       setBookings((prev) =>
