@@ -211,11 +211,21 @@ export default function Bookings() {
   const lastPastBookingActionAtRef = useRef(0);
   const lastPaymentActionAtRef = useRef(0);
 
-  const refreshPageAfterUpdate = (notice?: string) => {
+  const refreshPageAfterUpdate = (notice?: string, targetPath?: string) => {
     setIsRefreshingPage(true);
     setMessage(notice ?? 'Update saved. Refreshing page...');
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
+        const destination = targetPath?.trim();
+        const currentPath = `${window.location.pathname}${window.location.search}`;
+        if (destination && destination !== currentPath) {
+          window.location.assign(destination);
+          return;
+        }
+        if (window.location.search) {
+          window.location.assign(window.location.pathname);
+          return;
+        }
         window.location.reload();
       }, 450);
     }
@@ -335,6 +345,7 @@ export default function Bookings() {
     }
     setIsSavingBooking(true);
     const editingId = editingBookingId;
+    const returnPath = assistantFlow ? '/bookings/submitted' : '/bookings';
     try {
       const result = editingBookingId
         ? await updateBooking(editingBookingId, form)
@@ -360,7 +371,12 @@ export default function Bookings() {
         setForm(initialForm);
         setFormHallIsOther(false);
         setEditingBookingId(null);
-        refreshPageAfterUpdate('Booking update saved. Refreshing page...');
+        const successMessage = editingId
+          ? 'Booking update saved. Refreshing page...'
+          : assistantFlow
+            ? 'Booking submitted and sent to cashier. Refreshing page...'
+            : 'Booking submitted. Refreshing page...';
+        refreshPageAfterUpdate(successMessage, returnPath);
       }
     } finally {
       lastBookingActionAtRef.current = Date.now();
