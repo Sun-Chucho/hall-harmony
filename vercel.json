@@ -4,6 +4,16 @@
       "source": "/login",
       "destination": "/staff",
       "permanent": false
+    },
+    {
+      "source": "/staflog",
+      "destination": "/staff",
+      "permanent": false
+    },
+    {
+      "source": "/stafflog",
+      "destination": "/staff",
+      "permanent": false
     }
   ],
   "rewrites": [
