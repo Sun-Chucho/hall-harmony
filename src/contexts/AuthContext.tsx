@@ -49,12 +49,27 @@ function resolveFirebasePassword(password: string) {
   return password;
 }
 
+function normalizeStaffRole(role: UserRole): UserRole {
+  return role === 'controller' ? 'accountant' : role;
+}
+
+function normalizeStaffName(name: string, role: UserRole): string {
+  if (role === 'manager' && /diana|dianna/i.test(name)) {
+    return 'Halls Manager';
+  }
+  if (role === 'accountant' && /augustine/i.test(name)) {
+    return 'Accountant';
+  }
+  return name;
+}
+
 function normalizeUser(input: Partial<User> & { id: string; email: string; name: string; role: UserRole }): User {
+  const normalizedRole = normalizeStaffRole(input.role);
   return {
     id: input.id,
     email: input.email,
-    name: input.name,
-    role: input.role,
+    name: normalizeStaffName(input.name, normalizedRole),
+    role: normalizedRole,
     isActive: input.isActive ?? true,
     createdAt: input.createdAt ?? new Date().toISOString(),
     lastLogin: input.lastLogin,
