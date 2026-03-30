@@ -31,7 +31,7 @@ interface AuthorizationContextValue {
   auditLog: AuthorizationAuditEntry[];
   can: (permission: Permission) => boolean;
   isBlocked: boolean;
-  createApprovalRequest: (input: CreateApprovalInput) => { ok: boolean; message: string; requestId?: string };
+  createApprovalRequest: (input: CreateApprovalInput) => Promise<{ ok: boolean; message: string; requestId?: string }>;
   reviewApproval: (
     requestId: string,
     decision: Extract<ApprovalStatus, 'approved' | 'rejected'>,
@@ -130,7 +130,7 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     return isTransactionBlocked(user.role, policy);
   }, [policy, user]);
 
-  const createApprovalRequest = useCallback((input: CreateApprovalInput) => {
+  const createApprovalRequest = useCallback(async (input: CreateApprovalInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (isTransactionBlocked(user.role, policy)) {
       return { ok: false, message: 'Transactions are currently frozen by the accountant.' };
@@ -153,15 +153,19 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       request.amount = input.amount;
     }
 
-    setApprovals((prev) => [request, ...prev]);
-    void setDoc(
-      doc(db, APPROVALS_COLLECTION, request.id),
-      {
-        ...request,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    try {
+      await setDoc(
+        doc(db, APPROVALS_COLLECTION, request.id),
+        {
+          ...request,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      setApprovals((prev) => [request, ...prev.filter((item) => item.id !== request.id)]);
+    } catch {
+      return { ok: false, message: 'Unable to create approval request in backend.' };
+    }
 
     return { ok: true, message: 'Approval request created.', requestId: request.id };
   }, [policy, user]);

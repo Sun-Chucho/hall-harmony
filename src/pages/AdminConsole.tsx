@@ -57,14 +57,14 @@ export default function AdminConsole() {
     setStatusMessage(response.message);
   };
 
-  const handleCreateRequest = () => {
+  const handleCreateRequest = async () => {
     if (!confirmAction('Are you sure you want to submit this approval request?')) return;
     if (!requestForm.title || !requestForm.description || !requestForm.targetReference) {
       setStatusMessage('Title, description, and reference are required.');
       return;
     }
     const amount = requestForm.amount.trim() ? Number(requestForm.amount) : undefined;
-    const response = createApprovalRequest({
+    const response = await createApprovalRequest({
       level: requestForm.level,
       module: requestForm.module,
       title: requestForm.title,
@@ -221,7 +221,7 @@ export default function AdminConsole() {
                 value={requestForm.description}
                 onChange={(event) => setRequestForm((prev) => ({ ...prev, description: event.target.value }))}
               />
-              <Button onClick={handleCreateRequest}>Submit Request</Button>
+              <Button onClick={() => void handleCreateRequest()}>Submit Request</Button>
             </CardContent>
           </Card>
         </div>

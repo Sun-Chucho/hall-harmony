@@ -173,7 +173,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     return { ok: true, message: 'Event budget created.', budgetId: budget.id };
   }, [appendLog, budgets, findBooking, policy.transactionsFrozen, user]);
 
-  const requestAllocation = useCallback((input: AllocationInput) => {
+  const requestAllocation = useCallback(async (input: AllocationInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'accountant') return { ok: false, message: 'Only Cashier or Accountant can request allocations.' };
     if (policy.transactionsFrozen && user.role !== 'accountant') return { ok: false, message: 'Transactions are frozen by accountant.' };
@@ -185,7 +185,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     const duplicateRequest = allocations.find((entry) => entry.clientActionId === actionId);
     if (duplicateRequest) return { ok: true, message: 'Allocation already submitted.', requestId: duplicateRequest.id };
 
-    const approval = createApprovalRequest({
+    const approval = await createApprovalRequest({
       level: 'final',
       module: 'allocation',
       title: `Event allocation request for ${budget.bookingId}`,

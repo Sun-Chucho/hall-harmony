@@ -354,7 +354,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         return { ok: true, message: 'Booking already submitted.' };
       }
     }
-    const bookingApproval = createApprovalRequest({
+    const bookingApproval = await createApprovalRequest({
       level: 'minor',
       module: 'booking',
       title: `Booking approval for ${payload.eventName}`,
@@ -362,7 +362,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       targetReference: id,
     });
 
-    const eventApproval = createApprovalRequest({
+    const eventApproval = await createApprovalRequest({
       level: 'minor',
       module: 'event',
       title: `Event detail approval for ${payload.eventName}`,
@@ -802,7 +802,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       reviewApproval(target.eventApprovalId, 'approved', 'Event details approved by assistant');
 
       if (policy.finalApprovalRequired) {
-        const finalApproval = createApprovalRequest({
+        const finalApproval = await createApprovalRequest({
           level: 'final',
           module: 'event',
           title: `Final event authorization for ${target.eventName}`,
