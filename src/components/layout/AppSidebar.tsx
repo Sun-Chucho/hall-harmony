@@ -101,13 +101,13 @@ const operationsNavItems: NavItem[] = [
     title: 'Inventory & Store',
     icon: Car,
     path: '/rentals',
-    roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser', 'controller'],
+    roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Documents',
     icon: FileText,
     path: '/documents',
-    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser', 'controller'],
+    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
   },
 ];
 
@@ -122,7 +122,7 @@ const adminNavItems: NavItem[] = [
     title: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    roles: ['manager', 'accountant', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'controller'],
+    roles: ['manager', 'accountant', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser'],
   },
   {
     title: 'Messages',
@@ -140,7 +140,7 @@ const adminNavItems: NavItem[] = [
     title: 'Settings',
     icon: Settings,
     path: '/settings',
-    roles: ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'controller', 'accountant'],
+    roles: ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'],
   },
 ];
 
@@ -191,16 +191,10 @@ export function AppSidebar() {
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
-  const controllerNavItems: NavItem[] = [
+  const accountantNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory & Store', icon: Car, path: '/rentals' },
     { title: 'Documents', icon: FileText, path: '/documents' },
-    { title: 'Reports', icon: BarChart3, path: '/reports' },
-    { title: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
-  const accountantNavItems: NavItem[] = [
-    { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
@@ -254,8 +248,6 @@ export function AppSidebar() {
           renderNavGroup('Cashier', cashier1NavItems)
         ) : user.role === 'purchaser' ? (
           renderNavGroup('Purchaser', purchaserNavItems)
-        ) : user.role === 'controller' ? (
-          renderNavGroup('Controller', controllerNavItems)
         ) : user.role === 'accountant' ? (
           renderNavGroup('Accountant', accountantNavItems)
         ) : (

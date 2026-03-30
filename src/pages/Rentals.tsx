@@ -83,7 +83,7 @@ export default function Rentals() {
   const openAllocations = allocations.filter((allocation) => allocation.status === 'allocated');
   const stockInMovements = movements.filter((movement) => movement.type === 'stock_in');
   const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
-  const canManage = user?.role === 'store_keeper' || user?.role === 'accountant' || user?.role === 'controller';
+  const canManage = user?.role === 'store_keeper' || user?.role === 'accountant';
 
   const runInventoryAction = (
     action: () => { ok: boolean; message: string },
@@ -576,11 +576,11 @@ export default function Rentals() {
     );
   }
 
-  if (user?.role === 'store_keeper' || user?.role === 'accountant' || user?.role === 'controller') {
+  if (user?.role === 'store_keeper' || user?.role === 'accountant') {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory & Store"
-        subtitle={user.role === 'store_keeper' ? 'Storekeeper workspace for stock control and event planning.' : user.role === 'controller' ? 'Controller workspace with purchaser and store control.' : 'Stock in, stock out, and damaged item control.'}
+        subtitle={user.role === 'store_keeper' ? 'Storekeeper workspace for stock control and event planning.' : 'Stock in, stock out, and damaged item control.'}
         stats={stats}
         sections={[
           {

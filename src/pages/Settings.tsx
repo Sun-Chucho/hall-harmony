@@ -16,7 +16,6 @@ const STAFF_ROLES: UserRole[] = [
   'managing_director',
   'assistant_hall_manager',
   'cashier_1',
-  'controller',
   'store_keeper',
   'purchaser',
   'accountant',
@@ -53,7 +52,18 @@ export default function Settings() {
   const canManageUsers = user?.role === 'manager' || user?.role === 'accountant';
 
   const visibleUsers = useMemo(
-    () => [...staffUsers].sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...staffUsers]
+      .filter((entry) => !/augustine/i.test(entry.name))
+      .map((entry) => {
+        if (/diana|dianna/i.test(entry.name) && entry.role === 'manager') {
+          return { ...entry, name: 'Halls Manager' };
+        }
+        if (entry.role === 'controller') {
+          return { ...entry, role: 'accountant' as UserRole, name: /augustine/i.test(entry.name) ? 'Accountant' : entry.name };
+        }
+        return entry;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [staffUsers],
   );
 

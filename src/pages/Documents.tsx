@@ -61,12 +61,12 @@ const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
 const CASH_REQUEST_WORKFLOW_CACHE_KEY = 'kuringe_cash_request_workflow_v1';
 
 const manualForms: ManualForm[] = [
-  { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'controller', 'accountant'] },
+  { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'accountant'] },
   { id: 'delivery_note', title: 'Delivery Note', roles: ['accountant', 'store_keeper'] },
   { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'accountant'] },
   { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'accountant'] },
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant'] },
-  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'controller', 'accountant'] },
+  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'] },
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
   { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'accountant', 'manager'] },
   { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_1', 'manager'] },

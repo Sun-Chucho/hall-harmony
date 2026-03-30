@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, ArrowRight, Loader2, LogIn, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, LogIn, ShieldCheck, UserRound } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const ROLE_ORDER: UserRole[] = [
@@ -15,7 +15,6 @@ const ROLE_ORDER: UserRole[] = [
   'managing_director',
   'assistant_hall_manager',
   'cashier_1',
-  'controller',
   'store_keeper',
   'purchaser',
   'accountant',
@@ -27,7 +26,7 @@ const SHORT_ROLE_LABELS: Record<UserRole, { en: string; sw: string }> = {
   assistant_hall_manager: { en: 'Assistant Hall Manager', sw: 'Msaidizi wa Meneja wa Ukumbi' },
   cashier_1: { en: 'Cashier', sw: 'Keshia' },
   cashier_2: { en: 'Cashier 2', sw: 'Keshia 2' },
-  controller: { en: 'Controller & Purchaser', sw: 'Mkaguzi na Mnunuzi' },
+  controller: { en: 'Accountant', sw: 'Mhasibu' },
   store_keeper: { en: 'Storekeeper', sw: 'Msimamizi wa Ghala' },
   purchaser: { en: 'Purchaser', sw: 'Mnunua Bidhaa' },
   accountant: { en: 'Accountant', sw: 'Mhasibu' },
@@ -39,7 +38,7 @@ const ROLE_DESCRIPTIONS: Record<UserRole, { en: string; sw: string }> = {
   assistant_hall_manager: { en: 'Handles booking intake, reception, and past booking capture.', sw: 'Anashughulikia mapokezi, bookings, na kurekodi past booking.' },
   cashier_1: { en: 'Handles payments, booking approvals, and cash movement.', sw: 'Anasimamia malipo, approvals za booking, na mzunguko wa fedha.' },
   cashier_2: { en: 'Supports legacy cashier visibility.', sw: 'Anaunga mkono mwonekano wa cashier wa zamani.' },
-  controller: { en: 'Covers controller work and purchaser duties from one dashboard.', sw: 'Anasimamia kazi za controller na purchaser kwenye dashibodi moja.' },
+  controller: { en: 'Merged into accountant access.', sw: 'Imeunganishwa ndani ya accountant.' },
   store_keeper: { en: 'Runs stock control and plans event item distribution from store.', sw: 'Anasimamia stock na kupanga ugawaji wa vitu vya event kutoka store.' },
   purchaser: { en: 'Handles purchases, low stock follow-up, and supplier workflow.', sw: 'Anashughulikia ununuzi, ufuatiliaji wa stock ndogo, na uratibu wa wasambazaji.' },
   accountant: { en: 'Controls finance, approvals, reporting, and staff administration.', sw: 'Anasimamia fedha, approvals, taarifa, na utawala wa watumiaji.' },
@@ -50,9 +49,18 @@ function getDashboardRoute(role: UserRole) {
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
 }
 
+function isLegacyAugustine(user: User) {
+  return /augustine/i.test(user.name);
+}
+
+function getDisplayRole(user: User, selectedRole: UserRole): UserRole {
+  if (selectedRole === 'accountant' && user.role === 'controller') return 'accountant';
+  return user.role;
+}
+
 function getVisibleStaffName(user: User, selectedRole: UserRole, language: 'en' | 'sw') {
-  if (selectedRole === 'manager' && /dianna/i.test(user.name)) {
-    return language === 'sw' ? 'Mtumiaji' : 'User';
+  if (selectedRole === 'manager' && /diana|dianna/i.test(user.name)) {
+    return language === 'sw' ? 'Meneja wa Kumbi' : 'Halls Manager';
   }
   return user.name;
 }
@@ -69,10 +77,13 @@ export function LoginForm() {
   const { language, setLanguage } = useLanguage();
   const isSw = language === 'sw';
 
-  const selectedRoleUsers = useMemo(
-    () => staffUsers.filter((user) => user.role === selectedRole),
-    [selectedRole, staffUsers],
-  );
+  const selectedRoleUsers = useMemo(() => {
+    return staffUsers.filter((user) => {
+      if (isLegacyAugustine(user)) return false;
+      const displayRole = getDisplayRole(user, selectedRole);
+      return displayRole === selectedRole;
+    });
+  }, [selectedRole, staffUsers]);
 
   useEffect(() => {
     void refreshStaffUsers();
@@ -136,20 +147,6 @@ export function LoginForm() {
                 >
                   EN
                 </button>
-              </div>
-            </div>
-
-            <div className="mt-10 rounded-[28px] border border-white/15 bg-white/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-white/15 p-3">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{isSw ? 'Ingia kwa role sahihi' : 'Sign in by role'}</p>
-                  <p className="text-sm text-white/70">
-                    {isSw ? 'Chagua kitengo, kisha chagua mtumiaji.' : 'Pick the correct team area, then choose the user.'}
-                  </p>
-                </div>
               </div>
             </div>
 

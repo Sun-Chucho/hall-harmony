@@ -78,11 +78,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [user]);
 
-  const canManage = useCallback(() => !!user && (user.role === 'store_keeper' || user.role === 'accountant' || user.role === 'controller'), [user]);
+  const canManage = useCallback(() => !!user && (user.role === 'store_keeper' || user.role === 'accountant'), [user]);
   const canActWhenFrozen = useCallback(() => user?.role === 'accountant', [user]);
   const addItem = useCallback((name: string, unit: string, openingQuantity: number, reorderLevel: number) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can manage inventory.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can manage inventory.' };
     if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
     if (!name.trim() || !unit.trim()) return { ok: false, message: 'Item name and unit are required.' };
     if (!Number.isFinite(openingQuantity) || openingQuantity < 0 || !Number.isFinite(reorderLevel) || reorderLevel < 0) return { ok: false, message: 'Quantities cannot be negative.' };
@@ -119,7 +119,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   const stockIn = useCallback((itemId: string, quantity: number, reference: string, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can stock in.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can stock in.' };
     if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
     if (!items.some((item) => item.id === itemId)) return { ok: false, message: 'Item not found.' };
     if (!Number.isFinite(quantity) || quantity <= 0) return { ok: false, message: 'Stock in quantity must be greater than zero.' };
@@ -147,7 +147,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   const stockOut = useCallback((itemId: string, quantity: number, reference: string, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can stock out.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can stock out.' };
     if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return { ok: false, message: 'Item not found.' };
@@ -175,7 +175,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   const allocateToEvent = useCallback((bookingId: string, itemId: string, quantity: number, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can allocate event items.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can allocate event items.' };
     if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
     const booking = bookings.find((entry) => entry.id === bookingId);
     if (!booking) return { ok: false, message: 'Booking not found.' };
@@ -218,7 +218,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }, [bookings, canActWhenFrozen, canManage, items, policy.transactionsFrozen, user]);
   const returnFromEvent = useCallback((allocationId: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can process returns.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can process returns.' };
     const allocation = allocations.find((entry) => entry.id === allocationId);
     if (!allocation) return { ok: false, message: 'Allocation not found.' };
     if (allocation.status === 'returned') return { ok: false, message: 'Allocation already returned.' };
@@ -255,7 +255,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   const recordDamage = useCallback((itemId: string, quantity: number, reason: string, bookingId?: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
-    if (!canManage()) return { ok: false, message: 'Only Storekeeper, Controller, or Accountant can record damages.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can record damages.' };
     if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
     const item = items.find((entry) => entry.id === itemId);
     if (!item) return { ok: false, message: 'Item not found.' };

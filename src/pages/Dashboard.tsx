@@ -114,12 +114,6 @@ export default function Dashboard() {
         { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Current finance visibility', icon: AlertCircle },
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Finance trail', icon: CheckCircle2 },
       ],
-      controller: [
-        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'Items that need action', icon: AlertCircle },
-        { title: 'Out of Stock', value: String(metrics.criticalLowStockItems), hint: 'Items with zero balance', icon: Clock },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Event and purchase demand', icon: Calendar },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Controller and purchaser trail', icon: CheckCircle2 },
-      ],
       store_keeper: [
         { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Events to prepare for', icon: Calendar },
         { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Allocation-linked events', icon: Clock },
@@ -177,15 +171,10 @@ export default function Dashboard() {
           { label: 'Documents', path: '/documents' },
           { label: 'Settings', path: '/settings' },
         ]
-      : user.role === 'controller'
+      : user.role === 'accountant'
         ? [
             { label: 'Inventory & Store', path: '/rentals' },
             { label: 'Documents', path: '/documents' },
-            { label: 'Reports', path: '/reports' },
-            { label: 'Settings', path: '/settings' },
-          ]
-      : user.role === 'accountant'
-        ? [
             { label: 'Money Oversight', path: '/cash-movement' },
             { label: 'Reports', path: '/reports' },
             { label: 'Settings', path: '/settings' },
