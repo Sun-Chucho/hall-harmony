@@ -134,6 +134,20 @@ function isRetryableSyncError(error: unknown): boolean {
   );
 }
 
+function getSyncFailureMessage(error: unknown, fallback: string): string {
+  if (isRetryableSyncError(error)) {
+    return fallback;
+  }
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: string }).code ?? '') : '';
+  if (code.includes('permission-denied')) {
+    return 'Backend rejected the booking update. Please sign in again and retry.';
+  }
+  if (code.includes('not-found')) {
+    return 'Booking record was not found in backend. Refresh the page and retry.';
+  }
+  return 'Backend sync failed. Please retry.';
+}
+
 function applyPendingActions(records: BookingRecord[], actions: PendingBookingAction[]): BookingRecord[] {
   if (actions.length === 0) return records;
   return actions.reduce<BookingRecord[]>((current, action) => {
@@ -394,7 +408,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       });
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted for approval.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to save booking right now.') };
+      }
       setBookings((prev) => [record, ...prev]);
       queuePendingAction({ type: 'set', bookingId: id, record });
       return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
@@ -452,7 +469,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       });
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit booking right now.') };
+      }
       return { ok: false, message: 'Unable to submit booking to backend right now. Please check connection and try again.' };
     }
   }, []);
@@ -527,7 +547,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       });
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Past booking recorded successfully.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to record past booking right now.') };
+      }
       setBookings((prev) => [record, ...prev]);
       queuePendingAction({ type: 'set', bookingId: id, record });
       return { ok: true, message: 'Past booking saved locally. Cloud sync pending.' };
@@ -565,7 +588,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       });
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier and moved to pending payment.' : 'Past booking rejected.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to review past booking right now.') };
+      }
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       queuePendingAction({ type: 'patch', bookingId, patch });
       return { ok: true, message: 'Past booking review saved locally. Cloud sync pending.' };
@@ -643,7 +669,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         ),
       );
       return { ok: true, message: 'Booking updated and highlighted across workflow.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking right now.') };
+      }
       setBookings((prev) =>
         prev.map((entry) =>
           entry.id === bookingId
@@ -680,7 +709,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
       );
       return { ok: true, message: `Booking marked as ${status}.` };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking status right now.') };
+      }
       setBookings((prev) =>
         prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
       );
@@ -703,7 +735,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     try {
       await deleteDoc(doc(db, BOOKINGS_COLLECTION, bookingId));
       return { ok: true, message: 'Booking deleted.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to delete booking right now.') };
+      }
       setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
       queuePendingAction({ type: 'delete', bookingId });
       return { ok: true, message: 'Booking deleted locally. Cloud sync pending.' };
@@ -732,7 +767,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         updatedAt: serverTimestamp(),
       });
       return { ok: true, message: 'Event details submitted for approval.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit event details right now.') };
+      }
       const patch = {
         eventType: eventType.trim(),
         expectedGuests,
@@ -783,7 +821,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
             updatedAt: serverTimestamp(),
           });
           return { ok: true, message: 'Assistant approval recorded, pending accountant final approval.' };
-        } catch {
+        } catch (error) {
+          if (!isRetryableSyncError(error)) {
+            return { ok: false, message: getSyncFailureMessage(error, 'Unable to save assistant approval right now.') };
+          }
           const patch = {
             eventDetailStatus: 'pending_controller' as EventDetailStatus,
             eventFinalApprovalId: finalApproval.requestId,
@@ -818,7 +859,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         updatedAt: serverTimestamp(),
       });
       return { ok: true, message: 'Event detail status updated.' };
-    } catch {
+    } catch (error) {
+      if (!isRetryableSyncError(error)) {
+        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update event detail status right now.') };
+      }
       setBookings((prev) =>
         prev.map((booking) => (booking.id === bookingId ? { ...booking, eventDetailStatus: status } : booking)),
       );

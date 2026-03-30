@@ -99,6 +99,8 @@ const App = () => {
                           <Route path="/muhimu" element={<Navigate to="/?section=policies" replace />} />
                           <Route path="/packages" element={<Navigate to="/?section=packages" replace />} />
                           <Route path="/login" element={<Navigate to="/staff" replace />} />
+                          <Route path="/staflog" element={<Navigate to="/staff" replace />} />
+                          <Route path="/stafflog" element={<Navigate to="/staff" replace />} />
                           <Route path="/staff" element={<Login />} />
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
                           <Route path="/managing-director-dashboard" element={<RouteGuard path="/managing-director-dashboard"><ManagingDirectorDashboard /></RouteGuard>} />
