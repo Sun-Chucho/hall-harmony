@@ -142,7 +142,6 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       module: input.module,
       title: input.title,
       description: input.description,
-      amount: input.amount,
       requestedByUserId: user.id,
       requestedByRole: user.role,
       targetReference: input.targetReference,
@@ -150,6 +149,9 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    if (typeof input.amount === 'number' && Number.isFinite(input.amount)) {
+      request.amount = input.amount;
+    }
 
     setApprovals((prev) => [request, ...prev]);
     void setDoc(
