@@ -81,8 +81,10 @@ export const DEFAULT_SYSTEM_POLICY: SystemPolicy = {
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   manager: [
     'booking.read',
+    'booking.write',
     'event.approve',
     'payment.read',
+    'purchase.request',
     'report.read',
     'approval.review.minor',
     'audit.read',
@@ -180,10 +182,10 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   '/payments': ['cashier_1', 'accountant'],
   '/cash-movement': ['cashier_1', 'accountant'],
   '/services': ['manager', 'accountant'],
-  '/rentals': ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
-  '/documents': ['manager', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser'],
-  '/reports': ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
-  '/managing-director-dashboard': ['managing_director', 'manager'],
+  '/rentals': ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser', 'controller'],
+  '/documents': ['manager', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser', 'controller'],
+  '/reports': ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser', 'controller'],
+  '/managing-director-dashboard': ['managing_director'],
   '/portal': ['accountant'],
   '/settings': [
     'manager',
@@ -192,6 +194,7 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
     'cashier_1',
     'store_keeper',
     'purchaser',
+    'controller',
     'accountant',
   ],
   '/admin': ['accountant'],

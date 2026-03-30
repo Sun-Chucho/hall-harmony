@@ -115,10 +115,10 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Finance trail', icon: CheckCircle2 },
       ],
       controller: [
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Legacy control visibility', icon: AlertCircle },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Active requests', icon: Clock },
-        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'Recorded collections', icon: DollarSign },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'System-level actions', icon: CheckCircle2 },
+        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'Items that need action', icon: AlertCircle },
+        { title: 'Out of Stock', value: String(metrics.criticalLowStockItems), hint: 'Items with zero balance', icon: Clock },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Event and purchase demand', icon: Calendar },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Controller and purchaser trail', icon: CheckCircle2 },
       ],
       store_keeper: [
         { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Events to prepare for', icon: Calendar },
@@ -164,12 +164,26 @@ export default function Dashboard() {
         { label: 'Documents', path: '/documents' },
         { label: 'Settings', path: '/settings' },
       ]
+    : user.role === 'store_keeper'
+      ? [
+          { label: 'Event Planner', path: '/rentals' },
+          { label: 'Inventory Reports', path: '/rentals' },
+          { label: 'Documents', path: '/documents' },
+          { label: 'Settings', path: '/settings' },
+        ]
     : user.role === 'purchaser'
       ? [
           { label: 'Inventory', path: '/rentals' },
           { label: 'Documents', path: '/documents' },
           { label: 'Settings', path: '/settings' },
         ]
+      : user.role === 'controller'
+        ? [
+            { label: 'Inventory & Store', path: '/rentals' },
+            { label: 'Documents', path: '/documents' },
+            { label: 'Reports', path: '/reports' },
+            { label: 'Settings', path: '/settings' },
+          ]
       : user.role === 'accountant'
         ? [
             { label: 'Money Oversight', path: '/cash-movement' },
@@ -188,7 +202,7 @@ export default function Dashboard() {
       <div className="space-y-6 text-slate-900">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Welcome back, {user.name.split(' ')[0]}!</h1>
-          <p className="text-sm text-slate-600">{ROLE_LABELS[user.role]} • Live system overview</p>
+          <p className="text-sm text-slate-600">{ROLE_LABELS[user.role]} | Live system overview</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

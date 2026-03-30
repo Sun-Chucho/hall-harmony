@@ -13,10 +13,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#e6e7ea] px-4 py-5 lg:px-8 lg:py-6">
-      <div className="mx-auto mb-4 max-w-6xl text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">Kuringe Nexus</h1>
-        <p className="mt-1 text-sm uppercase tracking-[0.2em] text-slate-500 sm:text-base lg:text-lg">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f4f1ea_0%,#e2e8f0_42%,#cbd5e1_100%)] px-4 py-6 lg:px-8 lg:py-8">
+      <div className="mx-auto mb-6 max-w-6xl text-center">
+        <h1 className="text-4xl font-black tracking-[-0.04em] text-slate-950 sm:text-5xl lg:text-6xl">Kuringe Nexus</h1>
+        <p className="mt-2 text-sm uppercase tracking-[0.35em] text-slate-500 sm:text-base lg:text-lg">
           {isSw ? 'Mfumo wa Usimamizi wa Kuringe Halls Moshi' : 'Moshi Halls Management System'}
         </p>
       </div>

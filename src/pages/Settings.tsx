@@ -13,12 +13,13 @@ import { Loader2, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 
 const STAFF_ROLES: UserRole[] = [
   'manager',
+  'managing_director',
   'assistant_hall_manager',
   'cashier_1',
+  'controller',
   'store_keeper',
   'purchaser',
   'accountant',
-  'managing_director',
 ];
 
 export default function Settings() {

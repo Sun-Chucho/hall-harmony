@@ -473,12 +473,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: 'Quoted amount must be greater than zero.' };
     }
 
-    const now = new Date();
-    const todayIso = now.toISOString().slice(0, 10);
-    const yearStartIso = `${now.getUTCFullYear()}-01-01`;
-    if (payload.date < yearStartIso || payload.date > todayIso) {
-      return { ok: false, message: `Past booking date must be between ${yearStartIso} and ${todayIso}.` };
-    }
     if (hasConflict(payload)) {
       return { ok: false, message: 'Booking conflict detected for the selected hall and time.' };
     }
@@ -575,7 +569,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { ok: false, message: 'Authentication required.' };
     const canEditAsRole = user.role === 'assistant_hall_manager' || user.role === 'manager' || user.role === 'accountant' || user.role === 'cashier_1';
     if (!canEditAsRole) {
-      return { ok: false, message: 'Only Assistant Hall Manager, Managing Director, Accountant, or Cashier can edit bookings.' };
+      return { ok: false, message: 'Only Assistant Hall Manager, Halls Manager, Accountant, or Cashier can edit bookings.' };
     }
     const target = bookings.find((entry) => entry.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };

@@ -16,7 +16,7 @@ export default function Messages() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Messages</h1>
           <p className="text-sm text-slate-600">
-            {isManager ? 'Approvals and alerts sent to Managing Director.' : 'Alerts you sent to Managing Director.'}
+            {isManager ? 'Approvals and alerts sent to Halls Manager.' : 'Alerts you sent to Halls Manager.'}
           </p>
         </div>
 

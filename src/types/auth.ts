@@ -26,25 +26,25 @@ export interface AuthState {
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  manager: 'Managing Director',
+  manager: 'Halls Manager',
   managing_director: 'Managing Director',
   assistant_hall_manager: 'Assistant Hall Manager & Receptionist',
   cashier_1: 'Cashier (Payments & Distribution)',
   cashier_2: 'Cashier 2 (Legacy)',
-  controller: 'Controller (Legacy)',
-  store_keeper: 'Overall Storekeeper',
+  controller: 'Controller & Purchaser',
+  store_keeper: 'Storekeeper',
   purchaser: 'Purchaser',
   accountant: 'Accountant (Control Authority)',
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  manager: 'Oversees hall operations, bookings, and service delivery.',
+  manager: 'Oversees hall operations, bookings, services, and staff workflow.',
   managing_director: 'Reviews executive fund distribution and high-level business performance.',
   assistant_hall_manager: 'Handles reception and daily booking coordination.',
   cashier_1: 'Manages customer payments, allocations, cash movement, and distributions.',
   cashier_2: 'Legacy cashier role retained only for historical compatibility.',
-  controller: 'Legacy controller role retained only for historical compatibility.',
-  store_keeper: 'Maintains stock records and store accountability.',
+  controller: 'Handles controller approvals and purchaser duties in one login.',
+  store_keeper: 'Maintains stock records, event planning, and store accountability.',
   purchaser: 'Handles purchasing and supplier coordination.',
   accountant: 'Manages accounting records, reconciliation, reporting, and approval controls.',
 };

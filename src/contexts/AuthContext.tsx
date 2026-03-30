@@ -343,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createStaffUser = useCallback(
     async (input: { name: string; email: string; role: UserRole; password: string }) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
-        return { ok: false, message: 'Only Accountant or Managing Director can add users.' };
+        return { ok: false, message: 'Only Accountant or Halls Manager can add users.' };
       }
 
       const name = input.name.trim();
@@ -395,7 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateStaffRole = useCallback(
     async (userId: string, role: UserRole) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
-        return { ok: false, message: 'Only Accountant or Managing Director can change user roles.' };
+        return { ok: false, message: 'Only Accountant or Halls Manager can change user roles.' };
       }
 
       if (!ROLE_LABELS[role]) {
@@ -419,7 +419,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateStaffActive = useCallback(
     async (userId: string, isActive: boolean) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
-        return { ok: false, message: 'Only Accountant or Managing Director can update user status.' };
+        return { ok: false, message: 'Only Accountant or Halls Manager can update user status.' };
       }
 
       if (state.user.id === userId && !isActive) {
@@ -443,7 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const removeStaffUser = useCallback(
     async (userId: string) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
-        return { ok: false, message: 'Only Accountant or Managing Director can remove users.' };
+        return { ok: false, message: 'Only Accountant or Halls Manager can remove users.' };
       }
 
       if (state.user.id === userId) {
@@ -463,7 +463,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const forceLogoutAllSessions = useCallback(async () => {
     if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
-      return { ok: false, message: 'Only Accountant or Managing Director can force logout all sessions.' };
+      return { ok: false, message: 'Only Accountant or Halls Manager can force logout all sessions.' };
     }
 
     try {

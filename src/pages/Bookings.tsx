@@ -57,10 +57,6 @@ function getTodayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getYearStartIso() {
-  return `${new Date().getUTCFullYear()}-01-01`;
-}
-
 function toShortStatus(value: string) {
   return value.replace('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -837,11 +833,10 @@ export default function Bookings() {
 
               <TabsContent value="past-booking">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Record Past Booking (This Year)</p>
+                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Record Past Booking</p>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <input
                       type="date"
-                      min={getYearStartIso()}
                       max={getTodayIso()}
                       className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                       value={pastForm.date}
@@ -901,7 +896,7 @@ export default function Bookings() {
                     <Button size="sm" disabled={isSavingPastBooking || isRefreshingPage || !isPastFormComplete} onClick={() => void handleRecordPastBooking()}>
                       {isSavingPastBooking ? 'Saving...' : 'Record Past Booking'}
                     </Button>
-                    <span className="text-xs text-slate-500">Allowed date range: {getYearStartIso()} to {getTodayIso()}</span>
+                    <span className="text-xs text-slate-500">You can record any past date up to {getTodayIso()}.</span>
                   </div>
                 </div>
               </TabsContent>
@@ -1788,14 +1783,14 @@ export default function Bookings() {
   return (
     <ManagementPageTemplate
       pageTitle="Bookings"
-      subtitle={isManager ? 'Managing Director oversight of booking records and statuses.' : 'Booking and event approval workflow with conflict checks and status controls.'}
+      subtitle={isManager ? 'Halls Manager oversight of booking records and statuses.' : 'Booking and event approval workflow with conflict checks and status controls.'}
       stats={stats}
       sections={[
         {
           title: 'Workflow',
           bullets: [
             'Accountant manages booking and event approvals.',
-            'Accountant can submit recommendations to Managing Director.',
+            'Accountant can submit recommendations to Halls Manager.',
             'Conflict checks run before a booking is submitted for approval.',
           ],
         },

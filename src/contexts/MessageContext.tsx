@@ -106,7 +106,7 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
 
     try {
       await addDoc(collection(db, COLLECTION), payload);
-      return { ok: true, message: 'Alert sent to Managing Director.' };
+      return { ok: true, message: 'Alert sent to Halls Manager.' };
     } catch {
       const fallback: ManagerMessage = {
         id: `LOCAL-${Date.now()}`,

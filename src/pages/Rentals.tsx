@@ -8,6 +8,11 @@ import { useBookings } from '@/contexts/BookingContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
 
+interface EventPlanItemDraft {
+  itemId: string;
+  quantity: number;
+}
+
 export default function Rentals() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -57,6 +62,15 @@ export default function Rentals() {
     quantity: 0,
     notes: '',
   });
+  const [plannerForm, setPlannerForm] = useState({
+    bookingId: '',
+    itemId: '',
+    quantity: 1,
+    notes: '',
+    eventNotes: '',
+  });
+  const [plannerItems, setPlannerItems] = useState<EventPlanItemDraft[]>([]);
+  const [isCreatingEventPlan, setIsCreatingEventPlan] = useState(false);
   const [isSavingAction, setIsSavingAction] = useState(false);
   const lastInventoryActionAtRef = useRef(0);
 
@@ -69,7 +83,7 @@ export default function Rentals() {
   const openAllocations = allocations.filter((allocation) => allocation.status === 'allocated');
   const stockInMovements = movements.filter((movement) => movement.type === 'stock_in');
   const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
-  const canManage = user?.role === 'store_keeper' || user?.role === 'accountant';
+  const canManage = user?.role === 'store_keeper' || user?.role === 'accountant' || user?.role === 'controller';
 
   const runInventoryAction = (
     action: () => { ok: boolean; message: string },
@@ -161,6 +175,96 @@ export default function Rentals() {
       'Allocation failed',
       () => setAllocationForm({ bookingId: '', itemId: '', quantity: 0, notes: '' }),
     );
+  };
+
+  const plannerResolvedItems = plannerItems.map((entry) => {
+    const item = items.find((stockItem) => stockItem.id === entry.itemId);
+    return {
+      ...entry,
+      item,
+    };
+  });
+
+  const plannerTotalUnits = plannerItems.reduce((sum, entry) => sum + entry.quantity, 0);
+
+  const handleAddPlannerItem = () => {
+    if (!plannerForm.itemId || plannerForm.quantity <= 0) {
+      setMessage('Select a store item and quantity before adding it to the event plan.');
+      toast({ title: 'Incomplete event plan item', description: 'Select a store item and quantity before adding it to the event plan.', variant: 'destructive' });
+      return;
+    }
+
+    setPlannerItems((prev) => {
+      const existing = prev.find((entry) => entry.itemId === plannerForm.itemId);
+      if (existing) {
+        return prev.map((entry) => (
+          entry.itemId === plannerForm.itemId
+            ? { ...entry, quantity: entry.quantity + Math.round(plannerForm.quantity) }
+            : entry
+        ));
+      }
+      return [...prev, { itemId: plannerForm.itemId, quantity: Math.round(plannerForm.quantity) }];
+    });
+    setPlannerForm((prev) => ({ ...prev, itemId: '', quantity: 1, notes: '' }));
+  };
+
+  const handleSaveEventPlan = () => {
+    if (!plannerForm.bookingId) {
+      setMessage('Select an approved event before saving the event plan.');
+      toast({ title: 'Missing event', description: 'Select an approved event before saving the event plan.', variant: 'destructive' });
+      return;
+    }
+    if (plannerItems.length === 0) {
+      setMessage('Add at least one store item to the event plan.');
+      toast({ title: 'No planned items', description: 'Add at least one store item to the event plan.', variant: 'destructive' });
+      return;
+    }
+    if (isSavingAction) return;
+
+    const stockIssue = plannerResolvedItems.find((entry) => !entry.item || entry.item.currentQuantity < entry.quantity);
+    if (stockIssue) {
+      const name = stockIssue.item?.name ?? 'Selected item';
+      const description = `${name} does not have enough stock for this event plan.`;
+      setMessage(description);
+      toast({ title: 'Insufficient stock', description, variant: 'destructive' });
+      return;
+    }
+
+    setIsSavingAction(true);
+    setIsCreatingEventPlan(true);
+    let hasFailure = false;
+
+    for (const entry of plannerItems) {
+      const item = items.find((stockItem) => stockItem.id === entry.itemId);
+      const result = allocateToEvent(
+        plannerForm.bookingId,
+        entry.itemId,
+        entry.quantity,
+        [plannerForm.eventNotes.trim(), plannerForm.notes.trim(), item?.name ? `Planned: ${item.name}` : '']
+          .filter(Boolean)
+          .join(' | '),
+      );
+      if (!result.ok) {
+        hasFailure = true;
+        setMessage(result.message);
+        toast({ title: 'Event plan save failed', description: result.message, variant: 'destructive' });
+        break;
+      }
+    }
+
+    if (!hasFailure) {
+      const successMessage = 'Event plan saved and items allocated from store.';
+      setMessage(successMessage);
+      toast({ title: 'Event plan saved', description: successMessage });
+      setPlannerItems([]);
+      setPlannerForm({ bookingId: '', itemId: '', quantity: 1, notes: '', eventNotes: '' });
+      lastInventoryActionAtRef.current = Date.now();
+    }
+
+    window.setTimeout(() => {
+      setIsSavingAction(false);
+      setIsCreatingEventPlan(false);
+    }, 700);
   };
 
   const handleReturnAllocation = (allocationId: string) => {
@@ -287,14 +391,14 @@ export default function Rentals() {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory"
-        subtitle="Managing Director inventory oversight (view-only)."
+        subtitle="Halls Manager inventory oversight (view-only)."
         stats={stats}
         sections={[
           {
             title: 'Inventory Oversight',
             bullets: [
               'View stock table, stock in/out history, and damaged items.',
-              'No inventory edits are allowed for Managing Director.',
+              'No inventory edits are allowed for Halls Manager.',
             ],
           },
         ]}
@@ -472,11 +576,11 @@ export default function Rentals() {
     );
   }
 
-  if (user?.role === 'store_keeper' || user?.role === 'accountant') {
+  if (user?.role === 'store_keeper' || user?.role === 'accountant' || user?.role === 'controller') {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory & Store"
-        subtitle="Stock in, stock out, and damaged item control."
+        subtitle={user.role === 'store_keeper' ? 'Storekeeper workspace for stock control and event planning.' : user.role === 'controller' ? 'Controller workspace with purchaser and store control.' : 'Stock in, stock out, and damaged item control.'}
         stats={stats}
         sections={[
           {
@@ -484,6 +588,7 @@ export default function Rentals() {
             bullets: [
               'Stock In and Stock Out register every movement with reference and notes.',
               'Damaged items are tracked with reason and optional event link.',
+              'Event Planner lets store teams save event supply plans directly from current stock.',
             ],
           },
         ]}
@@ -810,10 +915,12 @@ export default function Rentals() {
     );
   }
 
+  if (!canManage) return null;
+
   return (
     <ManagementPageTemplate
       pageTitle="Inventory & Store"
-      subtitle="Store Keeper workspace for stock control, item allocation, and inventory reporting."
+      subtitle="Storekeeper workspace for stock control, item allocation, and inventory reporting."
       stats={stats}
       sections={sections}
       action={
@@ -827,6 +934,7 @@ export default function Rentals() {
               <TabsTrigger value="stock-in">Stock In</TabsTrigger>
               <TabsTrigger value="stock-out">Stock Out</TabsTrigger>
               <TabsTrigger value="damaged">Damaged Items</TabsTrigger>
+              <TabsTrigger value="event-planner">Event Planner</TabsTrigger>
               <TabsTrigger value="reports">Inventory Reports</TabsTrigger>
               <TabsTrigger value="allocation">Event Item Allocation</TabsTrigger>
             </TabsList>
@@ -1042,6 +1150,138 @@ export default function Rentals() {
                       );
                     })
                   )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="event-planner">
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Event Planner</p>
+                      <p className="mt-2 text-sm text-slate-600">Create an event plan, pick store items, then save and allocate them from stock.</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isCreatingEventPlan ? 'secondary' : 'default'}
+                      onClick={() => setIsCreatingEventPlan((prev) => !prev)}
+                    >
+                      {isCreatingEventPlan ? 'Close Planner' : 'Create Event'}
+                    </Button>
+                  </div>
+
+                  {isCreatingEventPlan ? (
+                    <div className="mt-5 space-y-5">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <select
+                          className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                          value={plannerForm.bookingId}
+                          onChange={(event) => setPlannerForm((prev) => ({ ...prev, bookingId: event.target.value }))}
+                        >
+                          <option value="">Select approved event</option>
+                          {approvedEvents.map((booking) => (
+                            <option key={booking.id} value={booking.id}>
+                              {booking.id} | {booking.eventName}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="Event planning notes"
+                          className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                          value={plannerForm.eventNotes}
+                          onChange={(event) => setPlannerForm((prev) => ({ ...prev, eventNotes: event.target.value }))}
+                        />
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Plan Items From Store</p>
+                        <div className="mt-3 grid gap-3 md:grid-cols-[1.4fr_0.6fr_1fr_auto]">
+                          <select
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                            value={plannerForm.itemId}
+                            onChange={(event) => setPlannerForm((prev) => ({ ...prev, itemId: event.target.value }))}
+                          >
+                            <option value="">Select item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name} ({item.currentQuantity} {item.unit})
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="Qty"
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                            value={plannerForm.quantity || ''}
+                            onChange={(event) => setPlannerForm((prev) => ({ ...prev, quantity: Number(event.target.value) }))}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Line notes"
+                            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                            value={plannerForm.notes}
+                            onChange={(event) => setPlannerForm((prev) => ({ ...prev, notes: event.target.value }))}
+                          />
+                          <Button size="sm" type="button" onClick={handleAddPlannerItem}>
+                            Add Item
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Planned Store Items</p>
+                          <Badge className="bg-blue-100 text-blue-700">{plannerTotalUnits} total units</Badge>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {plannerResolvedItems.length === 0 ? (
+                            <p className="text-sm text-slate-600">No items have been added to this event plan yet.</p>
+                          ) : (
+                            plannerResolvedItems.map((entry) => (
+                              <div key={entry.itemId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
+                                <div>
+                                  <p className="font-semibold text-slate-900">{entry.item?.name ?? 'Unknown item'}</p>
+                                  <p className="text-xs text-slate-500">Available now: {entry.item?.currentQuantity ?? 0} {entry.item?.unit ?? 'units'}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-slate-200 text-slate-900">{entry.quantity}</Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    type="button"
+                                    onClick={() => setPlannerItems((prev) => prev.filter((item) => item.itemId !== entry.itemId))}
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <Button size="sm" disabled={isSavingAction} onClick={handleSaveEventPlan}>
+                            {isSavingAction ? 'Saving...' : 'Save Event Plan'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            disabled={isSavingAction}
+                            onClick={() => {
+                              setPlannerItems([]);
+                              setPlannerForm({ bookingId: '', itemId: '', quantity: 1, notes: '', eventNotes: '' });
+                            }}
+                          >
+                            Clear Plan
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </TabsContent>
