@@ -59,13 +59,6 @@ function getDisplayRole(user: User, selectedRole: UserRole): UserRole {
 }
 
 function getVisibleStaffName(user: User, selectedRole: UserRole, language: 'en' | 'sw') {
-  void user;
-  void selectedRole;
-  void language;
-  return '1234';
-}
-
-function getHiddenStaffDescription(user: User, selectedRole: UserRole, language: 'en' | 'sw') {
   if (selectedRole === 'manager' && /diana|dianna/i.test(user.name)) {
     return language === 'sw' ? 'Meneja wa Kumbi' : 'Halls Manager';
   }
@@ -243,15 +236,6 @@ export function LoginForm() {
                   {selectedRoleUsers.length === 0 ? (
                     <p className="text-sm text-slate-500">
                       {isSw ? 'Hakuna watumiaji kwa role hii kwenye staff directory.' : 'No users found for this role in the staff directory.'}
-                    </p>
-                  ) : null}
-                  {selectedUserId ? (
-                    <p className="text-xs text-slate-500">
-                      {(() => {
-                        const selectedUser = selectedRoleUsers.find((entry) => entry.id === selectedUserId);
-                        if (!selectedUser) return '';
-                        return `${isSw ? 'Akaunti' : 'Account'}: ${getHiddenStaffDescription(selectedUser, selectedRole, language)}`;
-                      })()}
                     </p>
                   ) : null}
                 </div>

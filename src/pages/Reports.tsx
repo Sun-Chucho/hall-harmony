@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
@@ -30,9 +31,57 @@ function isInLastDays(iso: string, days: number): boolean {
   return now - ts <= days * 24 * 60 * 60 * 1000;
 }
 
-function toTableRows(rows: AuditRow[]) {
+function escapeCsv(value: string | number) {
+  const text = String(value ?? '');
+  if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  if (typeof window === 'undefined') return;
+  const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportAuditRowsCsv(filename: string, rows: AuditRow[]) {
+  downloadCsv(filename, [
+    ['Date', 'Category', 'Amount (TZS)', 'Comment', 'Reference'],
+    ...rows.map((row) => [row.date, row.category, row.amount, row.comment, row.reference]),
+  ]);
+}
+
+function exportSavedDocumentsCsv(filename: string, rows: SavedDocumentRow[]) {
+  downloadCsv(filename, [
+    ['Date', 'Form', 'Submitted By Role', 'Summary', 'Reference'],
+    ...rows.map((row) => [
+      row.submittedAt,
+      row.formTitle,
+      ROLE_LABELS[row.submittedByRole] ?? row.submittedByRole,
+      Object.entries(row.fields).map(([key, value]) => `${key}: ${value}`).join(' | '),
+      row.id,
+    ]),
+  ]);
+}
+
+function toTableRows(rows: AuditRow[], exportFilename: string) {
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => exportAuditRowsCsv(exportFilename, rows)}>
+          Export CSV
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
           <tr className="border-b border-slate-200">
@@ -61,13 +110,20 @@ function toTableRows(rows: AuditRow[]) {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
-function toSavedDocumentsTable(rows: SavedDocumentRow[]) {
+function toSavedDocumentsTable(rows: SavedDocumentRow[], exportFilename: string) {
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => exportSavedDocumentsCsv(exportFilename, rows)}>
+          Export CSV
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[920px] text-left text-sm">
         <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
           <tr className="border-b border-slate-200">
@@ -98,6 +154,7 @@ function toSavedDocumentsTable(rows: SavedDocumentRow[]) {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -169,6 +226,7 @@ export default function Reports() {
   const dailyRows = auditRows.filter((row) => row.date.slice(0, 10) === new Date().toISOString().slice(0, 10));
   const weeklyRows = auditRows.filter((row) => isInLastDays(row.date, 7));
   const monthlyRows = auditRows.filter((row) => isInLastDays(row.date, 30));
+  const allTimeRows = auditRows;
   const savedDocumentRows = useMemo(
     () => [...savedDocuments].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()),
     [savedDocuments],
@@ -178,13 +236,13 @@ export default function Reports() {
     { title: 'Daily Records', value: `${dailyRows.length}`, description: 'today' },
     { title: 'Weekly Records', value: `${weeklyRows.length}`, description: 'last 7 days' },
     { title: 'Monthly Records', value: `${monthlyRows.length}`, description: 'last 30 days' },
-    { title: 'Saved Documents', value: `${savedDocumentRows.length}`, description: 'form outputs saved by users' },
+    { title: 'All Time Records', value: `${allTimeRows.length}`, description: 'full audit history' },
   ];
 
   return (
     <ManagementPageTemplate
       pageTitle="Reports"
-      subtitle="Audit table of operational activity grouped by daily, weekly, and monthly periods."
+      subtitle="Audit table of operational activity grouped by daily, weekly, monthly, and all time periods with CSV export."
       stats={stats}
       sections={[]}
       action={
@@ -194,12 +252,14 @@ export default function Reports() {
               <TabsTrigger value="daily">Daily</TabsTrigger>
               <TabsTrigger value="weekly">Weekly</TabsTrigger>
               <TabsTrigger value="monthly">Monthly</TabsTrigger>
+              <TabsTrigger value="all-time">All Time</TabsTrigger>
               <TabsTrigger value="saved-documents">Saved Documents</TabsTrigger>
             </TabsList>
-            <TabsContent value="daily">{toTableRows(dailyRows)}</TabsContent>
-            <TabsContent value="weekly">{toTableRows(weeklyRows)}</TabsContent>
-            <TabsContent value="monthly">{toTableRows(monthlyRows)}</TabsContent>
-            <TabsContent value="saved-documents">{toSavedDocumentsTable(savedDocumentRows)}</TabsContent>
+            <TabsContent value="daily">{toTableRows(dailyRows, 'reports-daily.csv')}</TabsContent>
+            <TabsContent value="weekly">{toTableRows(weeklyRows, 'reports-weekly.csv')}</TabsContent>
+            <TabsContent value="monthly">{toTableRows(monthlyRows, 'reports-monthly.csv')}</TabsContent>
+            <TabsContent value="all-time">{toTableRows(allTimeRows, 'reports-all-time.csv')}</TabsContent>
+            <TabsContent value="saved-documents">{toSavedDocumentsTable(savedDocumentRows, 'reports-saved-documents.csv')}</TabsContent>
           </Tabs>
         </div>
       }
