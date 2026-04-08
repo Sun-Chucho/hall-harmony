@@ -187,7 +187,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const isSyncingRef = useRef(false);
 
   const queuePendingAction = useCallback((action: Omit<PendingBookingAction, 'id'>) => {
-    setPendingActions((prev) => [...prev, { ...action, id: createPendingActionId() }]);
+    const entry = { ...action, id: createPendingActionId() } as PendingBookingAction;
+    setPendingActions((prev) => [...prev, entry]);
   }, []);
 
   useEffect(() => {

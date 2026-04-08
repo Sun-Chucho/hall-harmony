@@ -30,7 +30,7 @@ interface EventFinanceContextValue {
   cashDistributions: CashDistributionRecord[];
   logs: EventFinanceLog[];
   createBudget: (input: BudgetInput) => { ok: boolean; message: string; budgetId?: string };
-  requestAllocation: (input: AllocationInput) => { ok: boolean; message: string; requestId?: string };
+  requestAllocation: (input: AllocationInput) => Promise<{ ok: boolean; message: string; requestId?: string }>;
   controllerDecision: (requestId: string, decision: 'approved' | 'rejected', comment: string) => { ok: boolean; message: string };
   releaseFunds: (requestId: string, releaseReference: string) => { ok: boolean; message: string };
   addDistribution: (input: DistributionInput) => { ok: boolean; message: string; distributionId?: string };
