@@ -30,7 +30,6 @@ const staffUsers = [
     role: 'managing_director',
     notes: '',
     isActive: true,
-    password: 'EDWARD MUSHI',
   },
   {
     uid: '2',
