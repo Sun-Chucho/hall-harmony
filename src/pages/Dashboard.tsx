@@ -114,6 +114,12 @@ export default function Dashboard() {
         { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Current finance visibility', icon: AlertCircle },
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Finance trail', icon: CheckCircle2 },
       ],
+      controller: [
+        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Items awaiting decision', icon: AlertCircle },
+        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Outstanding allocations', icon: Clock },
+        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit trail', icon: CheckCircle2 },
+      ],
       store_keeper: [
         { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Events to prepare for', icon: Calendar },
         { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Allocation-linked events', icon: Clock },

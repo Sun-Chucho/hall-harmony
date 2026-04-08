@@ -44,6 +44,11 @@ type PendingBookingAction =
   | { id: string; type: 'patch'; bookingId: string; patch: BookingPatch }
   | { id: string; type: 'delete'; bookingId: string };
 
+type PendingBookingActionInput =
+  | { type: 'set'; bookingId: string; record: BookingRecord }
+  | { type: 'patch'; bookingId: string; patch: BookingPatch }
+  | { type: 'delete'; bookingId: string };
+
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
   return hours * 60 + minutes;
@@ -186,8 +191,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const pendingActionsRef = useRef<PendingBookingAction[]>([]);
   const isSyncingRef = useRef(false);
 
-  const queuePendingAction = useCallback((action: Omit<PendingBookingAction, 'id'>) => {
-    setPendingActions((prev) => [...prev, { ...action, id: createPendingActionId() }]);
+  const queuePendingAction = useCallback((action: PendingBookingActionInput) => {
+    const entry = { ...action, id: createPendingActionId() } as PendingBookingAction;
+    setPendingActions((prev) => [...prev, entry]);
   }, []);
 
   useEffect(() => {

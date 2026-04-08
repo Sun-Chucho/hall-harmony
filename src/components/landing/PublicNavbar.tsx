@@ -113,6 +113,10 @@ const PublicNavbar = ({ ctaLabel = 'Book Now', ctaTo = '/booking' }: PublicNavba
                               <Users className="h-3 w-3" />
                               {dest.capacity}
                             </span>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-[11px] font-medium text-[#7A151B]">
+                              {isSw ? 'Kuanzia' : 'From'} TZS {Math.min(...dest.standardRentalRates.map(r => r.price)).toLocaleString()}
+                            </span>
                           </div>
                         </div>
                       </Link>
@@ -249,6 +253,9 @@ const PublicNavbar = ({ ctaLabel = 'Book Now', ctaTo = '/booking' }: PublicNavba
                       <p className="text-base font-semibold text-foreground">{dest.name}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Users className="h-3 w-3" /> {dest.capacity}
+                      </p>
+                      <p className="text-[11px] font-medium text-[#7A151B] mt-0.5">
+                        {isSw ? 'Kuanzia' : 'From'} TZS {Math.min(...dest.standardRentalRates.map(r => r.price)).toLocaleString()}
                       </p>
                     </div>
                   </Link>
