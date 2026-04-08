@@ -41,12 +41,16 @@ service cloud.firestore {
       ]);
     }
 
-    function canMutateBookings() {
+    function canUpdateBookings() {
       return hasAnyRole(['manager', 'accountant', 'cashier_1'])
         || (
           hasRole('assistant_hall_manager')
           && resource.data.createdByUserId == request.auth.uid
         );
+    }
+
+    function canDeleteBookings() {
+      return hasAnyRole(['manager', 'accountant']);
     }
 
     function isPublicBookingCreate() {
@@ -119,7 +123,8 @@ service cloud.firestore {
           )
         );
       allow read: if canReadBookings();
-      allow update, delete: if canMutateBookings();
+      allow update: if canUpdateBookings();
+      allow delete: if canDeleteBookings();
     }
 
     match /payments/{paymentId} {

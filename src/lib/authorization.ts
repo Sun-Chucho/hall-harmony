@@ -198,7 +198,7 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   '/admin': ['accountant'],
   '/md-transfer': ['cashier_1', 'accountant'],
   '/distribution': ['cashier_1', 'accountant'],
-  '/messages': ['manager', 'accountant'],
+  '/messages': ['manager', 'cashier_1', 'accountant'],
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

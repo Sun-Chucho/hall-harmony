@@ -22,7 +22,7 @@ interface PaymentContextValue {
   generateReceiptText: (paymentId: string) => { ok: boolean; message: string; receipt?: string };
 }
 
-const DEPOSIT_RATIO = 0.3;
+const DEPOSIT_RATIO = 0.5;
 const PAYMENTS_COLLECTION = 'payments';
 const PAYMENT_STATUS_COLLECTION = 'payment_status_overrides';
 

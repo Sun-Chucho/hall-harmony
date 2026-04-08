@@ -10,6 +10,7 @@ import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
+import { getCashierAlerts } from '@/lib/cashierAlerts';
 import { BookingCarType, CreateBookingInput } from '@/types/booking';
 import { PaymentMethod } from '@/types/payment';
 
@@ -252,6 +253,27 @@ export default function Bookings() {
   const canAccountantReview = user?.role === 'accountant';
   const canCreateBooking = user?.role === 'accountant' || user?.role === 'manager';
   const canDeleteAnyBooking = user?.role === 'accountant' || user?.role === 'manager';
+  const cashierAlerts = useMemo(
+    () => (isCashier1 ? getCashierAlerts(bookings, getBookingFinancials) : []),
+    [bookings, getBookingFinancials, isCashier1],
+  );
+
+  useEffect(() => {
+    if (!isCashier1 || cashierAlerts.length === 0 || typeof window === 'undefined') return;
+    const cacheKey = 'kuringe_cashier_alert_toasts_v1';
+    const shown = new Set<string>(JSON.parse(window.sessionStorage.getItem(cacheKey) ?? '[]') as string[]);
+    const unseen = cashierAlerts.filter((alert) => !shown.has(alert.id)).slice(0, 5);
+    if (unseen.length === 0) return;
+    unseen.forEach((alert) => {
+      toast({
+        title: `${alert.title} - ${alert.bookingId}`,
+        description: alert.body,
+        variant: 'destructive',
+      });
+      shown.add(alert.id);
+    });
+    window.sessionStorage.setItem(cacheKey, JSON.stringify([...shown]));
+  }, [cashierAlerts, isCashier1, toast]);
 
   const conflict = form.hall && form.date && form.startTime && form.endTime
     ? hasConflict(form)
@@ -613,7 +635,6 @@ export default function Bookings() {
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" onClick={() => navigate(`/bookings?edit=${booking.id}`)}>Edit Booking</Button>
-                        <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>Delete Booking</Button>
                       </div>
                     </div>
                   ))}
@@ -1967,7 +1988,7 @@ export default function Bookings() {
                         </Button>
                       ) : null}
 
-                      {(canDeleteAnyBooking || booking.createdByUserId === user?.id) ? (
+                      {canDeleteAnyBooking ? (
                         <Button size="sm" variant="destructive" onClick={() => void handleDeleteBooking(booking.id)}>
                           Delete Booking
                         </Button>

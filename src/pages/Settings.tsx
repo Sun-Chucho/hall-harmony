@@ -28,6 +28,7 @@ export default function Settings() {
     changePassword,
     createStaffUser,
     updateStaffRole,
+    updateStaffNotes,
     updateStaffActive,
     removeStaffUser,
     forceLogoutAllSessions,
@@ -46,8 +47,10 @@ export default function Settings() {
     email: '',
     role: 'assistant_hall_manager' as UserRole,
     password: '',
+    notes: '',
   });
   const [roleDrafts, setRoleDrafts] = useState<Record<string, UserRole>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const canManageUsers = user?.role === 'manager' || user?.role === 'accountant';
 
@@ -115,6 +118,7 @@ export default function Settings() {
         email: '',
         role: 'assistant_hall_manager',
         password: '',
+        notes: '',
       });
     }
     setIsCreatingUser(false);
@@ -140,6 +144,18 @@ export default function Settings() {
     const result = await updateStaffActive(staffId, !isActive);
     toast({
       title: result.ok ? 'User updated' : 'Update failed',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    });
+    setBusyUserId('');
+  };
+
+  const handleSaveNotes = async (staffId: string) => {
+    const notes = noteDrafts[staffId] ?? '';
+    setBusyUserId(staffId);
+    const result = await updateStaffNotes(staffId, notes);
+    toast({
+      title: result.ok ? 'Notes updated' : 'Update failed',
       description: result.message,
       variant: result.ok ? 'default' : 'destructive',
     });
@@ -299,6 +315,16 @@ export default function Settings() {
                     required
                   />
                 </div>
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="new-notes-user">Notes</Label>
+                  <textarea
+                    id="new-notes-user"
+                    className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createForm.notes}
+                    onChange={(event) => setCreateForm((prev) => ({ ...prev, notes: event.target.value }))}
+                    placeholder="Notes for this staff entry"
+                  />
+                </div>
                 <div className="md:col-span-2">
                   <Button type="submit" disabled={isCreatingUser}>
                     {isCreatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -310,6 +336,7 @@ export default function Settings() {
               <div className="space-y-3">
                 {visibleUsers.map((entry) => {
                   const draftRole = roleDrafts[entry.id] ?? entry.role;
+                  const draftNotes = noteDrafts[entry.id] ?? entry.notes ?? '';
                   const isBusy = busyUserId === entry.id;
                   return (
                     <div key={entry.id} className="rounded-xl border border-slate-200 p-3">
@@ -360,6 +387,26 @@ export default function Settings() {
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Remove
+                        </Button>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        <Label htmlFor={`notes-${entry.id}`}>Notes</Label>
+                        <textarea
+                          id={`notes-${entry.id}`}
+                          className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={draftNotes}
+                          onChange={(event) => setNoteDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                          placeholder="Notes for this staff entry"
+                          disabled={isBusy}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleSaveNotes(entry.id)}
+                          disabled={isBusy || draftNotes === (entry.notes ?? '')}
+                        >
+                          {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Save Notes
                         </Button>
                       </div>
                     </div>

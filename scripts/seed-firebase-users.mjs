@@ -12,7 +12,7 @@ const serviceAccountPath =
   process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
   'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-abfa71b989.json';
 
-const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '123456';
+const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '1234';
 
 const staffUsers = [
   {
@@ -20,13 +20,15 @@ const staffUsers = [
     email: 'diana.mushi@kuringe.co.tz',
     name: 'Anonymous',
     role: 'manager',
+    notes: '',
     isActive: true,
   },
   {
     uid: '10',
     email: 'edward.mushi@kuringe.co.tz',
-    name: 'Edward Mushi',
+    name: 'MD',
     role: 'managing_director',
+    notes: '',
     isActive: true,
     password: 'EDWARD MUSHI',
   },
@@ -35,6 +37,7 @@ const staffUsers = [
     email: 'gladness.tesha@kuringe.co.tz',
     name: 'Gladness Donat Tesha',
     role: 'assistant_hall_manager',
+    notes: '',
     isActive: true,
   },
   {
@@ -42,6 +45,7 @@ const staffUsers = [
     email: 'rose.mkonyi@kuringe.co.tz',
     name: 'Rose G. Mkonyi',
     role: 'cashier_1',
+    notes: '',
     isActive: true,
   },
   {
@@ -49,6 +53,7 @@ const staffUsers = [
     email: 'anna.barnaba@kuringe.co.tz',
     name: 'Anna Barnaba',
     role: 'cashier_1',
+    notes: '',
     isActive: false,
   },
   {
@@ -56,6 +61,7 @@ const staffUsers = [
     email: 'augustino.kilindo@kuringe.co.tz',
     name: 'Augustino George Kilindo',
     role: 'accountant',
+    notes: '',
     isActive: false,
   },
   {
@@ -63,6 +69,7 @@ const staffUsers = [
     email: 'regina.evarist@kuringe.co.tz',
     name: 'Regina Evarist',
     role: 'store_keeper',
+    notes: '',
     isActive: true,
   },
   {
@@ -70,6 +77,7 @@ const staffUsers = [
     email: 'veronika.kileo@kuringe.co.tz',
     name: 'Veronika Visent Kileo',
     role: 'purchaser',
+    notes: '',
     isActive: true,
   },
   {
@@ -77,6 +85,7 @@ const staffUsers = [
     email: 'jackline.faustine@kuringe.co.tz',
     name: 'Jackline Faustine',
     role: 'accountant',
+    notes: '',
     isActive: true,
   },
   {
@@ -84,6 +93,15 @@ const staffUsers = [
     email: 'david.kinoka@kuringe.co.tz',
     name: 'David Kinoka',
     role: 'accountant',
+    notes: '',
+    isActive: true,
+  },
+  {
+    uid: '11',
+    email: 'md@kuringe.co.tz',
+    name: 'MD',
+    role: 'managing_director',
+    notes: '',
     isActive: true,
   },
 ];
@@ -153,6 +171,7 @@ async function main() {
             email: user.email,
             name: user.name,
             role: user.role,
+            notes: user.notes ?? '',
             isActive: user.isActive,
             createdAt: nowIso,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

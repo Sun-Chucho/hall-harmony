@@ -726,10 +726,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     const target = bookings.find((booking) => booking.id === bookingId);
     if (!target) return { ok: false, message: 'Booking not found.' };
 
-    const isManagerOrController = user.role === 'manager' || user.role === 'accountant';
-    const isOwner = target.createdByUserId === user.id;
-    if (!isManagerOrController && !isOwner) {
-      return { ok: false, message: 'You can only delete your own bookings.' };
+    const canDelete = user.role === 'manager' || user.role === 'accountant';
+    if (!canDelete) {
+      return { ok: false, message: 'Only Halls Manager or Accountant can delete bookings.' };
     }
 
     try {

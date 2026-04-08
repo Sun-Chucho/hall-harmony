@@ -30,11 +30,11 @@ const firebaseConfig = {
 };
 
 const managerEmail = process.env.VERIFY_MANAGER_EMAIL || 'diana.mushi@kuringe.co.tz';
-const managerPassword = process.env.VERIFY_MANAGER_PASSWORD || '123456';
+const managerPassword = process.env.VERIFY_MANAGER_PASSWORD || '1234';
 const assistantEmail = process.env.VERIFY_ASSISTANT_EMAIL || 'gladness.tesha@kuringe.co.tz';
-const assistantPassword = process.env.VERIFY_ASSISTANT_PASSWORD || '123456';
+const assistantPassword = process.env.VERIFY_ASSISTANT_PASSWORD || '1234';
 const cashierEmail = process.env.VERIFY_CASHIER1_EMAIL || 'rose.mkonyi@kuringe.co.tz';
-const cashierPassword = process.env.VERIFY_CASHIER1_PASSWORD || '123456';
+const cashierPassword = process.env.VERIFY_CASHIER1_PASSWORD || '1234';
 const runPasswordRotation = String(process.env.VERIFY_PASSWORD_ROTATION || 'false').toLowerCase() === 'true';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);

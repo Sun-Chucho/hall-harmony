@@ -28,8 +28,9 @@ interface AuthContextType extends AuthState {
   switchUser: (userId: string) => void;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ ok: boolean; message: string }>;
   refreshStaffUsers: () => Promise<void>;
-  createStaffUser: (input: { name: string; email: string; role: UserRole; password: string }) => Promise<{ ok: boolean; message: string }>;
+  createStaffUser: (input: { name: string; email: string; role: UserRole; password: string; notes?: string }) => Promise<{ ok: boolean; message: string }>;
   updateStaffRole: (userId: string, role: UserRole) => Promise<{ ok: boolean; message: string }>;
+  updateStaffNotes: (userId: string, notes: string) => Promise<{ ok: boolean; message: string }>;
   updateStaffActive: (userId: string, isActive: boolean) => Promise<{ ok: boolean; message: string }>;
   removeStaffUser: (userId: string) => Promise<{ ok: boolean; message: string }>;
   forceLogoutAllSessions: () => Promise<{ ok: boolean; message: string }>;
@@ -37,7 +38,7 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
-const DEFAULT_PASSWORD = '123456';
+const DEFAULT_PASSWORD = '1234';
 const LEGACY_PASSWORD_ALIAS = '1234';
 const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
 const SESSION_CONTROL_REF = doc(db, 'system_state', 'session_control');
@@ -70,6 +71,7 @@ function normalizeUser(input: Partial<User> & { id: string; email: string; name:
     email: input.email,
     name: normalizeStaffName(input.name, normalizedRole),
     role: normalizedRole,
+    notes: input.notes?.trim() ?? '',
     isActive: input.isActive ?? true,
     createdAt: input.createdAt ?? new Date().toISOString(),
     lastLogin: input.lastLogin,
@@ -92,6 +94,7 @@ async function fetchStaffDirectory(): Promise<User[]> {
           email: data.email ?? '',
           name: data.name ?? '',
           role: (data.role as UserRole) ?? 'manager',
+          notes: data.notes ?? '',
           isActive: data.isActive ?? true,
           createdAt,
           lastLogin: data.lastLogin,
@@ -118,6 +121,7 @@ async function fetchProfileByUid(uid: string): Promise<User | null> {
       email: data.email ?? '',
       name: data.name ?? '',
       role: (data.role as UserRole) ?? 'manager',
+      notes: data.notes ?? '',
       isActive: data.isActive ?? true,
       createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
       lastLogin: data.lastLogin,
@@ -315,8 +319,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const changePassword = useCallback(
     async (userId: string, currentPassword: string, newPassword: string) => {
       const cleanPassword = newPassword.trim();
-      if (cleanPassword.length < 6) {
-        return { ok: false, message: 'New password must be at least 6 characters.' };
+      if (cleanPassword.length < 4) {
+        return { ok: false, message: 'New password must be at least 4 characters.' };
       }
 
       const targetUser = staffUsers.find((item) => item.id === userId)
@@ -356,7 +360,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createStaffUser = useCallback(
-    async (input: { name: string; email: string; role: UserRole; password: string }) => {
+    async (input: { name: string; email: string; role: UserRole; password: string; notes?: string }) => {
       if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
         return { ok: false, message: 'Only Accountant or Halls Manager can add users.' };
       }
@@ -364,10 +368,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const name = input.name.trim();
       const email = input.email.trim().toLowerCase();
       const password = input.password.trim();
+      const notes = input.notes?.trim() ?? '';
       if (!name) return { ok: false, message: 'Name is required.' };
       if (!email || !email.includes('@')) return { ok: false, message: 'Valid email is required.' };
       if (!ROLE_LABELS[input.role]) return { ok: false, message: 'Invalid role.' };
-      if (password.length < 6) return { ok: false, message: 'Password must be at least 6 characters.' };
+      if (password.length < 4) return { ok: false, message: 'Password must be at least 4 characters.' };
 
       const existing = staffUsers.find((entry) => entry.email.toLowerCase() === email);
       if (existing) {
@@ -385,6 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email,
           name,
           role: input.role,
+          notes,
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: serverTimestamp(),
@@ -405,6 +411,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [refreshStaffUsers, staffUsers, state.user],
+  );
+
+  const updateStaffNotes = useCallback(
+    async (userId: string, notes: string) => {
+      if (!state.user || !ROLE_CHANGE_AUTHORITIES.includes(state.user.role)) {
+        return { ok: false, message: 'Only Accountant or Halls Manager can update user notes.' };
+      }
+
+      try {
+        await updateDoc(doc(db, STAFF_COLLECTION, userId), {
+          notes: notes.trim(),
+          updatedAt: serverTimestamp(),
+        });
+        await refreshStaffUsers();
+        return { ok: true, message: 'User notes updated successfully.' };
+      } catch {
+        return { ok: false, message: 'Failed to update user notes.' };
+      }
+    },
+    [refreshStaffUsers, state.user],
   );
 
   const updateStaffRole = useCallback(
@@ -513,6 +539,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshStaffUsers,
       createStaffUser,
       updateStaffRole,
+      updateStaffNotes,
       updateStaffActive,
       removeStaffUser,
       forceLogoutAllSessions,
@@ -529,6 +556,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       state,
       switchUser,
       updateStaffActive,
+      updateStaffNotes,
       updateStaffRole,
       forceLogoutAllSessions,
     ],

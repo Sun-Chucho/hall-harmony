@@ -51,15 +51,15 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   {
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    path: '/dashboard',
-  },
-  {
     title: 'MD Dashboard',
     icon: LayoutDashboard,
     path: '/managing-director-dashboard',
     roles: ['managing_director'],
+  },
+  {
+    title: 'Dashboard',
+    icon: LayoutDashboard,
+    path: '/dashboard',
   },
   {
     title: 'Bookings',
@@ -178,6 +178,7 @@ export function AppSidebar() {
 
   const cashier1NavItems: NavItem[] = [
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },

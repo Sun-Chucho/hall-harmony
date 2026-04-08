@@ -14,6 +14,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  notes?: string;
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;

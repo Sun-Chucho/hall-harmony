@@ -181,6 +181,7 @@ export default function Dashboard() {
           ]
     : [
         { label: 'Bookings', path: '/bookings' },
+        { label: 'Messages', path: '/messages' },
         { label: 'Payments', path: '/payments' },
         { label: 'Reports', path: '/reports' },
         { label: 'Settings', path: '/settings' },
