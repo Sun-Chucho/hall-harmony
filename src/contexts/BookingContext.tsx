@@ -44,6 +44,11 @@ type PendingBookingAction =
   | { id: string; type: 'patch'; bookingId: string; patch: BookingPatch }
   | { id: string; type: 'delete'; bookingId: string };
 
+type PendingBookingActionInput =
+  | { type: 'set'; bookingId: string; record: BookingRecord }
+  | { type: 'patch'; bookingId: string; patch: BookingPatch }
+  | { type: 'delete'; bookingId: string };
+
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
   return hours * 60 + minutes;
