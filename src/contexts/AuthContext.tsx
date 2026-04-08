@@ -38,7 +38,7 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
-const DEFAULT_PASSWORD = '1234';
+const DEFAULT_PASSWORD = '123456';
 const LEGACY_PASSWORD_ALIAS = '1234';
 const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
 const SESSION_CONTROL_REF = doc(db, 'system_state', 'session_control');

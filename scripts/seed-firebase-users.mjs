@@ -10,9 +10,9 @@ const rootDir = path.resolve(__dirname, '..');
 
 const serviceAccountPath =
   process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-  'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-abfa71b989.json';
+  'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-12dcc87f09.json';
 
-const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '1234';
+const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '123456';
 
 const staffUsers = [
   {
