@@ -27,7 +27,7 @@ const SHORT_ROLE_LABELS: Record<UserRole, { en: string; sw: string }> = {
   cashier_1: { en: 'Cashier', sw: 'Keshia' },
   cashier_2: { en: 'Cashier 2', sw: 'Keshia 2' },
   controller: { en: 'Accountant', sw: 'Mhasibu' },
-  store_keeper: { en: 'Storekeeper', sw: 'Msimamizi wa Ghala' },
+  store_keeper: { en: 'Event Planner/Storekeeper', sw: 'Mpangaji wa Matukio/Msimamizi wa Ghala' },
   purchaser: { en: 'Purchaser', sw: 'Mnunua Bidhaa' },
   accountant: { en: 'Accountant', sw: 'Mhasibu' },
 };
@@ -39,7 +39,7 @@ const ROLE_DESCRIPTIONS: Record<UserRole, { en: string; sw: string }> = {
   cashier_1: { en: 'Handles payments, booking approvals, and cash movement.', sw: 'Anasimamia malipo, approvals za booking, na mzunguko wa fedha.' },
   cashier_2: { en: 'Supports legacy cashier visibility.', sw: 'Anaunga mkono mwonekano wa cashier wa zamani.' },
   controller: { en: 'Merged into accountant access.', sw: 'Imeunganishwa ndani ya accountant.' },
-  store_keeper: { en: 'Runs stock control and plans event item distribution from store.', sw: 'Anasimamia stock na kupanga ugawaji wa vitu vya event kutoka store.' },
+  store_keeper: { en: 'Handles event planning and storekeeping from one workspace.', sw: 'Anasimamia upangaji wa matukio na storekeeping katika sehemu moja.' },
   purchaser: { en: 'Handles purchases, low stock follow-up, and supplier workflow.', sw: 'Anashughulikia ununuzi, ufuatiliaji wa stock ndogo, na uratibu wa wasambazaji.' },
   accountant: { en: 'Controls finance, approvals, reporting, and staff administration.', sw: 'Anasimamia fedha, approvals, taarifa, na utawala wa watumiaji.' },
 };

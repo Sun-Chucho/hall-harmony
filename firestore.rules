@@ -220,6 +220,10 @@ service cloud.firestore {
       allow read, write: if canAccessDocumentsModule();
     }
 
+    match /purchase_item_workflow/{docId} {
+      allow read, write: if canAccessDocumentsModule();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

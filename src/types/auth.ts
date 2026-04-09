@@ -33,7 +33,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   cashier_1: 'Cashier (Payments & Distribution)',
   cashier_2: 'Cashier 2 (Legacy)',
   controller: 'Accountant',
-  store_keeper: 'Storekeeper',
+  store_keeper: 'Event Planner/Storekeeper',
   purchaser: 'Purchaser',
   accountant: 'Accountant (Control Authority)',
 };
@@ -45,7 +45,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   cashier_1: 'Manages customer payments, allocations, cash movement, and distributions.',
   cashier_2: 'Legacy cashier role retained only for historical compatibility.',
   controller: 'Legacy controller access is merged into accountant.',
-  store_keeper: 'Maintains stock records, event planning, and store accountability.',
+  store_keeper: 'Maintains stock records, event planning, and store accountability in one role.',
   purchaser: 'Handles purchasing and supplier coordination.',
   accountant: 'Manages accounting records, reconciliation, reporting, and approval controls.',
 };

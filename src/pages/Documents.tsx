@@ -14,6 +14,7 @@ type FormId =
   | 'delivery_note'
   | 'grn'
   | 'stores_ledger'
+  | 'purchase_items'
   | 'tax_invoice'
   | 'payment_voucher'
   | 'petty_cash'
@@ -55,16 +56,33 @@ interface CashRequestWorkflow {
   reviewComment?: string;
 }
 
+type PurchaseItemStatus = 'pending_purchaser' | 'approved_purchaser' | 'declined_purchaser';
+
+interface PurchaseItemWorkflow {
+  id: string;
+  submittedAt: string;
+  submittedBy: string;
+  submittedByRole: UserRole;
+  fields: Record<string, string>;
+  status: PurchaseItemStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewComment?: string;
+}
+
 const DOCUMENT_OUTPUTS_COLLECTION = 'document_form_outputs';
 const DOCUMENT_OUTPUTS_CACHE_KEY = 'kuringe_documents_form_outputs_v1';
 const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
 const CASH_REQUEST_WORKFLOW_CACHE_KEY = 'kuringe_cash_request_workflow_v1';
+const PURCHASE_ITEM_WORKFLOW_COLLECTION = 'purchase_item_workflow';
+const PURCHASE_ITEM_WORKFLOW_CACHE_KEY = 'kuringe_purchase_item_workflow_v1';
 
 const manualForms: ManualForm[] = [
   { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'accountant'] },
   { id: 'delivery_note', title: 'Delivery Note', roles: ['accountant', 'store_keeper'] },
   { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'accountant'] },
   { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'accountant'] },
+  { id: 'purchase_items', title: 'Purchase Items Form', roles: ['store_keeper'] },
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant'] },
   { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'] },
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
@@ -90,11 +108,13 @@ export default function Documents() {
   const { sendManagerAlert } = useMessages();
   const [outputs, setOutputs] = useState<FormSubmission[]>([]);
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItemWorkflow[]>([]);
   const [outputFormFilter, setOutputFormFilter] = useState<'all' | FormId>('all');
   const [outputDateFrom, setOutputDateFrom] = useState('');
   const [outputDateTo, setOutputDateTo] = useState('');
   const [accountantComment, setAccountantComment] = useState<Record<string, string>>({});
   const [managerComment, setManagerComment] = useState<Record<string, string>>({});
+  const [purchaserComment, setPurchaserComment] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
@@ -123,6 +143,20 @@ export default function Documents() {
   useEffect(() => {
     localStorage.setItem(CASH_REQUEST_WORKFLOW_CACHE_KEY, JSON.stringify(cashRequests));
   }, [cashRequests]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(PURCHASE_ITEM_WORKFLOW_CACHE_KEY);
+    if (!raw) return;
+    try {
+      setPurchaseItems(JSON.parse(raw) as PurchaseItemWorkflow[]);
+    } catch {
+      localStorage.removeItem(PURCHASE_ITEM_WORKFLOW_CACHE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(PURCHASE_ITEM_WORKFLOW_CACHE_KEY, JSON.stringify(purchaseItems));
+  }, [purchaseItems]);
 
   useEffect(() => {
     if (!user) {
@@ -187,9 +221,42 @@ export default function Documents() {
     return () => unsub();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setPurchaseItems([]);
+      return;
+    }
+
+    const q = query(collection(db, PURCHASE_ITEM_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'), limit(300));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = snapshot.docs.map((item) => {
+          const data = item.data() as Omit<PurchaseItemWorkflow, 'id'>;
+          return { id: item.id, ...data } as PurchaseItemWorkflow;
+        });
+        setPurchaseItems(next);
+      },
+      () => {
+        const raw = localStorage.getItem(PURCHASE_ITEM_WORKFLOW_CACHE_KEY);
+        if (!raw) return;
+        try {
+          setPurchaseItems(JSON.parse(raw) as PurchaseItemWorkflow[]);
+        } catch {
+          localStorage.removeItem(PURCHASE_ITEM_WORKFLOW_CACHE_KEY);
+        }
+      },
+    );
+
+    return () => unsub();
+  }, [user]);
+
   const allowedForms = useMemo(() => {
     if (!user) return [];
     if (user.role === 'manager') return [];
+    if (user.role === 'store_keeper') {
+      return manualForms.filter((item) => item.id === 'cash_request' || item.id === 'purchase_items');
+    }
     return manualForms.filter((item) => item.roles.includes(user.role));
   }, [user]);
 
@@ -213,18 +280,21 @@ export default function Documents() {
 
   const pendingForController = cashRequests.filter((entry) => entry.status === 'pending_controller');
   const pendingForManager = cashRequests.filter((entry) => entry.status === 'pending_manager');
+  const pendingForPurchaser = purchaseItems.filter((entry) => entry.status === 'pending_purchaser');
 
   const stats = [
     { title: 'Fillable Forms', value: String(myForms), description: 'forms assigned to your role' },
     { title: 'All Form Types', value: String(manualForms.length), description: 'manual register list' },
     { title: 'Submitted Outputs', value: String(outputs.length), description: 'all saved form entries' },
     {
-      title: user?.role === 'accountant' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Halls Manager Queue' : 'My Role',
+      title: user?.role === 'accountant' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Halls Manager Queue' : user?.role === 'purchaser' ? 'Purchase Queue' : 'My Role',
       value:
         user?.role === 'accountant'
           ? String(pendingForController.length)
           : user?.role === 'manager'
             ? String(pendingForManager.length)
+            : user?.role === 'purchaser'
+              ? String(pendingForPurchaser.length)
             : user
               ? ROLE_LABELS[user.role]
               : 'N/A',
@@ -233,6 +303,8 @@ export default function Documents() {
           ? 'awaiting accountant decision'
           : user?.role === 'manager'
             ? 'awaiting hall manager decision'
+            : user?.role === 'purchaser'
+              ? 'sent from event planner/storekeeper'
             : 'current user designation',
     },
   ];
@@ -298,6 +370,30 @@ export default function Documents() {
           title: 'Cash Request Pending Halls Manager',
           body: `Accountant submitted/validated a cash request: TZS ${fields.total_requested ?? '0'}. Awaiting Halls Manager decision.`,
         });
+      }
+    }
+
+    if (formId === 'purchase_items') {
+      const workflowPayload = {
+        submittedAt: new Date().toISOString(),
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields,
+        status: 'pending_purchaser' as PurchaseItemStatus,
+        updatedAt: serverTimestamp(),
+      };
+      try {
+        await addDoc(collection(db, PURCHASE_ITEM_WORKFLOW_COLLECTION), workflowPayload);
+      } catch {
+        const localFallback: PurchaseItemWorkflow = {
+          id: `LOCAL-PI-${Date.now()}`,
+          submittedAt: new Date().toISOString(),
+          submittedBy: user.id,
+          submittedByRole: user.role,
+          fields,
+          status: 'pending_purchaser',
+        };
+        setPurchaseItems((prev) => [localFallback, ...prev]);
       }
     }
 
@@ -391,12 +487,44 @@ export default function Documents() {
     }
   };
 
-  const formShell = (formId: FormId, title: string, body: React.ReactNode) => (
+  const handlePurchaserDecision = async (requestId: string, decision: 'approve' | 'decline') => {
+    if (!user || user.role !== 'purchaser') return;
+    if (!confirmAction(`Are you sure you want to ${decision} this purchase request?`)) return;
+    const request = purchaseItems.find((entry) => entry.id === requestId);
+    if (!request) return;
+    const comment = purchaserComment[requestId]?.trim() ?? '';
+
+    try {
+      await updateDoc(doc(db, PURCHASE_ITEM_WORKFLOW_COLLECTION, requestId), {
+        status: decision === 'approve' ? 'approved_purchaser' : 'declined_purchaser',
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: user.id,
+        reviewComment: comment || (decision === 'approve' ? 'Approved by purchaser.' : 'Declined by purchaser.'),
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setPurchaseItems((prev) =>
+        prev.map((entry) =>
+          entry.id === requestId
+            ? {
+                ...entry,
+                status: decision === 'approve' ? 'approved_purchaser' : 'declined_purchaser',
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.id,
+                reviewComment: comment || (decision === 'approve' ? 'Approved by purchaser.' : 'Declined by purchaser.'),
+              }
+            : entry,
+        ),
+      );
+    }
+  };
+
+  const formShell = (formId: FormId, title: string, body: React.ReactNode, submitLabel = 'Save Form Output') => (
     <form className="space-y-3" onSubmit={(event) => void saveSubmission(formId, title, event)}>
       {serialHeader(title)}
       {body}
       <div className="flex items-center gap-2">
-        <Button type="submit">Save Form Output</Button>
+        <Button type="submit">{submitLabel}</Button>
         <Button type="button" variant="outline" onClick={() => window.print()}>Print</Button>
       </div>
     </form>
@@ -515,6 +643,38 @@ export default function Documents() {
                       ))}
                     </div>
                   ))}
+                </TabsContent>
+
+                <TabsContent value="purchase_items" className="space-y-3">
+                  {formShell('purchase_items', 'Purchase Items Form', (
+                    <>
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                        Purchase item requests from Event Planner/Storekeeper are sent directly to Purchaser.
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 grid gap-3 md:grid-cols-2">
+                        <input name="request_date" className={inputClass()} placeholder="Request Date" />
+                        <input name="requested_by" className={inputClass()} placeholder="Requested By" />
+                        <input name="department" className={inputClass()} placeholder="Department" />
+                        <input name="needed_by" className={inputClass()} placeholder="Needed By Date" />
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="grid grid-cols-5 gap-2 text-xs uppercase text-slate-500 font-semibold">
+                          <p>No</p><p>Item</p><p>Qty</p><p>Estimated Price</p><p>Amount</p>
+                        </div>
+                        {[1,2,3,4].map((i) => (
+                          <div key={i} className="mt-2 grid grid-cols-5 gap-2">
+                            <input name={`row_${i}`} className={inputClass()} defaultValue={String(i)} />
+                            <input name={`item_${i}`} className={inputClass()} />
+                            <input name={`qty_${i}`} className={inputClass()} />
+                            <input name={`estimated_price_${i}`} className={inputClass()} />
+                            <input name={`amount_${i}`} className={inputClass()} />
+                          </div>
+                        ))}
+                        <input name="total_amount" className={`${inputClass()} mt-2`} placeholder="Total Amount Requested (TZS)" />
+                        <textarea name="request_notes" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" rows={3} placeholder="Purchase notes / reason" />
+                      </div>
+                    </>
+                  ), 'Send to Purchaser')}
                 </TabsContent>
 
                 <TabsContent value="tax_invoice" className="space-y-3">
@@ -815,6 +975,54 @@ export default function Documents() {
             </div>
             </div>
           )}
+
+          {user?.role === 'purchaser' ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Purchaser Queue</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Review purchase item requests sent from Event Planner/Storekeeper.
+              </p>
+              <div className="mt-3 space-y-3">
+                {purchaseItems.length === 0 ? (
+                  <p className="text-sm text-slate-500">No purchase item requests yet.</p>
+                ) : (
+                  purchaseItems.map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-900">
+                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                        </p>
+                        <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                          {entry.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
+                      <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
+                      <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input
+                          className={inputClass('h-9 w-[320px]')}
+                          placeholder="Purchaser comment"
+                          value={purchaserComment[entry.id] ?? ''}
+                          onChange={(event) => setPurchaserComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                        />
+                        {entry.status === 'pending_purchaser' ? (
+                          <>
+                            <Button size="sm" onClick={() => void handlePurchaserDecision(entry.id, 'approve')}>
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => void handlePurchaserDecision(entry.id, 'decline')}>
+                              Decline
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {myRole ? null : (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
