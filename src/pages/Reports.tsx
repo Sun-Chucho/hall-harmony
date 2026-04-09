@@ -175,7 +175,7 @@ export default function Reports() {
             id: entry.id,
             ...data,
           } as SavedDocumentRow;
-        });
+        }).filter((entry) => Boolean(entry.formId && entry.formTitle && entry.submittedAt));
         setSavedDocuments(next);
       },
       () => {
@@ -242,7 +242,7 @@ export default function Reports() {
   return (
     <ManagementPageTemplate
       pageTitle="Reports"
-      subtitle="Audit table of operational activity grouped by daily, weekly, monthly, and all time periods with CSV export."
+      subtitle="Audit table of operational activity grouped by daily, weekly, monthly, and all time periods with CSV export. Saved Documents shows outputs saved from the Documents section."
       stats={stats}
       sections={[]}
       action={

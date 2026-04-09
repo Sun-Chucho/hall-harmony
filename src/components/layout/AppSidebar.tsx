@@ -179,7 +179,7 @@ export function AppSidebar() {
   const cashier1NavItems: NavItem[] = [
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Messages', icon: MessageSquare, path: '/messages' },
-    { title: 'Move Cash', icon: Banknote, path: '/cash-movement' },
+    { title: 'Move to MD', icon: Banknote, path: '/cash-movement' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
   ];

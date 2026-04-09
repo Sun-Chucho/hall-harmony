@@ -37,9 +37,9 @@ export default function CashMovement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const {
-    cashTransfers,
+    mdTransfers,
     cashDistributions,
-    sendCashToCashier2,
+    recordManagingDirectorTransfer,
     recordCashDistribution,
   } = useEventFinance();
 
@@ -60,11 +60,9 @@ export default function CashMovement() {
     return true;
   };
 
-  const movementRows = useMemo(
-    () => [...cashTransfers].sort(
-      (a, b) => new Date(b.receivedAt ?? b.sentAt ?? b.requestedAt).getTime() - new Date(a.receivedAt ?? a.sentAt ?? a.requestedAt).getTime(),
-    ),
-    [cashTransfers],
+  const mdTransferRows = useMemo(
+    () => [...mdTransfers].sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime()),
+    [mdTransfers],
   );
 
   const utilizationRows = useMemo(
@@ -72,13 +70,14 @@ export default function CashMovement() {
     [cashDistributions],
   );
 
-  const totalMoved = movementRows.reduce((sum, item) => sum + (item.approvedAmount || item.requestedAmount), 0);
+  const totalMovedToMd = mdTransferRows.reduce((sum, item) => sum + item.amount, 0);
   const totalUtilized = utilizationRows.reduce((sum, item) => sum + item.amount, 0);
-  const waitingReceipts = movementRows.filter((item) => item.status === 'sent_to_cashier_2').length;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayMdTransfers = mdTransferRows.filter((item) => item.transferredAt.slice(0, 10) === today).length;
 
   const stats = [
-    { title: 'Total Moved', value: `TZS ${totalMoved.toLocaleString()}`, description: 'all cash movement records' },
-    { title: 'Waiting Receipt', value: `${waitingReceipts}`, description: 'sent but not yet confirmed' },
+    { title: 'Total To MD', value: `TZS ${totalMovedToMd.toLocaleString()}`, description: 'all managing director transfers' },
+    { title: "Today's MD Transfers", value: `${todayMdTransfers}`, description: 'recorded today' },
     { title: 'Total Utilized', value: `TZS ${totalUtilized.toLocaleString()}`, description: 'recorded fund usage' },
     { title: 'Utilization Rows', value: `${utilizationRows.length}`, description: 'reasons and categories saved' },
   ];
@@ -86,8 +85,8 @@ export default function CashMovement() {
   if (user?.role !== 'cashier_1' && user?.role !== 'accountant') {
     return (
       <ManagementPageTemplate
-        pageTitle="Cash Movement"
-        subtitle="Cash movement is available only to the cashier and accountant desks."
+        pageTitle="Move to MD"
+        subtitle="Managing Director transfer and utilization is available only to the cashier and accountant desks."
         stats={stats}
         sections={[]}
         action={
@@ -101,16 +100,16 @@ export default function CashMovement() {
 
   return (
     <ManagementPageTemplate
-      pageTitle="Cash Movement"
-      subtitle="Move cash, allocate it clearly, and record exactly how the funds are being used."
+      pageTitle="Move to MD"
+      subtitle="Move funds to Managing Director, allocate them clearly, and record exactly how the funds are being used."
       stats={stats}
       sections={[
         {
           title: 'Cashier Workflow',
           bullets: [
-            'Move Cash records where money has been sent.',
+            'Move to MD records money sent to Managing Director.',
             'Fund Utilization records what the money is being used for and why.',
-            'History keeps the movement trail simple and visible.',
+            'History keeps the Managing Director transfer trail simple and visible.',
           ],
         },
       ]}
@@ -122,7 +121,7 @@ export default function CashMovement() {
 
           <Tabs defaultValue="move-cash" className="space-y-4">
             <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="move-cash">Move Cash</TabsTrigger>
+              <TabsTrigger value="move-cash">Move to MD</TabsTrigger>
               <TabsTrigger value="utilization">Fund Utilization</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
@@ -130,18 +129,18 @@ export default function CashMovement() {
             <TabsContent value="move-cash">
               <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Send Cash</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Move to Managing Director</p>
                   <div className="mt-4 grid gap-3">
                     <input
                       type="number"
-                      placeholder="Amount to move (TZS)"
+                      placeholder="Amount to move to MD (TZS)"
                       className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                       value={moveCashAmount || ''}
                       onChange={(event) => setMoveCashAmount(Number(event.target.value))}
                     />
                     <input
                       type="text"
-                      placeholder="Purpose of this movement"
+                      placeholder="Purpose / notes for this MD transfer"
                       className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
                       value={moveCashPurpose}
                       onChange={(event) => setMoveCashPurpose(event.target.value)}
@@ -167,7 +166,7 @@ export default function CashMovement() {
                           return;
                         }
                         if (!moveCashPurpose.trim()) {
-                          const description = 'Enter the purpose for this cash movement.';
+                          const description = 'Enter the purpose for this MD transfer.';
                           setMessage(description);
                           toast({ title: 'Purpose required', description, variant: 'destructive' });
                           return;
@@ -180,15 +179,15 @@ export default function CashMovement() {
                         }
 
                         setIsSubmitting(true);
-                        const result = await sendCashToCashier2({
+                        const result = await recordManagingDirectorTransfer({
                           amount: moveCashAmount,
-                          comment: moveCashPurpose,
-                          transferDateTime: moveCashDateTime,
+                          notes: moveCashPurpose,
+                          reference: `MD-${new Date(moveCashDateTime).getTime()}`,
                           actionId: crypto.randomUUID(),
                         });
                         setMessage(result.message);
                         toast({
-                          title: result.ok ? 'Cash movement saved' : 'Cash movement failed',
+                          title: result.ok ? 'MD transfer saved' : 'MD transfer failed',
                           description: result.message,
                           variant: result.ok ? 'default' : 'destructive',
                         });
@@ -200,29 +199,29 @@ export default function CashMovement() {
                         setIsSubmitting(false);
                       }}
                     >
-                      {isSubmitting ? 'Saving...' : 'Save Cash Movement'}
+                      {isSubmitting ? 'Saving...' : 'Save MD Transfer'}
                     </Button>
                   </div>
                 </div>
 
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Movement Summary</p>
-                    <Badge className="bg-slate-100 text-slate-700">{movementRows.length} records</Badge>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">MD Transfer Summary</p>
+                    <Badge className="bg-slate-100 text-slate-700">{mdTransferRows.length} records</Badge>
                   </div>
                   <div className="mt-4 space-y-3">
-                    {movementRows.length === 0 ? (
-                      <p className="text-sm text-slate-600">No cash movement records yet.</p>
+                    {mdTransferRows.length === 0 ? (
+                      <p className="text-sm text-slate-600">No managing director transfers yet.</p>
                     ) : (
-                      movementRows.slice(0, 8).map((item) => (
+                      mdTransferRows.slice(0, 8).map((item) => (
                         <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>
-                            <Badge className="bg-slate-200 text-slate-900">{statusLabel(item.status)}</Badge>
+                            <p className="font-semibold text-slate-900">TZS {item.amount.toLocaleString()}</p>
+                            <Badge className="bg-slate-200 text-slate-900">MD Transfer</Badge>
                           </div>
-                          <p className="mt-1 text-slate-600">{item.requestComment || '-'}</p>
+                          <p className="mt-1 text-slate-600">{item.notes || '-'}</p>
                           <p className="text-xs text-slate-500">
-                            {new Date(item.receivedAt ?? item.sentAt ?? item.requestedAt).toLocaleString()}
+                            {new Date(item.transferredAt).toLocaleString()}
                           </p>
                         </div>
                       ))
@@ -354,26 +353,22 @@ export default function CashMovement() {
             <TabsContent value="history">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Full Cash Movement History</p>
-                  <Badge className="bg-slate-100 text-slate-700">{movementRows.length} records</Badge>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Full MD Transfer History</p>
+                  <Badge className="bg-slate-100 text-slate-700">{mdTransferRows.length} records</Badge>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {movementRows.length === 0 ? (
-                    <p className="text-sm text-slate-600">No cash movement history yet.</p>
+                  {mdTransferRows.length === 0 ? (
+                    <p className="text-sm text-slate-600">No managing director transfer history yet.</p>
                   ) : (
-                    movementRows.map((item) => (
+                    mdTransferRows.map((item) => (
                       <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900">{item.id}</p>
-                          <Badge className="bg-slate-200 text-slate-900">{statusLabel(item.status)}</Badge>
+                          <p className="font-semibold text-slate-900">{item.reference}</p>
+                          <Badge className="bg-slate-200 text-slate-900">MD Transfer</Badge>
                         </div>
-                        <p className="mt-1 text-slate-600">Amount: TZS {(item.approvedAmount || item.requestedAmount).toLocaleString()}</p>
-                        <p className="text-slate-500">Purpose: {item.requestComment || '-'}</p>
-                        <p className="text-slate-500">Decision note: {item.decisionComment || '-'}</p>
-                        <p className="text-slate-500">Receipt note: {item.receiveComment || '-'}</p>
-                        <p className="text-xs text-slate-500">
-                          Requested: {new Date(item.requestedAt).toLocaleString()} | Sent: {item.sentAt ? new Date(item.sentAt).toLocaleString() : '-'} | Received: {item.receivedAt ? new Date(item.receivedAt).toLocaleString() : '-'}
-                        </p>
+                        <p className="mt-1 text-slate-600">Amount: TZS {item.amount.toLocaleString()}</p>
+                        <p className="text-slate-500">Notes: {item.notes || '-'}</p>
+                        <p className="text-xs text-slate-500">{new Date(item.transferredAt).toLocaleString()}</p>
                       </div>
                     ))
                   )}
