@@ -35,6 +35,38 @@ interface PurchaseItemWorkflow {
   purchaseComment?: string;
 }
 
+const ROLE_REPORT_DOCUMENTS: Partial<Record<UserRole, Array<{ id: string; title: string }>>> = {
+  cashier_1: [
+    { id: 'payment_voucher', title: 'Payment Voucher' },
+    { id: 'tax_invoice', title: 'Tax Invoice' },
+    { id: 'petty_cash', title: 'Petty Cash Voucher' },
+    { id: 'hall_registration', title: 'Hall Registration' },
+    { id: 'cash_request', title: 'Cash Request' },
+  ],
+  accountant: [
+    { id: 'payment_voucher', title: 'Payment Voucher' },
+    { id: 'tax_invoice', title: 'Tax Invoice' },
+    { id: 'cash_request', title: 'Cash Request' },
+    { id: 'lpo', title: 'Local Purchase Order' },
+    { id: 'delivery_note', title: 'Delivery Note' },
+    { id: 'grn', title: 'Goods Received Note' },
+    { id: 'stores_ledger', title: 'Stores Ledger' },
+    { id: 'petty_cash', title: 'Petty Cash Voucher' },
+  ],
+  assistant_hall_manager: [
+    { id: 'cash_request', title: 'Cash Request' },
+    { id: 'payment_voucher', title: 'Payment Voucher' },
+  ],
+  store_keeper: [
+    { id: 'purchase_items', title: 'Purchase Items' },
+    { id: 'cash_request', title: 'Cash Request' },
+  ],
+  manager: [
+    { id: 'petty_cash', title: 'Petty Cash Voucher' },
+    { id: 'hall_registration', title: 'Hall Registration' },
+  ],
+};
+
 function isInLastDays(iso: string, days: number): boolean {
   const now = Date.now();
   const ts = new Date(iso).getTime();
@@ -136,6 +168,27 @@ function toSavedDocumentsTable(rows: SavedDocumentRow[], exportFilename: string,
   );
 }
 
+function toTimedDocumentTabs(rows: SavedDocumentRow[], exportPrefix: string, emptyText: string) {
+  const dailyRows = rows.filter((row) => row.submittedAt.slice(0, 10) === new Date().toISOString().slice(0, 10));
+  const weeklyRows = rows.filter((row) => isInLastDays(row.submittedAt, 7));
+  const monthlyRows = rows.filter((row) => isInLastDays(row.submittedAt, 30));
+
+  return (
+    <Tabs defaultValue="daily" className="space-y-4">
+      <TabsList className="w-full justify-start overflow-x-auto">
+        <TabsTrigger value="daily">Daily</TabsTrigger>
+        <TabsTrigger value="weekly">Weekly</TabsTrigger>
+        <TabsTrigger value="monthly">Monthly</TabsTrigger>
+        <TabsTrigger value="all-time">All Time</TabsTrigger>
+      </TabsList>
+      <TabsContent value="daily">{toSavedDocumentsTable(dailyRows, `${exportPrefix}-daily.csv`, emptyText)}</TabsContent>
+      <TabsContent value="weekly">{toSavedDocumentsTable(weeklyRows, `${exportPrefix}-weekly.csv`, emptyText)}</TabsContent>
+      <TabsContent value="monthly">{toSavedDocumentsTable(monthlyRows, `${exportPrefix}-monthly.csv`, emptyText)}</TabsContent>
+      <TabsContent value="all-time">{toSavedDocumentsTable(rows, `${exportPrefix}-all-time.csv`, emptyText)}</TabsContent>
+    </Tabs>
+  );
+}
+
 function toPurchaseTable(rows: PurchaseItemWorkflow[], exportFilename: string, emptyText: string) {
   return (
     <div className="space-y-3">
@@ -234,6 +287,16 @@ export default function Reports() {
   const dailyRows = myDocuments.filter((row) => row.submittedAt.slice(0, 10) === new Date().toISOString().slice(0, 10));
   const weeklyRows = myDocuments.filter((row) => isInLastDays(row.submittedAt, 7));
   const monthlyRows = myDocuments.filter((row) => isInLastDays(row.submittedAt, 30));
+  const configuredDocumentTabs = ROLE_REPORT_DOCUMENTS[user?.role ?? 'manager'] ?? [];
+  const observedDocumentTabs = myDocuments.reduce<Array<{ id: string; title: string }>>((acc, row) => {
+    if (acc.some((item) => item.id === row.formId)) return acc;
+    return [...acc, { id: row.formId, title: row.formTitle }];
+  }, []);
+  const documentTabs = [
+    { id: 'all_documents', title: 'All Documents' },
+    ...configuredDocumentTabs,
+    ...observedDocumentTabs.filter((row) => !configuredDocumentTabs.some((item) => item.id === row.id)),
+  ];
 
   const purchaserRequests = useMemo(
     () => purchaseItems.filter((entry) => entry.status !== 'purchased'),
@@ -288,17 +351,26 @@ export default function Reports() {
               </TabsContent>
             </Tabs>
           ) : (
-            <Tabs defaultValue="daily" className="space-y-4">
+            <Tabs defaultValue={documentTabs[0]?.id ?? 'all_documents'} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="daily">Daily</TabsTrigger>
-                <TabsTrigger value="weekly">Weekly</TabsTrigger>
-                <TabsTrigger value="monthly">Monthly</TabsTrigger>
-                <TabsTrigger value="all-time">All Time</TabsTrigger>
+                {documentTabs.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id}>{tab.title}</TabsTrigger>
+                ))}
               </TabsList>
-              <TabsContent value="daily">{toSavedDocumentsTable(dailyRows, 'reports-daily-documents.csv', 'No documents saved today.')}</TabsContent>
-              <TabsContent value="weekly">{toSavedDocumentsTable(weeklyRows, 'reports-weekly-documents.csv', 'No documents saved in the last 7 days.')}</TabsContent>
-              <TabsContent value="monthly">{toSavedDocumentsTable(monthlyRows, 'reports-monthly-documents.csv', 'No documents saved in the last 30 days.')}</TabsContent>
-              <TabsContent value="all-time">{toSavedDocumentsTable(myDocuments, 'reports-my-documents.csv', 'No personal document records yet.')}</TabsContent>
+              {documentTabs.map((tab) => {
+                const rows = tab.id === 'all_documents'
+                  ? myDocuments
+                  : myDocuments.filter((row) => row.formId === tab.id);
+                const emptyText = tab.id === 'all_documents'
+                  ? 'No personal document records yet.'
+                  : `No ${tab.title.toLowerCase()} records saved yet.`;
+
+                return (
+                  <TabsContent key={tab.id} value={tab.id}>
+                    {toTimedDocumentTabs(rows, `reports-${tab.id}`, emptyText)}
+                  </TabsContent>
+                );
+              })}
             </Tabs>
           )}
         </div>
