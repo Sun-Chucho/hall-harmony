@@ -177,6 +177,13 @@ export default function Documents() {
   const [purchaseReference, setPurchaseReference] = useState<Record<string, string>>({});
   const requestedQueueView = searchParams.get('queue');
 
+  const refreshPageAfterSave = (notice = 'Saved. Refreshing page...') => {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 350);
+  };
+
   useEffect(() => {
     const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
     if (!raw) return;
@@ -507,6 +514,7 @@ export default function Documents() {
     try {
       await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), payload);
       event.currentTarget.reset();
+      refreshPageAfterSave();
     } catch {
       const localFallback: FormSubmission = {
         id: `LOCAL-${Date.now()}`,
@@ -519,6 +527,7 @@ export default function Documents() {
       };
       setOutputs((prev) => [localFallback, ...prev]);
       event.currentTarget.reset();
+      refreshPageAfterSave();
     }
   };
 
@@ -559,6 +568,7 @@ export default function Documents() {
         body: `Cash request ${request.id} approved by accountant and forwarded to Halls Manager. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
       });
     }
+    refreshPageAfterSave();
   };
 
   const handleManagerCashDecision = async (requestId: string, decision: 'approve' | 'decline') => {
@@ -592,6 +602,7 @@ export default function Documents() {
         ),
       );
     }
+    refreshPageAfterSave();
   };
 
   const handleVoucherRecording = async (requestId: string) => {
@@ -662,6 +673,7 @@ export default function Documents() {
         ...prev,
       ]);
     }
+    refreshPageAfterSave();
   };
 
   const handlePurchaserDecision = async (requestId: string, decision: 'approve' | 'decline') => {
@@ -694,6 +706,7 @@ export default function Documents() {
         ),
       );
     }
+    refreshPageAfterSave();
   };
 
   const handleAccountantPurchaseDecision = async (requestId: string, decision: 'approve' | 'decline') => {
@@ -726,6 +739,7 @@ export default function Documents() {
         ),
       );
     }
+    refreshPageAfterSave();
   };
 
   const handlePurchaseDone = async (requestId: string) => {
@@ -799,6 +813,7 @@ export default function Documents() {
         ...prev,
       ]);
     }
+    refreshPageAfterSave();
   };
 
   const formShell = (formId: FormId, title: string, body: React.ReactNode, submitLabel = 'Save Form Output') => (
