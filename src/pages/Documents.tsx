@@ -118,13 +118,13 @@ function normalizeCashRequest(entry: CashRequestWorkflow): CashRequestWorkflow {
 }
 
 const manualForms: ManualForm[] = [
-  { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'accountant'] },
+  { id: 'lpo', title: 'Local Purchase Order', roles: ['accountant'] },
   { id: 'delivery_note', title: 'Delivery Note', roles: ['accountant', 'store_keeper'] },
   { id: 'grn', title: 'Goods Received Note (GRN)', roles: ['store_keeper', 'accountant'] },
   { id: 'stores_ledger', title: 'Stores Ledger Book', roles: ['store_keeper', 'accountant'] },
   { id: 'purchase_items', title: 'Purchase Items Form', roles: ['store_keeper'] },
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['cashier_1', 'accountant'] },
-  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'accountant'] },
+  { id: 'cash_request', title: 'Cash Request Form', roles: ['assistant_hall_manager', 'cashier_1', 'store_keeper', 'accountant'] },
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['assistant_hall_manager', 'cashier_1', 'accountant'] },
   { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['cashier_1', 'accountant', 'manager'] },
   { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_1', 'manager'] },
@@ -320,6 +320,7 @@ export default function Documents() {
   const allowedForms = useMemo(() => {
     if (!user) return [];
     if (user.role === 'manager') return [];
+    if (user.role === 'purchaser') return [];
     if (user.role === 'store_keeper') {
       return manualForms.filter((item) => item.id === 'cash_request' || item.id === 'purchase_items');
     }
@@ -930,6 +931,7 @@ export default function Documents() {
                         <input name="invoice_number" className={inputClass()} placeholder="Invoice Number" />
                         <input name="request_number" className={inputClass()} placeholder="Request Number" />
                         <input name="invoice_date" className={inputClass()} placeholder="Invoice Date" />
+                        <input name="amount" className={inputClass()} placeholder="Amount (TZS)" required />
                         <textarea
                           name="description"
                           className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
