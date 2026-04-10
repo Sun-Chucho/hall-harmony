@@ -350,7 +350,13 @@ export default function Documents() {
 
   const myForms = allowedForms.length;
   const myRole = user?.role;
-  const externalOutputs = outputs.filter((entry) => entry.submittedBy !== user?.id);
+  const externalOutputs = outputs.filter((entry) => {
+    if (entry.submittedBy === user?.id) return false;
+    if (entry.formId === 'payment_voucher' && entry.submittedByRole === 'cashier_1' && user?.role !== 'accountant') {
+      return false;
+    }
+    return true;
+  });
   const filteredExternalOutputs = externalOutputs.filter((entry) => {
     if (outputFormFilter !== 'all' && entry.formId !== outputFormFilter) {
       return false;
