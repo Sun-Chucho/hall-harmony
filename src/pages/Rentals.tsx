@@ -387,18 +387,18 @@ export default function Rentals() {
     );
   }
 
-  if (user?.role === 'manager') {
+  if (user?.role === 'manager' || user?.role === 'accountant') {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory"
-        subtitle="Halls Manager inventory oversight (view-only)."
+        subtitle="Halls Manager & Accountant inventory oversight (view-only)."
         stats={stats}
         sections={[
           {
             title: 'Inventory Oversight',
             bullets: [
               'View stock table, stock in/out history, and damaged items.',
-              'No inventory edits are allowed for Halls Manager.',
+              'No inventory edits are allowed for your role.',
             ],
           },
         ]}
@@ -576,7 +576,7 @@ export default function Rentals() {
     );
   }
 
-  if (user?.role === 'store_keeper' || user?.role === 'accountant') {
+  if (user?.role === 'store_keeper') {
     return (
       <ManagementPageTemplate
         pageTitle="Inventory & Store"

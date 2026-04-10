@@ -104,6 +104,12 @@ const operationsNavItems: NavItem[] = [
     roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
   },
   {
+    title: 'Cash Requests',
+    icon: FileText,
+    path: '/cash-requests',
+    roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
+  },
+  {
     title: 'Documents',
     icon: FileText,
     path: '/documents',
@@ -180,6 +186,7 @@ export function AppSidebar() {
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Move to MD', icon: Banknote, path: '/cash-movement' },
+    { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
   ];
@@ -195,8 +202,8 @@ export function AppSidebar() {
   const accountantNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory & Store', icon: Car, path: '/rentals' },
-    { title: 'Cash Requests', icon: FileText, path: '/documents?queue=cash-requests' },
-    { title: 'Payment Vouchers', icon: FileText, path: '/documents?queue=payment-vouchers' },
+    { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
+    { title: 'Payment Vouchers', icon: FileText, path: '/payment-vouchers' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
