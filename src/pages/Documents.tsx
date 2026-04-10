@@ -930,6 +930,13 @@ export default function Documents() {
                         <input name="invoice_number" className={inputClass()} placeholder="Invoice Number" />
                         <input name="request_number" className={inputClass()} placeholder="Request Number" />
                         <input name="invoice_date" className={inputClass()} placeholder="Invoice Date" />
+                        <textarea
+                          name="description"
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+                          rows={3}
+                          placeholder="Description / Verification details"
+                          required
+                        />
                       </div>
                     </>
                   ))}
