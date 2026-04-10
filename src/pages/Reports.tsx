@@ -53,7 +53,6 @@ const ROLE_REPORT_DOCUMENTS: Partial<Record<UserRole, Array<{ id: string; title:
   ],
   assistant_hall_manager: [
     { id: 'cash_request', title: 'Cash Request' },
-    { id: 'payment_voucher', title: 'Payment Voucher' },
   ],
   store_keeper: [
     { id: 'purchase_items', title: 'Purchase Items' },
