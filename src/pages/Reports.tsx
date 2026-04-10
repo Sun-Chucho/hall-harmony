@@ -44,9 +44,7 @@ const ROLE_REPORT_DOCUMENTS: Partial<Record<UserRole, Array<{ id: string; title:
     { id: 'cash_request', title: 'Cash Request' },
   ],
   accountant: [
-    { id: 'payment_voucher', title: 'Payment Voucher' },
     { id: 'tax_invoice', title: 'Tax Invoice' },
-    { id: 'cash_request', title: 'Cash Request' },
     { id: 'lpo', title: 'Local Purchase Order' },
     { id: 'delivery_note', title: 'Delivery Note' },
     { id: 'grn', title: 'Goods Received Note' },

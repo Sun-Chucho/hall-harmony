@@ -325,6 +325,8 @@ export default function Documents() {
     const targetId =
       requestedQueueView === 'cash-requests'
         ? 'cash-request-log'
+        : requestedQueueView === 'payment-vouchers'
+          ? 'payment-voucher-log'
         : requestedQueueView === 'storekeeper-requests'
           ? 'storekeeper-requests'
           : requestedQueueView === 'purchases-done'
@@ -384,15 +386,22 @@ export default function Documents() {
   const pendingForHallsManager = cashRequests.filter((entry) => entry.status === 'pending_halls_manager');
   const pendingVoucherCapture = cashRequests.filter((entry) => entry.status === 'approved_halls_manager' && !entry.paymentVoucherNumber);
   const recordedPaymentVouchers = cashRequests.filter((entry) => entry.status === 'voucher_recorded');
+  const allPaymentVoucherOutputs = outputs
+    .filter((entry) => entry.formId === 'payment_voucher')
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
   const pendingForPurchaser = purchaseItems.filter((entry) => entry.status === 'pending_purchaser');
   const purchasesDone = purchaseItems.filter((entry) => entry.status === 'purchased');
   const purchaserRequestsFromStore = pendingForPurchaser.filter((entry) => entry.submittedByRole === 'store_keeper');
   const purchaserRequestsFromAssistant = pendingForPurchaser.filter((entry) => entry.submittedByRole === 'assistant_hall_manager');
   const accountantQueueTab =
-    requestedQueueView === 'voucher-capture'
+    requestedQueueView === 'cash-requests'
+      ? 'all_cash_requests'
+      : requestedQueueView === 'voucher-capture'
       ? 'voucher_capture'
       : requestedQueueView === 'voucher-register'
         ? 'voucher_register'
+        : requestedQueueView === 'payment-vouchers'
+          ? 'voucher_register'
         : 'accountant_intake';
   const purchaserQueueTab = requestedQueueView === 'purchases-done' ? 'purchases_done' : 'requests_received';
 
@@ -1159,10 +1168,35 @@ export default function Documents() {
               </p>
               <Tabs defaultValue={accountantQueueTab} className="mt-3 space-y-4">
                 <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTrigger value="all_cash_requests">All Cash Requests</TabsTrigger>
                   <TabsTrigger value="accountant_intake">Cash Request Intake</TabsTrigger>
                   <TabsTrigger value="voucher_capture">Payment Voucher Capture</TabsTrigger>
                   <TabsTrigger value="voucher_register">Recorded Vouchers</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="all_cash_requests" className="space-y-3">
+                  {cashRequests.length === 0 ? (
+                    <p className="text-sm text-slate-500">No cash requests recorded yet.</p>
+                  ) : (
+                    cashRequests.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">
+                            {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                          </p>
+                          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {entry.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
+                        <p className="text-slate-600">Amount: TZS {entry.fields.total_requested ?? '0'}</p>
+                        <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
+                        <p className="text-slate-500">Halls Manager note: {entry.hallsManagerComment ?? '-'}</p>
+                        <p className="text-slate-500">Payment voucher: {entry.paymentVoucherNumber ?? '-'}</p>
+                      </div>
+                    ))
+                  )}
+                </TabsContent>
 
                 <TabsContent value="accountant_intake" className="space-y-3">
                   {pendingForAccountant.length === 0 ? (
@@ -1245,6 +1279,37 @@ export default function Documents() {
                   )}
                 </TabsContent>
               </Tabs>
+            </div>
+          ) : null}
+
+          {user?.role === 'accountant' ? (
+            <div id="payment-voucher-log" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Accountant Payment Voucher Register</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Accountant-facing list of all recorded payment vouchers.
+              </p>
+              <div className="mt-3 space-y-3">
+                {allPaymentVoucherOutputs.length === 0 ? (
+                  <p className="text-sm text-slate-500">No payment vouchers recorded yet.</p>
+                ) : (
+                  allPaymentVoucherOutputs.map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-900">
+                          {entry.fields.voucher_number ?? '-'} | {entry.fields.payee_name ?? '-'}
+                        </p>
+                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          {ROLE_LABELS[entry.submittedByRole]}
+                        </span>
+                      </div>
+                      <p className="text-slate-600">Amount: TZS {entry.fields.amount ?? '-'}</p>
+                      <p className="text-slate-600">Request No: {entry.fields.request_number ?? '-'}</p>
+                      <p className="text-slate-500">Description: {entry.fields.description ?? '-'}</p>
+                      <p className="text-slate-500">Saved: {new Date(entry.submittedAt).toLocaleString()}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           ) : null}
 
