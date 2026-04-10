@@ -1,63 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ROLE_LABELS, UserRole } from '@/types/auth';
-
-interface FormSubmission {
-  id: string;
-  formId: string;
-  formTitle: string;
-  submittedAt: string;
-  submittedBy: string;
-  submittedByRole: UserRole;
-  fields: Record<string, string>;
-}
-
-const DOCUMENT_OUTPUTS_COLLECTION = 'document_form_outputs';
-const DOCUMENT_OUTPUTS_CACHE_KEY = 'kuringe_documents_form_outputs_v1';
+import { DOCUMENT_OUTPUTS_COLLECTION, DocumentOutput, downloadCsv } from '@/lib/requestWorkflows';
+import { ROLE_LABELS } from '@/types/auth';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 export default function PaymentVouchers() {
   const { user } = useAuth();
-  const [outputs, setOutputs] = useState<FormSubmission[]>([]);
+  const [outputs, setOutputs] = useState<DocumentOutput[]>([]);
 
   useEffect(() => {
     if (!user) {
       setOutputs([]);
-      return;
+      return undefined;
     }
 
-    const q = query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc'), limit(300));
+    const outputsQuery = query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc'));
     const unsub = onSnapshot(
-      q,
+      outputsQuery,
       (snapshot) => {
-        const next = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<FormSubmission, 'id'>;
-          return {
-            id: item.id,
-            ...data,
-          } as FormSubmission;
-        });
-        setOutputs(next);
+        setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) })));
       },
-      () => {
-        const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
-        if (!raw) return;
-        try {
-          setOutputs(JSON.parse(raw) as FormSubmission[]);
-        } catch {
-          localStorage.removeItem(DOCUMENT_OUTPUTS_CACHE_KEY);
-        }
-      },
+      () => setOutputs([]),
     );
 
     return () => unsub();
   }, [user]);
 
-  const allPaymentVoucherOutputs = outputs
-    .filter((entry) => entry.formId === 'payment_voucher')
-    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  const vouchers = useMemo(
+    () => outputs.filter((entry) => entry.formId === 'payment_voucher'),
+    [outputs],
+  );
 
   if (!user || user.role !== 'accountant') {
     return (
@@ -77,41 +52,74 @@ export default function PaymentVouchers() {
 
   return (
     <ManagementPageTemplate
-      pageTitle="Payment Vouchers Register"
-      subtitle="View-only table of all distributed payment vouchers recorded by Cashiers."
+      pageTitle="Payment Vouchers"
+      subtitle="Table register of all payment vouchers sent to Accountant."
       stats={[
-        { title: 'Total Vouchers', value: String(allPaymentVoucherOutputs.length), description: 'recorded till date' },
+        { title: 'Total Vouchers', value: `${vouchers.length}`, description: 'payment vouchers recorded in the system' },
       ]}
       sections={[]}
       action={
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Accountant Payment Voucher Register</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Accountant-facing list of all recorded payment vouchers.
-            </p>
-            <div className="mt-3 space-y-3">
-              {allPaymentVoucherOutputs.length === 0 ? (
-                <p className="text-sm text-slate-500">No payment vouchers recorded yet.</p>
-              ) : (
-                allPaymentVoucherOutputs.map((entry) => (
-                  <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">
-                        {entry.fields.voucher_number ?? '-'} | {entry.fields.payee_name ?? '-'}
-                      </p>
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        {ROLE_LABELS[entry.submittedByRole]}
-                      </span>
-                    </div>
-                    <p className="text-slate-600">Amount: TZS {entry.fields.amount ?? '-'}</p>
-                    <p className="text-slate-600">Request No: {entry.fields.request_number ?? '-'}</p>
-                    <p className="text-slate-500">Description: {entry.fields.description ?? '-'}</p>
-                    <p className="text-slate-500">Saved: {new Date(entry.submittedAt).toLocaleString()}</p>
-                  </div>
-                ))
-              )}
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Voucher Register</p>
+              <p className="mt-1 text-sm text-slate-600">Download the full register as CSV or review it directly in the table.</p>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => downloadCsv('payment-vouchers.csv', [
+                ['Date', 'Voucher Number', 'Request Reference', 'Payee', 'Amount', 'Department', 'Submitted By', 'Description'],
+                ...vouchers.map((entry) => [
+                  entry.submittedAt,
+                  entry.fields.voucher_number ?? '',
+                  entry.fields.request_reference ?? entry.fields.request_number ?? '',
+                  entry.fields.payee_name ?? '',
+                  entry.fields.amount ?? '',
+                  entry.fields.department ?? '',
+                  ROLE_LABELS[entry.submittedByRole] ?? entry.submittedByRole,
+                  entry.fields.description ?? '',
+                ]),
+              ])}
+            >
+              Download as CSV
+            </Button>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[1120px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                <tr className="border-b border-slate-200">
+                  <th className="px-3 py-3">Date</th>
+                  <th className="px-3 py-3">Voucher Number</th>
+                  <th className="px-3 py-3">Request Reference</th>
+                  <th className="px-3 py-3">Payee</th>
+                  <th className="px-3 py-3">Amount</th>
+                  <th className="px-3 py-3">Department</th>
+                  <th className="px-3 py-3">Submitted By</th>
+                  <th className="px-3 py-3">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vouchers.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-4 text-slate-500" colSpan={8}>No payment vouchers recorded yet.</td>
+                  </tr>
+                ) : (
+                  vouchers.map((entry) => (
+                    <tr key={entry.id} className="border-b border-slate-100">
+                      <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+                      <td className="px-3 py-3 font-semibold text-slate-900">{entry.fields.voucher_number ?? '-'}</td>
+                      <td className="px-3 py-3 text-slate-700">{entry.fields.request_reference ?? entry.fields.request_number ?? '-'}</td>
+                      <td className="px-3 py-3 text-slate-700">{entry.fields.payee_name ?? '-'}</td>
+                      <td className="px-3 py-3 text-slate-700">{entry.fields.amount ?? '-'}</td>
+                      <td className="px-3 py-3 text-slate-700">{entry.fields.department ?? '-'}</td>
+                      <td className="px-3 py-3 text-slate-700">{ROLE_LABELS[entry.submittedByRole]}</td>
+                      <td className="px-3 py-3 text-slate-700">{entry.fields.description ?? '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       }

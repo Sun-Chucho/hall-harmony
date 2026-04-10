@@ -23,6 +23,7 @@ import Services from "./pages/Services";
 import Rentals from "./pages/Rentals";
 import Documents from "./pages/Documents";
 import CashRequests from "./pages/CashRequests";
+import PurchaseRequests from "./pages/PurchaseRequests";
 import PaymentVouchers from "./pages/PaymentVouchers";
 import Reports from "./pages/Reports";
 import Portal from "./pages/Portal";
@@ -115,6 +116,7 @@ const App = () => {
                           <Route path="/rentals" element={<RouteGuard path="/rentals"><Rentals /></RouteGuard>} />
                           <Route path="/documents" element={<RouteGuard path="/documents"><Documents /></RouteGuard>} />
                           <Route path="/cash-requests" element={<RouteGuard path="/cash-requests"><CashRequests /></RouteGuard>} />
+                          <Route path="/purchase-requests" element={<RouteGuard path="/purchase-requests"><PurchaseRequests /></RouteGuard>} />
                           <Route path="/payment-vouchers" element={<RouteGuard path="/payment-vouchers"><PaymentVouchers /></RouteGuard>} />
                           <Route path="/reports" element={<RouteGuard path="/reports"><Reports /></RouteGuard>} />
                           <Route path="/md-transfer" element={<RouteGuard path="/md-transfer" transactional><ManagingDirectorTransfer /></RouteGuard>} />

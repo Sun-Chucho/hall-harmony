@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessages } from '@/contexts/MessageContext';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import {
   Sidebar,
@@ -10,6 +11,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
@@ -98,7 +100,7 @@ const operationsNavItems: NavItem[] = [
     roles: ['manager', 'assistant_hall_manager', 'accountant'],
   },
   {
-    title: 'Inventory & Store',
+    title: 'Inventory',
     icon: Car,
     path: '/rentals',
     roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
@@ -110,10 +112,16 @@ const operationsNavItems: NavItem[] = [
     roles: ['manager', 'assistant_hall_manager', 'accountant', 'store_keeper', 'purchaser'],
   },
   {
+    title: 'Purchase Requests',
+    icon: FileText,
+    path: '/purchase-requests',
+    roles: ['assistant_hall_manager', 'store_keeper', 'purchaser'],
+  },
+  {
     title: 'Documents',
     icon: FileText,
     path: '/documents',
-    roles: ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
+    roles: ['manager', 'cashier_1', 'accountant', 'store_keeper'],
   },
 ];
 
@@ -134,7 +142,7 @@ const adminNavItems: NavItem[] = [
     title: 'Messages',
     icon: MessageSquare,
     path: '/messages',
-    roles: ['manager', 'accountant'],
+    roles: ['manager', 'accountant', 'assistant_hall_manager', 'cashier_1', 'store_keeper', 'purchaser', 'managing_director'],
   },
   {
     title: 'Web Portal',
@@ -156,6 +164,7 @@ function filterByRole(items: NavItem[], userRole: UserRole) {
 
 export function AppSidebar() {
   const { user, logout } = useAuth();
+  const { unreadCount } = useMessages();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -176,16 +185,17 @@ export function AppSidebar() {
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Submitted Bookings', icon: FileText, path: '/bookings/submitted' },
-    { title: 'Inventory', icon: Car, path: '/rentals' },
-    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
+    { title: 'Purchase Requests', icon: FileText, path: '/purchase-requests' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   const cashier1NavItems: NavItem[] = [
     { title: 'Bookings', icon: Calendar, path: '/bookings' },
     { title: 'Messages', icon: MessageSquare, path: '/messages' },
-    { title: 'Move to MD', icon: Banknote, path: '/cash-movement' },
+    { title: 'Cash Use', icon: Banknote, path: '/cash-movement' },
     { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
@@ -193,8 +203,9 @@ export function AppSidebar() {
 
   const purchaserNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { title: 'Requests Received', icon: FileText, path: '/documents?queue=storekeeper-requests' },
-    { title: 'Purchases Done', icon: FileText, path: '/documents?queue=purchases-done' },
+    { title: 'Purchase Requests', icon: FileText, path: '/purchase-requests' },
+    { title: 'Inventory', icon: Car, path: '/rentals' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
@@ -205,7 +216,8 @@ export function AppSidebar() {
     { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
     { title: 'Payment Vouchers', icon: FileText, path: '/payment-vouchers' },
     { title: 'Documents', icon: FileText, path: '/documents' },
-    { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
+    { title: 'Money Movement', icon: Banknote, path: '/cash-movement' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
@@ -225,10 +237,14 @@ export function AppSidebar() {
                   onClick={() => navigate(item.path)}
                   isActive={location.pathname === item.path}
                   tooltip={item.title}
+                  className={item.path === '/messages' && unreadCount > 0 ? 'ring-1 ring-amber-300 bg-amber-100/60 shadow-[0_0_18px_rgba(251,191,36,0.35)]' : undefined}
                 >
                   <item.icon className="h-4 w-4" />
                   <span>{item.title}</span>
                 </SidebarMenuButton>
+                {item.path === '/messages' && unreadCount > 0 ? (
+                  <SidebarMenuBadge className="bg-amber-300 text-slate-900">{unreadCount}</SidebarMenuBadge>
+                ) : null}
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

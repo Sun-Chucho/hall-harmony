@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, limit, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
+import { USER_NOTIFICATION_COLLECTION, UserNotification } from '@/lib/requestWorkflows';
 import { UserRole } from '@/types/auth';
 
-export interface ManagerMessage {
+interface ManagerAlertRecord {
   id: string;
   bookingId?: string;
   title: string;
@@ -15,69 +16,100 @@ export interface ManagerMessage {
   toRole: UserRole;
   read: boolean;
   createdAt: string;
+  link?: string;
+}
+
+export interface AppMessage {
+  id: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+  source: 'notification' | 'manager_alert';
+  incoming: boolean;
+  link?: string;
+  relatedId?: string;
+  relatedType?: 'cash_request' | 'purchase_request' | 'payment_voucher' | 'booking' | 'system';
+  bookingId?: string;
+  decision?: 'approve' | 'disapprove';
+  fromUserId?: string;
+  fromRole?: UserRole;
 }
 
 interface MessageContextValue {
-  messages: ManagerMessage[];
+  messages: AppMessage[];
+  unreadCount: number;
   sendManagerAlert: (input: {
     bookingId?: string;
     title: string;
     body: string;
     decision?: 'approve' | 'disapprove';
+    link?: string;
+  }) => Promise<{ ok: boolean; message: string }>;
+  sendUserNotification: (input: {
+    userId: string;
+    title: string;
+    body: string;
+    link?: string;
+    relatedId?: string;
+    relatedType?: 'cash_request' | 'purchase_request' | 'payment_voucher' | 'booking' | 'system';
   }) => Promise<{ ok: boolean; message: string }>;
   markMessageRead: (messageId: string) => Promise<{ ok: boolean; message: string }>;
 }
 
 const MessageContext = createContext<MessageContextValue | undefined>(undefined);
-const COLLECTION = 'manager_messages';
-const CACHE_KEY = 'kuringe_manager_messages_cache_v1';
+const MANAGER_ALERT_COLLECTION = 'manager_messages';
+
+function sortByCreatedAt(messages: AppMessage[]) {
+  return [...messages].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
 
 export function MessageProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ManagerMessage[]>([]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return;
-    try {
-      setMessages(JSON.parse(raw) as ManagerMessage[]);
-    } catch {
-      localStorage.removeItem(CACHE_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(messages));
-  }, [messages]);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [managerAlerts, setManagerAlerts] = useState<ManagerAlertRecord[]>([]);
 
   useEffect(() => {
     if (!user) {
-      setMessages([]);
-      return;
+      setNotifications([]);
+      return undefined;
     }
 
-    const roleQuery = user.role === 'manager'
-      ? query(collection(db, COLLECTION), where('toRole', '==', 'manager'), orderBy('createdAt', 'desc'), limit(200))
-      : query(collection(db, COLLECTION), where('fromUserId', '==', user.id), orderBy('createdAt', 'desc'), limit(200));
+    const notificationsQuery = query(
+      collection(db, USER_NOTIFICATION_COLLECTION),
+      where('userId', '==', user.id),
+      limit(300),
+    );
 
     const unsub = onSnapshot(
-      roleQuery,
+      notificationsQuery,
       (snapshot) => {
-        const next = snapshot.docs.map((item) => {
-          const data = item.data() as Omit<ManagerMessage, 'id'>;
-          return { id: item.id, ...data } as ManagerMessage;
-        });
-        setMessages(next);
+        setNotifications(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<UserNotification, 'id'>) })));
       },
-      () => {
-        const raw = localStorage.getItem(CACHE_KEY);
-        if (!raw) return;
-        try {
-          setMessages(JSON.parse(raw) as ManagerMessage[]);
-        } catch {
-          localStorage.removeItem(CACHE_KEY);
-        }
+      () => setNotifications([]),
+    );
+
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'manager') {
+      setManagerAlerts([]);
+      return undefined;
+    }
+
+    const alertsQuery = query(
+      collection(db, MANAGER_ALERT_COLLECTION),
+      where('toRole', '==', 'manager'),
+      limit(200),
+    );
+
+    const unsub = onSnapshot(
+      alertsQuery,
+      (snapshot) => {
+        setManagerAlerts(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<ManagerAlertRecord, 'id'>) })));
       },
+      () => setManagerAlerts([]),
     );
 
     return () => unsub();
@@ -88,10 +120,11 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     title: string;
     body: string;
     decision?: 'approve' | 'disapprove';
+    link?: string;
   }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
 
-    const payload: Omit<ManagerMessage, 'id'> & { updatedAt: unknown } = {
+    const payload: Omit<ManagerAlertRecord, 'id'> & { updatedAt: unknown } = {
       bookingId: input.bookingId,
       title: input.title,
       body: input.body,
@@ -101,50 +134,136 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
       toRole: 'manager',
       read: false,
       createdAt: new Date().toISOString(),
+      link: input.link,
       updatedAt: serverTimestamp(),
     };
 
     try {
-      await addDoc(collection(db, COLLECTION), payload);
+      await addDoc(collection(db, MANAGER_ALERT_COLLECTION), payload);
       return { ok: true, message: 'Alert sent to Halls Manager.' };
     } catch {
-      const fallback: ManagerMessage = {
-        id: `LOCAL-${Date.now()}`,
-        bookingId: input.bookingId,
-        title: input.title,
-        body: input.body,
-        decision: input.decision,
-        fromUserId: user.id,
-        fromRole: user.role,
-        toRole: 'manager',
-        read: false,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [fallback, ...prev]);
-      return { ok: true, message: 'Alert saved locally. Cloud sync pending.' };
+      return { ok: false, message: 'Failed to send manager alert.' };
     }
   }, [user]);
+
+  const sendUserNotification = useCallback(async (input: {
+    userId: string;
+    title: string;
+    body: string;
+    link?: string;
+    relatedId?: string;
+    relatedType?: 'cash_request' | 'purchase_request' | 'payment_voucher' | 'booking' | 'system';
+  }) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+
+    const payload: Omit<UserNotification, 'id'> & { updatedAt: unknown } = {
+      userId: input.userId,
+      title: input.title,
+      body: input.body,
+      link: input.link,
+      relatedId: input.relatedId,
+      relatedType: input.relatedType,
+      read: false,
+      createdAt: new Date().toISOString(),
+      createdByUserId: user.id,
+      createdByRole: user.role,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      await addDoc(collection(db, USER_NOTIFICATION_COLLECTION), payload);
+      return { ok: true, message: 'Notification sent.' };
+    } catch {
+      if (input.userId === user.id) {
+        setNotifications((prev) => [
+          {
+            id: `LOCAL-NOTICE-${Date.now()}`,
+            ...payload,
+          },
+          ...prev,
+        ]);
+      }
+      return { ok: true, message: 'Notification saved locally. Cloud sync pending.' };
+    }
+  }, [user]);
+
+  const messages = useMemo<AppMessage[]>(() => {
+    const notificationMessages = notifications.map((message) => ({
+      id: message.id,
+      title: message.title,
+      body: message.body,
+      read: message.read,
+      createdAt: message.createdAt,
+      source: 'notification' as const,
+      incoming: true,
+      link: message.link,
+      relatedId: message.relatedId,
+      relatedType: message.relatedType,
+      fromUserId: message.createdByUserId,
+      fromRole: message.createdByRole,
+    }));
+
+    const managerAlertMessages = managerAlerts.map((message) => ({
+      id: message.id,
+      title: message.title,
+      body: message.body,
+      read: message.read,
+      createdAt: message.createdAt,
+      source: 'manager_alert' as const,
+      incoming: true,
+      link: message.link,
+      bookingId: message.bookingId,
+      relatedId: message.bookingId,
+      relatedType: 'booking' as const,
+      decision: message.decision,
+      fromUserId: message.fromUserId,
+      fromRole: message.fromRole,
+    }));
+
+    return sortByCreatedAt([...notificationMessages, ...managerAlertMessages]);
+  }, [managerAlerts, notifications]);
+
+  const unreadCount = useMemo(
+    () => messages.filter((message) => message.incoming && !message.read).length,
+    [messages],
+  );
 
   const markMessageRead = useCallback(async (messageId: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
 
+    const notification = notifications.find((item) => item.id === messageId);
+    if (notification) {
+      try {
+        await updateDoc(doc(db, USER_NOTIFICATION_COLLECTION, messageId), {
+          read: true,
+          updatedAt: serverTimestamp(),
+        });
+      } catch {
+        setNotifications((prev) => prev.map((item) => (item.id === messageId ? { ...item, read: true } : item)));
+      }
+      return { ok: true, message: 'Message marked as read.' };
+    }
+
+    if (user.role !== 'manager') return { ok: false, message: 'Message not found.' };
+
     try {
-      await updateDoc(doc(db, COLLECTION, messageId), {
+      await updateDoc(doc(db, MANAGER_ALERT_COLLECTION, messageId), {
         read: true,
         updatedAt: serverTimestamp(),
       });
-      return { ok: true, message: 'Message marked as read.' };
     } catch {
-      setMessages((prev) => prev.map((item) => (item.id === messageId ? { ...item, read: true } : item)));
-      return { ok: true, message: 'Message updated locally. Cloud sync pending.' };
+      setManagerAlerts((prev) => prev.map((item) => (item.id === messageId ? { ...item, read: true } : item)));
     }
-  }, [user]);
+    return { ok: true, message: 'Message marked as read.' };
+  }, [notifications, user]);
 
   const value = useMemo<MessageContextValue>(() => ({
     messages,
+    unreadCount,
     sendManagerAlert,
+    sendUserNotification,
     markMessageRead,
-  }), [markMessageRead, messages, sendManagerAlert]);
+  }), [markMessageRead, messages, sendManagerAlert, sendUserNotification, unreadCount]);
 
   return <MessageContext.Provider value={value}>{children}</MessageContext.Provider>;
 }

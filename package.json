@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "firebase:ensure-db": "node scripts/ensure-firestore-database.mjs",
-    "seed:firebase": "node scripts/seed-firebase-users.mjs"
+    "seed:firebase": "node scripts/seed-firebase-users.mjs",
+    "backfill:request-workflows": "node scripts/backfill-request-workflows.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

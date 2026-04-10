@@ -1,425 +1,817 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { confirmAction } from '@/lib/confirmAction';
 import { db } from '@/lib/firebase';
-import { ROLE_LABELS, UserRole } from '@/types/auth';
+import {
+  CASH_REQUEST_WORKFLOW_COLLECTION,
+  CashRequestWorkflow,
+  DOCUMENT_OUTPUTS_COLLECTION,
+  createCashRequestStage,
+  getCashRequestStatusLabel,
+  normalizeCashRequest,
+  parseCurrencyAmount,
+} from '@/lib/requestWorkflows';
+import { ROLE_LABELS } from '@/types/auth';
+import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
-type CashRequestStatus =
-  | 'pending_accountant'
-  | 'declined_accountant'
-  | 'pending_halls_manager'
-  | 'approved_halls_manager'
-  | 'declined_halls_manager'
-  | 'pending_cashier'
-  | 'distribution_recorded';
+type DialogMode = 'review' | 'voucher' | null;
 
-interface CashRequestWorkflow {
-  id: string;
-  submittedAt: string;
-  submittedBy: string;
-  submittedByRole: UserRole;
-  fields: Record<string, string>;
-  status: CashRequestStatus;
-  accountantReviewedAt?: string;
-  accountantReviewedBy?: string;
-  accountantComment?: string;
-  hallsManagerReviewedAt?: string;
-  hallsManagerReviewedBy?: string;
-  hallsManagerComment?: string;
-  cashierReviewedAt?: string;
-  cashierReviewedBy?: string;
-  paymentVoucherNumber?: string;
-}
-
-const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
-const DOCUMENT_OUTPUTS_COLLECTION = 'document_form_outputs';
-
-function normalizeCashRequest(entry: CashRequestWorkflow): CashRequestWorkflow {
-  const legacyEntry = entry as any;
-  let normalizedStatus = entry.status;
-  if (legacyEntry.status === 'voucher_recorded') normalizedStatus = 'distribution_recorded';
-  else if (legacyEntry.status === 'approved_halls_manager') normalizedStatus = 'pending_cashier';
-  
-  return {
-    ...entry,
-    status: normalizedStatus as CashRequestStatus,
-  };
+interface VoucherFormState {
+  voucherNumber: string;
+  payeeName: string;
+  department: string;
+  date: string;
+  amount: string;
+  description: string;
+  posCode: string;
+  address: string;
+  tin: string;
+  invoiceNumber: string;
+  invoiceDate: string;
 }
 
 function inputClass(extra = '') {
   return `h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm ${extra}`;
 }
 
+function statusBadgeClass(status: CashRequestWorkflow['currentStatus']) {
+  switch (status) {
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'declined':
+      return 'bg-rose-100 text-rose-800';
+    case 'sent_to_accountant':
+      return 'bg-blue-100 text-blue-800';
+    case 'pending_halls_manager':
+      return 'bg-violet-100 text-violet-800';
+    case 'pending_cashier':
+      return 'bg-amber-100 text-amber-800';
+    default:
+      return 'bg-slate-200 text-slate-800';
+  }
+}
+
+function createVoucherDefaults(request: CashRequestWorkflow): VoucherFormState {
+  return {
+    voucherNumber: request.paymentVoucherNumber ?? '',
+    payeeName: request.fields.full_name ?? '',
+    department: request.fields.designation ?? '',
+    date: new Date().toISOString().slice(0, 10),
+    amount: request.fields.total_requested ?? '',
+    description: request.fields.requester_declaration
+      ? `Voucher for cash request ${request.reference}. ${request.fields.requester_declaration}`
+      : `Voucher for cash request ${request.reference}.`,
+    posCode: '',
+    address: '',
+    tin: '',
+    invoiceNumber: '',
+    invoiceDate: '',
+  };
+}
+
 function renderFieldsList(fields: Record<string, string>) {
-  const visible = Object.entries(fields).filter(([_, v]) => v && v.trim() !== '');
+  const visible = Object.entries(fields).filter(([_, value]) => value && value.trim() !== '');
   if (visible.length === 0) return null;
+
   return (
-    <div className="mt-2 text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
-      <div className="grid gap-1 md:grid-cols-2 max-h-[250px] overflow-y-auto pr-2">
-        {visible.map(([key, value]) => (
-          <p key={key} className="break-words">
-            <span className="font-semibold capitalize text-slate-900">{key.replace(/_/g, ' ')}:</span> {value}
-          </p>
-        ))}
-      </div>
+    <div className="grid gap-2 md:grid-cols-2">
+      {visible.map(([key, value]) => (
+        <div key={key} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <span className="font-semibold text-slate-900">{key.replace(/_/g, ' ')}:</span> {value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderRequestTable(
+  rows: CashRequestWorkflow[],
+  actionLabel?: string,
+  onAction?: (request: CashRequestWorkflow) => void,
+) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1080px] text-left text-sm">
+        <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+          <tr className="border-b border-slate-200">
+            <th className="px-3 py-3">Reference</th>
+            <th className="px-3 py-3">Requester</th>
+            <th className="px-3 py-3">Role</th>
+            <th className="px-3 py-3">Amount</th>
+            <th className="px-3 py-3">Status</th>
+            <th className="px-3 py-3">Current Stage</th>
+            <th className="px-3 py-3">Submitted</th>
+            <th className="px-3 py-3">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="px-3 py-4 text-slate-500" colSpan={8}>No cash requests found.</td>
+            </tr>
+          ) : (
+            rows.map((entry) => {
+              const latestStage = entry.stages[entry.stages.length - 1];
+              return (
+                <tr key={entry.id} className="border-b border-slate-100">
+                  <td className="px-3 py-3 font-semibold text-slate-900">{entry.reference}</td>
+                  <td className="px-3 py-3 text-slate-700">{entry.fields.full_name ?? '-'}</td>
+                  <td className="px-3 py-3 text-slate-700">{ROLE_LABELS[entry.submittedByRole]}</td>
+                  <td className="px-3 py-3 text-slate-700">{entry.fields.total_requested ?? '-'}</td>
+                  <td className="px-3 py-3">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(entry.currentStatus)}`}>
+                      {getCashRequestStatusLabel(entry.currentStatus)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-slate-700">{latestStage?.label ?? '-'}</td>
+                  <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+                  <td className="px-3 py-3">
+                    {onAction && actionLabel ? (
+                      <Button size="sm" variant="outline" onClick={() => onAction(entry)}>
+                        {actionLabel}
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">View only</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
 
 export default function CashRequests() {
   const { user } = useAuth();
-  const { sendManagerAlert } = useMessages();
+  const { sendUserNotification } = useMessages();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
-  const [accountantComment, setAccountantComment] = useState<Record<string, string>>({});
-  const [managerComment, setManagerComment] = useState<Record<string, string>>({});
-  const [voucherForm, setVoucherForm] = useState<Record<string, { request_number: string, voucher_number: string, payee_name: string, department: string, pos_code: string, date: string, address: string, tin: string, invoice_number: string, invoice_date: string, amount: string, description: string }>>({});
-  const [isSavingAction, setIsSavingAction] = useState(false);
   const [activeTab, setActiveTab] = useState('my-requests');
+  const [selectedRequest, setSelectedRequest] = useState<CashRequestWorkflow | null>(null);
+  const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [reviewComment, setReviewComment] = useState('');
+  const [voucherForm, setVoucherForm] = useState<VoucherFormState>({
+    voucherNumber: '',
+    payeeName: '',
+    department: '',
+    date: new Date().toISOString().slice(0, 10),
+    amount: '',
+    description: '',
+    posCode: '',
+    address: '',
+    tin: '',
+    invoiceNumber: '',
+    invoiceDate: '',
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'), limit(300));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() } as CashRequestWorkflow)));
-    });
+    if (!user) {
+      setCashRequests([]);
+      return undefined;
+    }
+
+    const requestsQuery = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(
+      requestsQuery,
+      (snapshot) => {
+        setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() })));
+      },
+      () => setCashRequests([]),
+    );
+
     return () => unsub();
   }, [user]);
 
-  const refreshPageAfterSave = () => {
-    setTimeout(() => { setIsSavingAction(false); }, 700);
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'cashier_1') setActiveTab('approved-requests');
+    else if (user.role === 'accountant') setActiveTab('all-requests');
+    else if (user.role === 'manager') setActiveTab('manager-queue');
+    else setActiveTab('my-requests');
+  }, [user]);
+
+  const canCreate = user?.role === 'assistant_hall_manager'
+    || user?.role === 'store_keeper'
+    || user?.role === 'cashier_1'
+    || user?.role === 'accountant';
+
+  const myRequests = useMemo(
+    () => cashRequests.filter((entry) => entry.submittedBy === user?.id),
+    [cashRequests, user?.id],
+  );
+  const accountantRequests = useMemo(
+    () => cashRequests,
+    [cashRequests],
+  );
+  const managerQueue = useMemo(
+    () => cashRequests.filter((entry) => entry.currentStatus === 'pending_halls_manager'),
+    [cashRequests],
+  );
+  const cashierApprovedRequests = useMemo(
+    () => cashRequests.filter((entry) => entry.currentStatus === 'pending_cashier' && entry.submittedBy !== user?.id),
+    [cashRequests, user?.id],
+  );
+  const completedRequests = useMemo(
+    () => cashRequests.filter((entry) => entry.currentStatus === 'completed'),
+    [cashRequests],
+  );
+
+  const closeDialog = () => {
+    setSelectedRequest(null);
+    setDialogMode(null);
+    setReviewComment('');
+    setVoucherForm({
+      voucherNumber: '',
+      payeeName: '',
+      department: '',
+      date: new Date().toISOString().slice(0, 10),
+      amount: '',
+      description: '',
+      posCode: '',
+      address: '',
+      tin: '',
+      invoiceNumber: '',
+      invoiceDate: '',
+    });
+  };
+
+  const openReviewDialog = (request: CashRequestWorkflow) => {
+    setSelectedRequest(request);
+    setDialogMode('review');
+    setReviewComment(
+      user?.role === 'accountant'
+        ? request.accountantComment ?? ''
+        : request.hallsManagerComment ?? '',
+    );
+  };
+
+  const openVoucherDialog = (request: CashRequestWorkflow) => {
+    setSelectedRequest(request);
+    setDialogMode('voucher');
+    setVoucherForm(createVoucherDefaults(request));
   };
 
   const handleCreateRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user || isSavingAction) return;
-    if (!confirmAction('Submit cash request?')) return;
-    setIsSavingAction(true);
+    if (!user || !canCreate || isSaving) return;
+    if (!confirmAction('Submit this cash request to Accountant?')) return;
+    setIsSaving(true);
 
     const formData = new FormData(event.currentTarget);
     const fields: Record<string, string> = {};
     for (const [key, value] of formData.entries()) {
       const normalized = String(value).trim();
       if (!normalized) continue;
-      if (fields[key]) fields[key] = `${fields[key]}, ${normalized}`;
-      else fields[key] = normalized;
+      fields[key] = fields[key] ? `${fields[key]}, ${normalized}` : normalized;
     }
 
+    const requestDoc = doc(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION));
+    const submittedAt = new Date().toISOString();
+    const reference = `CR-${requestDoc.id.slice(0, 6).toUpperCase()}`;
+    const stages = [
+      createCashRequestStage('submitted', user.id, user.role, undefined, submittedAt),
+      createCashRequestStage('moved_to_accountant', user.id, user.role, undefined, submittedAt),
+    ];
+
     const payload = {
-      submittedAt: new Date().toISOString(),
+      reference,
+      submittedAt,
       submittedBy: user.id,
       submittedByRole: user.role,
       fields,
+      currentStatus: 'pending_accountant',
       status: 'pending_accountant',
+      currentAssigneeRole: 'accountant',
+      stages,
       updatedAt: serverTimestamp(),
     };
 
     try {
-      await addDoc(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), payload);
+      await setDoc(requestDoc, payload);
       await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
         formId: 'cash_request',
-        formTitle: 'Cash Request Form',
-        submittedAt: payload.submittedAt,
-        submittedBy: payload.submittedBy,
-        submittedByRole: payload.submittedByRole,
-        fields,
-        updatedAt: serverTimestamp(),
-      });
-      event.currentTarget.reset();
-      refreshPageAfterSave();
-    } catch {
-      setIsSavingAction(false);
-    }
-  };
-
-  const handleAccountantDecision = async (requestId: string, decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'accountant' || isSavingAction) return;
-    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
-    setIsSavingAction(true);
-    
-    const request = cashRequests.find((entry) => entry.id === requestId);
-    const comment = accountantComment[requestId]?.trim() ?? '';
-    
-    try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
-        accountantReviewedAt: new Date().toISOString(),
-        accountantReviewedBy: user.id,
-        accountantComment: comment || (decision === 'approve' ? 'Approved by accountant and sent to Halls Manager.' : 'Declined by accountant.'),
-        updatedAt: serverTimestamp(),
-      });
-      if (decision === 'approve' && request) {
-        await sendManagerAlert({
-          title: 'Cash Request Pending Halls Manager',
-          body: `Cash request approved by accountant. Requested amount: TZS ${request.fields.total_requested ?? '0'}.`,
-        });
-      }
-      refreshPageAfterSave();
-    } catch {
-      setIsSavingAction(false);
-    }
-  };
-
-  const handleManagerDecision = async (requestId: string, decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'manager' || isSavingAction) return;
-    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
-    setIsSavingAction(true);
-    
-    const comment = managerComment[requestId]?.trim() ?? '';
-    try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
-        hallsManagerReviewedAt: new Date().toISOString(),
-        hallsManagerReviewedBy: user.id,
-        hallsManagerComment: comment,
-        updatedAt: serverTimestamp(),
-      });
-      refreshPageAfterSave();
-    } catch {
-      setIsSavingAction(false);
-    }
-  };
-
-  const handleCashierRecordVoucher = async (requestId: string, event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!user || user.role !== 'cashier_1' || isSavingAction) return;
-    if (!confirmAction(`Record this payment voucher and mark cash distributed?`)) return;
-    setIsSavingAction(true);
-
-    const formData = new FormData(event.currentTarget);
-    const fields: Record<string, string> = {};
-    for (const [key, value] of formData.entries()) {
-      fields[key] = String(value).trim();
-    }
-    
-    try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: 'distribution_recorded',
-        paymentVoucherNumber: fields.voucher_number,
-        cashierReviewedAt: new Date().toISOString(),
-        cashierReviewedBy: user.id,
-        updatedAt: serverTimestamp(),
-      });
-
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
-        formId: 'payment_voucher',
-        formTitle: 'Payment Voucher',
-        submittedAt: new Date().toISOString(),
+        formTitle: 'Cash Request',
+        submittedAt,
         submittedBy: user.id,
         submittedByRole: user.role,
         fields: {
-          request_number: requestId,
           ...fields,
-          source: 'cash_request_workflow',
+          reference,
         },
         updatedAt: serverTimestamp(),
       });
-      refreshPageAfterSave();
-    } catch {
-      setIsSavingAction(false);
+      await sendUserNotification({
+        userId: user.id,
+        title: 'Cash request submitted',
+        body: `Your cash request ${reference} has been moved to Accountant.`,
+        relatedId: requestDoc.id,
+        relatedType: 'cash_request',
+        link: '/cash-requests',
+      });
+      event.currentTarget.reset();
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const myRequests = cashRequests.filter(r => r.submittedBy === user?.id);
-  const accountantIntake = cashRequests.filter(r => r.status === 'pending_accountant');
-  const managerIntake = cashRequests.filter(r => r.status === 'pending_halls_manager');
-  const cashierDistribution = cashRequests.filter(r => r.status === 'pending_cashier');
+  const handleAccountantDecision = async (decision: 'approve' | 'decline') => {
+    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving) return;
+    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
+    setIsSaving(true);
 
-  const canCreate = user?.role === 'cashier_1' || user?.role === 'store_keeper' || user?.role === 'assistant_hall_manager' || user?.role === 'accountant';
+    const now = new Date().toISOString();
+    const nextStages = decision === 'approve'
+      ? [
+          ...selectedRequest.stages,
+          createCashRequestStage('approved_by_accountant', user.id, user.role, reviewComment.trim() || 'Approved by accountant.', now),
+          createCashRequestStage('moved_to_halls_manager', user.id, user.role, undefined, now),
+        ]
+      : [
+          ...selectedRequest.stages,
+          createCashRequestStage('declined_accountant', user.id, user.role, reviewComment.trim() || 'Declined by accountant.', now),
+        ];
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
+        currentStatus: decision === 'approve' ? 'pending_halls_manager' : 'declined',
+        status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
+        currentAssigneeRole: decision === 'approve' ? 'manager' : null,
+        accountantReviewedAt: now,
+        accountantReviewedBy: user.id,
+        accountantComment: reviewComment.trim() || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
+        stages: nextStages,
+        updatedAt: serverTimestamp(),
+      });
+      await sendUserNotification({
+        userId: selectedRequest.submittedBy,
+        title: decision === 'approve' ? 'Cash request approved by Accountant' : 'Cash request declined by Accountant',
+        body: decision === 'approve'
+          ? `Your cash request ${selectedRequest.reference} has been approved by Accountant and moved to Halls Manager.`
+          : `Your cash request ${selectedRequest.reference} was declined by Accountant.`,
+        relatedId: selectedRequest.id,
+        relatedType: 'cash_request',
+        link: '/cash-requests',
+      });
+      closeDialog();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleManagerDecision = async (decision: 'approve' | 'decline') => {
+    if (!user || user.role !== 'manager' || !selectedRequest || isSaving) return;
+    if (!reviewComment.trim()) return;
+    if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
+    setIsSaving(true);
+
+    const now = new Date().toISOString();
+    const nextStages = decision === 'approve'
+      ? [
+          ...selectedRequest.stages,
+          createCashRequestStage('approved_by_halls_manager', user.id, user.role, reviewComment.trim(), now),
+          createCashRequestStage('moved_to_cashier', user.id, user.role, undefined, now),
+        ]
+      : [
+          ...selectedRequest.stages,
+          createCashRequestStage('declined_halls_manager', user.id, user.role, reviewComment.trim(), now),
+        ];
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
+        currentStatus: decision === 'approve' ? 'pending_cashier' : 'declined',
+        status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
+        currentAssigneeRole: decision === 'approve' ? 'cashier_1' : null,
+        hallsManagerReviewedAt: now,
+        hallsManagerReviewedBy: user.id,
+        hallsManagerComment: reviewComment.trim(),
+        stages: nextStages,
+        updatedAt: serverTimestamp(),
+      });
+      await sendUserNotification({
+        userId: selectedRequest.submittedBy,
+        title: decision === 'approve' ? 'Cash request approved by Halls Manager' : 'Cash request declined by Halls Manager',
+        body: decision === 'approve'
+          ? `Your cash request ${selectedRequest.reference} has been approved by Halls Manager and moved to Cashier.`
+          : `Your cash request ${selectedRequest.reference} was declined by Halls Manager.`,
+        relatedId: selectedRequest.id,
+        relatedType: 'cash_request',
+        link: '/cash-requests',
+      });
+      closeDialog();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleVoucherSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || user.role !== 'cashier_1' || !selectedRequest || isSaving) return;
+    if (!confirmAction(`Create payment voucher for ${selectedRequest.reference} and send it to Accountant?`)) return;
+    setIsSaving(true);
+
+    const now = new Date().toISOString();
+    const voucherNote = voucherForm.voucherNumber.trim()
+      ? `Payment voucher ${voucherForm.voucherNumber.trim()}`
+      : 'Payment voucher created';
+
+    const nextStages = [
+      ...selectedRequest.stages,
+      createCashRequestStage('payment_voucher_created', user.id, user.role, voucherNote, now),
+      createCashRequestStage('sent_to_accountant', user.id, user.role, voucherNote, now),
+      createCashRequestStage('completed', user.id, user.role, 'Payment processed and request completed.', now),
+    ];
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
+        currentStatus: 'completed',
+        status: 'completed',
+        currentAssigneeRole: null,
+        cashierReviewedAt: now,
+        cashierReviewedBy: user.id,
+        paymentVoucherNumber: voucherForm.voucherNumber.trim(),
+        paymentVoucherCreatedAt: now,
+        completedAt: now,
+        stages: nextStages,
+        updatedAt: serverTimestamp(),
+      });
+      const voucherDoc = await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+        formId: 'payment_voucher',
+        formTitle: 'Payment Voucher',
+        submittedAt: now,
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields: {
+          request_reference: selectedRequest.reference,
+          request_number: selectedRequest.id,
+          voucher_number: voucherForm.voucherNumber.trim(),
+          payee_name: voucherForm.payeeName.trim(),
+          department: voucherForm.department.trim(),
+          date: voucherForm.date,
+          amount: voucherForm.amount.trim(),
+          description: voucherForm.description.trim(),
+          pos_code: voucherForm.posCode.trim(),
+          address: voucherForm.address.trim(),
+          tin: voucherForm.tin.trim(),
+          invoice_number: voucherForm.invoiceNumber.trim(),
+          invoice_date: voucherForm.invoiceDate.trim(),
+        },
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
+        paymentVoucherId: voucherDoc.id,
+        updatedAt: serverTimestamp(),
+      });
+      await sendUserNotification({
+        userId: selectedRequest.submittedBy,
+        title: 'Payment processed',
+        body: `Your cash request ${selectedRequest.reference} has been processed. Payment voucher ${voucherForm.voucherNumber.trim() || 'created'} was sent to Accountant.`,
+        relatedId: selectedRequest.id,
+        relatedType: 'payment_voucher',
+        link: '/cash-requests',
+      });
+      closeDialog();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!user) return null;
 
   return (
     <ManagementPageTemplate
       pageTitle="Cash Requests"
-      subtitle="Create, review, and track the status of all cash requests here."
+      subtitle="Track cash requests through Accountant, Halls Manager, Cashier, and payment voucher completion."
       stats={[
-        { title: 'My Requests', value: String(myRequests.length), description: 'requests submitted by you' },
-        { title: 'Pending Approval', value: String(cashRequests.filter(r => r.status.includes('pending')).length), description: 'total requests awaiting action' },
+        { title: 'My Requests', value: `${myRequests.length}`, description: 'cash requests you submitted' },
+        { title: 'Pending Action', value: `${cashRequests.filter((entry) => entry.currentStatus !== 'completed' && entry.currentStatus !== 'declined').length}`, description: 'requests still moving in workflow' },
+        { title: 'Completed', value: `${completedRequests.length}`, description: 'disbursed and closed requests' },
       ]}
       sections={[]}
       action={
         <div className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="my-requests">My Requests</TabsTrigger>
-              {canCreate && <TabsTrigger value="create">New Request</TabsTrigger>}
-              {user.role === 'accountant' && <TabsTrigger value="accountant-queue">Accountant Queue ({accountantIntake.length})</TabsTrigger>}
-              {user.role === 'manager' && <TabsTrigger value="manager-queue">Manager Queue ({managerIntake.length})</TabsTrigger>}
-              {user.role === 'cashier_1' && <TabsTrigger value="cashier-queue">Cashier Disbursement ({cashierDistribution.length})</TabsTrigger>}
-            </TabsList>
-
-            <TabsContent value="my-requests" className="space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">My Cash Requests</p>
-                <div className="mt-3 space-y-3">
-                  {myRequests.length === 0 ? (
-                    <p className="text-sm text-slate-500">You haven't submitted any cash requests.</p>
-                  ) : (
-                    myRequests.map((entry) => (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900">
-                            {new Date(entry.submittedAt).toLocaleString()}
-                          </p>
-                          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                            {entry.status.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                        {renderFieldsList(entry.fields)}
-                      </div>
-                    ))
-                  )}
+          {user.role === 'cashier_1' ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="approved-requests">Approved Requests</TabsTrigger>
+                <TabsTrigger value="my-requests">My Requests</TabsTrigger>
+                <TabsTrigger value="create">New Request</TabsTrigger>
+                <TabsTrigger value="cash-disbursements">Cash Disbursements</TabsTrigger>
+              </TabsList>
+              <TabsContent value="approved-requests">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  {renderRequestTable(cashierApprovedRequests, 'Open Payment Voucher', openVoucherDialog)}
                 </div>
-              </div>
-            </TabsContent>
-
-            {canCreate && (
-              <TabsContent value="create" className="space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-3">Fill Cash Request</p>
-                  <form className="space-y-3" onSubmit={handleCreateRequest}>
+              </TabsContent>
+              <TabsContent value="my-requests">
+                <div className="space-y-4">
+                  {myRequests.map((entry) => (
+                    <div key={entry.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{entry.reference}</p>
+                          <p className="text-sm text-slate-600">Submitted {new Date(entry.submittedAt).toLocaleString()}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(entry.currentStatus)}`}>
+                          {getCashRequestStatusLabel(entry.currentStatus)}
+                        </span>
+                      </div>
+                      <div className="mt-4">{renderFieldsList(entry.fields)}</div>
+                      <div className="mt-4 grid gap-2 md:grid-cols-2">
+                        {entry.stages.map((stage) => (
+                          <div key={stage.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                            <p className="font-semibold text-slate-900">{stage.label}</p>
+                            <p>{new Date(stage.at).toLocaleString()}</p>
+                            {stage.note ? <p className="mt-1 text-xs text-slate-500">{stage.note}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {myRequests.length === 0 ? (
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+                      You have not submitted any cash requests yet.
+                    </div>
+                  ) : null}
+                </div>
+              </TabsContent>
+              <TabsContent value="create">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <form className="space-y-4" onSubmit={handleCreateRequest}>
                     <div className="grid gap-3 md:grid-cols-2">
                       <input name="pef_no" className={inputClass()} placeholder="PEF No" required />
-                      <input name="date" className={inputClass()} placeholder="Date / Tarehe" required />
-                      <input name="full_name" className={inputClass()} placeholder="Full Name / Jina Kamili" required />
-                      <input name="designation" className={inputClass()} placeholder="Designation / Cheo" required />
+                      <input name="date" className={inputClass()} defaultValue={new Date().toISOString().slice(0, 10)} required />
+                      <input name="full_name" className={inputClass()} placeholder="Full Name" defaultValue={user.name} required />
+                      <input name="designation" className={inputClass()} placeholder="Designation" defaultValue={ROLE_LABELS[user.role]} required />
                     </div>
-                    <div className="grid grid-cols-5 gap-2 text-xs uppercase text-slate-500 font-semibold mt-4">
-                      <p>No</p><p>Item / Maelezo</p><p>Qty</p><p>Price</p><p>Amount</p>
-                    </div>
-                    {[1,2,3,4].map((i) => (
-                      <div key={i} className="mt-2 grid grid-cols-5 gap-2">
-                        <input name={`row_${i}`} className={inputClass()} defaultValue={String(i)} />
-                        <input name={`item_${i}`} className={inputClass()} />
-                        <input name={`qty_${i}`} className={inputClass()} type="number" />
-                        <input name={`price_${i}`} className={inputClass()} type="number" />
-                        <input name={`amount_${i}`} className={inputClass()} type="number" />
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="grid grid-cols-5 gap-2 text-xs uppercase tracking-[0.1em] text-slate-500">
+                        <p>No</p>
+                        <p>Item</p>
+                        <p>Qty</p>
+                        <p>Price</p>
+                        <p>Amount</p>
                       </div>
-                    ))}
-                    <input name="total_requested" className={`${inputClass()} w-full mt-3`} placeholder="Total Amount Requested (TZS)" required type="number" />
-                    <textarea name="amount_words" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" rows={2} placeholder="Amount in Words" required />
-                    <textarea name="requester_declaration" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" rows={2} placeholder="Requester Declaration / Sababu" required />
-                    <div className="mt-2">
-                      <Button type="submit" disabled={isSavingAction}>Submit Cash Request</Button>
+                      {[1, 2, 3, 4].map((index) => (
+                        <div key={index} className="mt-2 grid grid-cols-5 gap-2">
+                          <input name={`row_${index}`} className={inputClass()} defaultValue={String(index)} />
+                          <input name={`item_${index}`} className={inputClass()} />
+                          <input name={`qty_${index}`} className={inputClass()} />
+                          <input name={`price_${index}`} className={inputClass()} />
+                          <input name={`amount_${index}`} className={inputClass()} />
+                        </div>
+                      ))}
+                      <input name="total_requested" className={`${inputClass()} mt-3`} placeholder="Total Amount Requested (TZS)" required />
+                      <textarea name="amount_words" className="mt-3 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Amount in Words" required />
+                      <textarea name="requester_declaration" className="mt-3 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Requester Declaration / Reason" required />
                     </div>
+                    <Button type="submit" disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Submit Cash Request'}
+                    </Button>
                   </form>
                 </div>
               </TabsContent>
-            )}
-
-            {user.role === 'accountant' && (
-              <TabsContent value="accountant-queue" className="space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  {accountantIntake.length === 0 ? (
-                    <p className="text-sm text-slate-500">No pending requests.</p>
-                  ) : (
-                    accountantIntake.map((entry) => (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm mb-3">
-                        <p className="font-semibold text-slate-900">
-                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
-                        </p>
-                        {renderFieldsList(entry.fields)}
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <input
-                            className={inputClass('w-[320px]')}
-                            placeholder="Accountant note (optional)"
-                            value={accountantComment[entry.id] ?? ''}
-                            onChange={(e) => setAccountantComment({ ...accountantComment, [entry.id]: e.target.value })}
-                          />
-                          <Button size="sm" disabled={isSavingAction} onClick={() => handleAccountantDecision(entry.id, 'approve')}>Forward to Manager</Button>
-                          <Button size="sm" variant="outline" disabled={isSavingAction} onClick={() => handleAccountantDecision(entry.id, 'decline')}>Decline</Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+              <TabsContent value="cash-disbursements">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  {renderRequestTable(completedRequests)}
                 </div>
               </TabsContent>
-            )}
-
-            {user.role === 'manager' && (
-              <TabsContent value="manager-queue" className="space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  {managerIntake.length === 0 ? (
-                    <p className="text-sm text-slate-500">No pending requests.</p>
-                  ) : (
-                    managerIntake.map((entry) => (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm mb-3">
-                        <p className="font-semibold text-slate-900">
-                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
-                        </p>
-                        <p className="text-slate-500 mb-2">Accountant Note: {entry.accountantComment ?? '-'}</p>
-                        {renderFieldsList(entry.fields)}
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <input
-                            className={inputClass('w-[320px]')}
-                            placeholder="Manager note (required if declining)"
-                            value={managerComment[entry.id] ?? ''}
-                            onChange={(e) => setManagerComment({ ...managerComment, [entry.id]: e.target.value })}
-                          />
-                          <Button size="sm" disabled={isSavingAction} onClick={() => handleManagerDecision(entry.id, 'approve')}>Approve & Send to Cashier</Button>
-                          <Button size="sm" variant="outline" disabled={isSavingAction} onClick={() => handleManagerDecision(entry.id, 'decline')}>Decline</Button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+            </Tabs>
+          ) : user.role === 'accountant' ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="all-requests">All Requests</TabsTrigger>
+                <TabsTrigger value="create">New Request</TabsTrigger>
+              </TabsList>
+              <TabsContent value="all-requests">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  {renderRequestTable(accountantRequests, 'Open Request', openReviewDialog)}
                 </div>
               </TabsContent>
-            )}
-
-            {user.role === 'cashier_1' && (
-              <TabsContent value="cashier-queue" className="space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500 mb-3">Distribute Cash & Fill Voucher</p>
-                  {cashierDistribution.length === 0 ? (
-                    <p className="text-sm text-slate-500">No requests awaiting distribution.</p>
-                  ) : (
-                    cashierDistribution.map((entry) => (
-                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm mb-3">
-                        <p className="font-semibold text-slate-900 leading-none">
-                          Authorized Request: {new Date(entry.submittedAt).toLocaleString()}
-                        </p>
-                        <p className="mt-1 text-slate-500">Manager Note: {entry.hallsManagerComment ?? '-'}</p>
-                        <div className="mt-3">
-                          {renderFieldsList(entry.fields)}
-                        </div>
-                        
-                        <div className="mt-6 border-t border-slate-300 pt-4">
-                          <p className="font-bold text-slate-800 mb-3">Fill Payment Voucher</p>
-                          <form className="grid gap-3 md:grid-cols-2" onSubmit={(e) => handleCashierRecordVoucher(entry.id, e)}>
-                            <input name="amount" className={inputClass()} defaultValue={entry.fields.total_requested} readOnly required />
-                            <input name="payee_name" className={inputClass()} defaultValue={entry.fields.full_name} placeholder="Customer / Payee Name" required />
-                            <input name="voucher_number" className={inputClass()} placeholder="Payment Voucher Number" required />
-                            <input name="department" className={inputClass()} defaultValue={entry.fields.designation} placeholder="Company / Department" required />
-                            <input name="pos_code" className={inputClass()} placeholder="POS Code" />
-                            <input name="date" className={inputClass()} defaultValue={new Date().toISOString().slice(0, 10)} required />
-                            <input name="address" className={inputClass()} placeholder="Address" />
-                            <input name="tin" className={inputClass()} placeholder="Customer TIN" />
-                            <input name="invoice_number" className={inputClass()} placeholder="Invoice Number" />
-                            <input name="invoice_date" className={inputClass()} type="date" />
-                            <textarea
-                              name="description"
-                              className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2"
-                              rows={2}
-                              defaultValue={`Voucher for Cash Request distribution. Details: ${entry.fields.requester_declaration || '-'}`}
-                              required
-                            />
-                            <div className="md:col-span-2 mt-2">
-                              <Button type="submit" className="w-full md:w-auto" disabled={isSavingAction}>Record Distribution & Save Voucher</Button>
-                            </div>
-                          </form>
-                        </div>
+              <TabsContent value="create">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <form className="space-y-4" onSubmit={handleCreateRequest}>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <input name="pef_no" className={inputClass()} placeholder="PEF No" required />
+                      <input name="date" className={inputClass()} defaultValue={new Date().toISOString().slice(0, 10)} required />
+                      <input name="full_name" className={inputClass()} placeholder="Full Name" defaultValue={user.name} required />
+                      <input name="designation" className={inputClass()} placeholder="Designation" defaultValue={ROLE_LABELS[user.role]} required />
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="grid grid-cols-5 gap-2 text-xs uppercase tracking-[0.1em] text-slate-500">
+                        <p>No</p>
+                        <p>Item</p>
+                        <p>Qty</p>
+                        <p>Price</p>
+                        <p>Amount</p>
                       </div>
-                    ))
-                  )}
+                      {[1, 2, 3, 4].map((index) => (
+                        <div key={index} className="mt-2 grid grid-cols-5 gap-2">
+                          <input name={`row_${index}`} className={inputClass()} defaultValue={String(index)} />
+                          <input name={`item_${index}`} className={inputClass()} />
+                          <input name={`qty_${index}`} className={inputClass()} />
+                          <input name={`price_${index}`} className={inputClass()} />
+                          <input name={`amount_${index}`} className={inputClass()} />
+                        </div>
+                      ))}
+                      <input name="total_requested" className={`${inputClass()} mt-3`} placeholder="Total Amount Requested (TZS)" required />
+                      <textarea name="amount_words" className="mt-3 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Amount in Words" required />
+                      <textarea name="requester_declaration" className="mt-3 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Requester Declaration / Reason" required />
+                    </div>
+                    <Button type="submit" disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Submit Cash Request'}
+                    </Button>
+                  </form>
                 </div>
               </TabsContent>
-            )}
-          </Tabs>
+            </Tabs>
+          ) : user.role === 'manager' ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              {renderRequestTable(managerQueue, 'Open Request', openReviewDialog)}
+            </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="my-requests">My Requests</TabsTrigger>
+                {canCreate ? <TabsTrigger value="create">New Request</TabsTrigger> : null}
+              </TabsList>
+              <TabsContent value="my-requests">
+                <div className="space-y-4">
+                  {myRequests.map((entry) => (
+                    <div key={entry.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{entry.reference}</p>
+                          <p className="text-sm text-slate-600">Submitted {new Date(entry.submittedAt).toLocaleString()}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(entry.currentStatus)}`}>
+                          {getCashRequestStatusLabel(entry.currentStatus)}
+                        </span>
+                      </div>
+                      <div className="mt-4">{renderFieldsList(entry.fields)}</div>
+                      <div className="mt-4 grid gap-2 md:grid-cols-2">
+                        {entry.stages.map((stage) => (
+                          <div key={stage.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                            <p className="font-semibold text-slate-900">{stage.label}</p>
+                            <p>{new Date(stage.at).toLocaleString()}</p>
+                            {stage.note ? <p className="mt-1 text-xs text-slate-500">{stage.note}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {myRequests.length === 0 ? (
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+                      You have not submitted any cash requests yet.
+                    </div>
+                  ) : null}
+                </div>
+              </TabsContent>
+              {canCreate ? (
+                <TabsContent value="create">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <form className="space-y-4" onSubmit={handleCreateRequest}>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <input name="pef_no" className={inputClass()} placeholder="PEF No" required />
+                        <input name="date" className={inputClass()} defaultValue={new Date().toISOString().slice(0, 10)} required />
+                        <input name="full_name" className={inputClass()} placeholder="Full Name" defaultValue={user.name} required />
+                        <input name="designation" className={inputClass()} placeholder="Designation" defaultValue={ROLE_LABELS[user.role]} required />
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="grid grid-cols-5 gap-2 text-xs uppercase tracking-[0.1em] text-slate-500">
+                          <p>No</p>
+                          <p>Item</p>
+                          <p>Qty</p>
+                          <p>Price</p>
+                          <p>Amount</p>
+                        </div>
+                        {[1, 2, 3, 4].map((index) => (
+                          <div key={index} className="mt-2 grid grid-cols-5 gap-2">
+                            <input name={`row_${index}`} className={inputClass()} defaultValue={String(index)} />
+                            <input name={`item_${index}`} className={inputClass()} />
+                            <input name={`qty_${index}`} className={inputClass()} />
+                            <input name={`price_${index}`} className={inputClass()} />
+                            <input name={`amount_${index}`} className={inputClass()} />
+                          </div>
+                        ))}
+                        <input name="total_requested" className={`${inputClass()} mt-3`} placeholder="Total Amount Requested (TZS)" required />
+                        <textarea name="amount_words" className="mt-3 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Amount in Words" required />
+                        <textarea name="requester_declaration" className="mt-3 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Requester Declaration / Reason" required />
+                      </div>
+                      <Button type="submit" disabled={isSaving}>
+                        {isSaving ? 'Saving...' : 'Submit Cash Request'}
+                      </Button>
+                    </form>
+                  </div>
+                </TabsContent>
+              ) : null}
+            </Tabs>
+          )}
+
+          <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && closeDialog()}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+              <DialogHeader>
+                <DialogTitle>{dialogMode === 'voucher' ? 'Payment Voucher' : 'Cash Request Details'}</DialogTitle>
+                <DialogDescription>
+                  {dialogMode === 'voucher'
+                    ? 'This voucher is opened for a Halls Manager-approved request and will be sent to Accountant when you submit it.'
+                    : 'Review the request details and complete the next approval action.'}
+                </DialogDescription>
+              </DialogHeader>
+              {selectedRequest ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-900">{selectedRequest.reference}</p>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(selectedRequest.currentStatus)}`}>
+                        {getCashRequestStatusLabel(selectedRequest.currentStatus)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {selectedRequest.fields.full_name ?? '-'} | {ROLE_LABELS[selectedRequest.submittedByRole]} | Requested TZS {parseCurrencyAmount(selectedRequest.fields.total_requested).toLocaleString()}
+                    </p>
+                    <div className="mt-4">{renderFieldsList(selectedRequest.fields)}</div>
+                    <div className="mt-4 grid gap-2 md:grid-cols-2">
+                      {selectedRequest.stages.map((stage) => (
+                        <div key={stage.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <p className="font-semibold text-slate-900">{stage.label}</p>
+                          <p>{new Date(stage.at).toLocaleString()}</p>
+                          {stage.note ? <p className="mt-1 text-xs text-slate-500">{stage.note}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {dialogMode === 'review' && user.role === 'accountant' ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Accountant comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
+                      <div className="mt-4 flex gap-2">
+                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving}>
+                          {isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
+                        </Button>
+                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving}>
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {dialogMode === 'review' && user.role === 'manager' ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Halls Manager comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
+                      <div className="mt-4 flex gap-2">
+                        <Button onClick={() => void handleManagerDecision('approve')} disabled={isSaving || !reviewComment.trim()}>
+                          {isSaving ? 'Saving...' : 'Approve & Move to Cashier'}
+                        </Button>
+                        <Button variant="outline" onClick={() => void handleManagerDecision('decline')} disabled={isSaving || !reviewComment.trim()}>
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {dialogMode === 'voucher' && user.role === 'cashier_1' ? (
+                    <form className="rounded-2xl border border-slate-200 bg-slate-50 p-4" onSubmit={(event) => void handleVoucherSubmit(event)}>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <input className={inputClass()} placeholder="Voucher Number" value={voucherForm.voucherNumber} onChange={(event) => setVoucherForm((prev) => ({ ...prev, voucherNumber: event.target.value }))} required />
+                        <input className={inputClass()} placeholder="Payee Name" value={voucherForm.payeeName} onChange={(event) => setVoucherForm((prev) => ({ ...prev, payeeName: event.target.value }))} required />
+                        <input className={inputClass()} placeholder="Department" value={voucherForm.department} onChange={(event) => setVoucherForm((prev) => ({ ...prev, department: event.target.value }))} />
+                        <input className={inputClass()} type="date" value={voucherForm.date} onChange={(event) => setVoucherForm((prev) => ({ ...prev, date: event.target.value }))} required />
+                        <input className={inputClass()} placeholder="Amount" value={voucherForm.amount} onChange={(event) => setVoucherForm((prev) => ({ ...prev, amount: event.target.value }))} required />
+                        <input className={inputClass()} placeholder="POS Code" value={voucherForm.posCode} onChange={(event) => setVoucherForm((prev) => ({ ...prev, posCode: event.target.value }))} />
+                        <input className={inputClass()} placeholder="Address" value={voucherForm.address} onChange={(event) => setVoucherForm((prev) => ({ ...prev, address: event.target.value }))} />
+                        <input className={inputClass()} placeholder="TIN" value={voucherForm.tin} onChange={(event) => setVoucherForm((prev) => ({ ...prev, tin: event.target.value }))} />
+                        <input className={inputClass()} placeholder="Invoice Number" value={voucherForm.invoiceNumber} onChange={(event) => setVoucherForm((prev) => ({ ...prev, invoiceNumber: event.target.value }))} />
+                        <input className={inputClass()} type="date" value={voucherForm.invoiceDate} onChange={(event) => setVoucherForm((prev) => ({ ...prev, invoiceDate: event.target.value }))} />
+                        <textarea className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Description" value={voucherForm.description} onChange={(event) => setVoucherForm((prev) => ({ ...prev, description: event.target.value }))} required />
+                      </div>
+                      <div className="mt-4 flex gap-2">
+                        <Button type="submit" disabled={isSaving}>
+                          {isSaving ? 'Saving...' : 'Send Voucher to Accountant'}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={closeDialog}>
+                          Close
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
         </div>
       }
     />

@@ -4,12 +4,23 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { useMessages } from '@/contexts/MessageContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import {
+  CASH_REQUEST_WORKFLOW_COLLECTION,
+  DOCUMENT_OUTPUTS_COLLECTION,
+  PURCHASE_REQUEST_WORKFLOW_COLLECTION,
+  CashRequestWorkflow,
+  DocumentOutput,
+  PurchaseRequestWorkflow,
+  normalizeCashRequest,
+  normalizePurchaseRequest,
+} from '@/lib/requestWorkflows';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Users } from 'lucide-react';
 
@@ -36,29 +47,51 @@ function isTodayIso(value: string): boolean {
 export default function Dashboard() {
   const { user } = useAuth();
   const { bookings } = useBookings();
+  const { unreadCount } = useMessages();
   const { payments } = usePayments();
   const { approvals, auditLog } = useAuthorization();
   const { allocations, logs } = useEventFinance();
   const { items } = useInventory();
   const navigate = useNavigate();
-  const [purchaseStats, setPurchaseStats] = useState({ received: 0, completed: 0 });
+  const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
+  const [outputs, setOutputs] = useState<DocumentOutput[]>([]);
 
   useEffect(() => {
-    if (user?.role !== 'purchaser') return undefined;
-    const q = query(collection(db, 'purchase_item_workflow'), orderBy('submittedAt', 'desc'));
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const rows = snapshot.docs.map((item) => item.data() as { status?: string });
-        setPurchaseStats({
-          received: rows.filter((item) => item.status !== 'purchased').length,
-          completed: rows.filter((item) => item.status === 'purchased').length,
-        });
-      },
-      () => setPurchaseStats({ received: 0, completed: 0 }),
+    if (!user) {
+      setCashRequests([]);
+      setPurchaseRequests([]);
+      setOutputs([]);
+      return undefined;
+    }
+
+    const cashUnsub = onSnapshot(
+      query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
+      (snapshot) => setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() }))),
+      () => setCashRequests([]),
     );
-    return () => unsub();
-  }, [user?.role]);
+    const purchaseUnsub = onSnapshot(
+      query(collection(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
+      (snapshot) => setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() }))),
+      () => setPurchaseRequests([]),
+    );
+    const outputsUnsub = onSnapshot(
+      query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc')),
+      (snapshot) => setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) }))),
+      () => setOutputs([]),
+    );
+
+    return () => {
+      cashUnsub();
+      purchaseUnsub();
+      outputsUnsub();
+    };
+  }, [user]);
+
+  const myBookings = useMemo(
+    () => bookings.filter((entry) => entry.createdByUserId === user?.id),
+    [bookings, user?.id],
+  );
 
   const metrics = useMemo(() => {
     const todayBookings = bookings.filter((item) => item.date === new Date().toISOString().slice(0, 10)).length;
@@ -84,6 +117,14 @@ export default function Dashboard() {
     const lowStockItems = items.filter((item) => item.currentQuantity <= item.reorderLevel).length;
     const criticalLowStockItems = items.filter((item) => item.currentQuantity === 0).length;
     const recentActivityCount = auditLog.length + logs.length;
+    const myCashRequests = cashRequests.filter((item) => item.submittedBy === user?.id).length;
+    const pendingCashRequests = cashRequests.filter((item) => item.currentStatus !== 'completed' && item.currentStatus !== 'declined').length;
+    const completedCashRequests = cashRequests.filter((item) => item.currentStatus === 'completed').length;
+    const pendingCashierRequests = cashRequests.filter((item) => item.currentStatus === 'pending_cashier').length;
+    const myPurchaseRequests = purchaseRequests.filter((item) => item.submittedBy === user?.id).length;
+    const pendingPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'pending_purchaser').length;
+    const completedPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'purchase_done').length;
+    const paymentVouchers = outputs.filter((item) => item.formId === 'payment_voucher').length;
     return {
       todayBookings,
       pendingBookings,
@@ -99,8 +140,16 @@ export default function Dashboard() {
       lowStockItems,
       criticalLowStockItems,
       recentActivityCount,
+      myCashRequests,
+      pendingCashRequests,
+      completedCashRequests,
+      pendingCashierRequests,
+      myPurchaseRequests,
+      pendingPurchaseRequests,
+      completedPurchaseRequests,
+      paymentVouchers,
     };
-  }, [allocations, approvals, auditLog.length, bookings, items, logs.length, payments]);
+  }, [allocations, approvals, auditLog.length, bookings, cashRequests, items, logs.length, outputs, payments, purchaseRequests, user?.id]);
 
   const statsByRole = useMemo<Record<UserRole, StatCard[]>>(
     () => ({
@@ -117,16 +166,16 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance trail', icon: CheckCircle2 },
       ],
       assistant_hall_manager: [
-        { title: "Today's Bookings", value: String(metrics.todayBookings), hint: 'Scheduled for today', icon: Calendar },
-        { title: 'Pending Bookings', value: String(metrics.pendingBookings), hint: 'Need processing', icon: Clock },
-        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Ready for execution', icon: CheckCircle2 },
-        { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Current customer load', icon: Users },
+        { title: 'My Bookings', value: String(myBookings.length), hint: 'halls bookings submitted by you', icon: Calendar },
+        { title: 'My Cash Requests', value: String(metrics.myCashRequests), hint: 'sent through cash workflow', icon: Clock },
+        { title: 'My Purchase Requests', value: String(metrics.myPurchaseRequests), hint: 'sent to purchaser', icon: CheckCircle2 },
+        { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Users },
       ],
       cashier_1: [
-        { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Recorded today', icon: DollarSign },
-        { title: 'Booking Quotes Queue', value: String(metrics.cashierQueue), hint: 'From Assistant Hall booking desk', icon: Clock },
-        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded receipts', icon: CheckCircle2 },
-        { title: 'Active Customers', value: String(metrics.activeCustomers), hint: 'Paying customers', icon: Users },
+        { title: 'Approved Requests', value: String(metrics.pendingCashierRequests), hint: 'manager-approved requests waiting for voucher', icon: Clock },
+        { title: 'My Cash Requests', value: String(metrics.myCashRequests), hint: 'cash requests submitted by cashier', icon: DollarSign },
+        { title: 'Cash Disbursements', value: String(metrics.completedCashRequests), hint: 'completed request records', icon: CheckCircle2 },
+        { title: 'Unread Messages', value: String(unreadCount), hint: 'new workflow updates', icon: Users },
       ],
       cashier_2: [
         { title: 'Booking Quotes Queue', value: String(metrics.cashierQueue), hint: 'Legacy role redirected to cashier flow', icon: Clock },
@@ -141,26 +190,25 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit trail', icon: CheckCircle2 },
       ],
       store_keeper: [
-        { title: 'Approved Bookings', value: String(metrics.approvedBookings), hint: 'Events to prepare for', icon: Calendar },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Allocation-linked events', icon: Clock },
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Workflow visibility', icon: AlertCircle },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Stock-related actions', icon: Users },
+        { title: 'Inventory Items', value: String(items.length), hint: 'current inventory table rows', icon: Calendar },
+        { title: 'My Cash Requests', value: String(metrics.myCashRequests), hint: 'cash requests you submitted', icon: Clock },
+        { title: 'My Purchase Requests', value: String(metrics.myPurchaseRequests), hint: 'purchase requests you submitted', icon: AlertCircle },
+        { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Users },
       ],
       purchaser: [
-        { title: 'Requests Received', value: String(purchaseStats.received), hint: 'storekeeper and event planner requests', icon: AlertCircle },
-        { title: 'Purchases Done', value: String(purchaseStats.completed), hint: 'completed purchase records', icon: CheckCircle2 },
+        { title: 'Requests Received', value: String(metrics.pendingPurchaseRequests), hint: 'submitted purchase requests waiting on purchaser', icon: AlertCircle },
+        { title: 'Purchases Done', value: String(metrics.completedPurchaseRequests), hint: 'completed purchase records', icon: CheckCircle2 },
         { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'inventory visibility only', icon: Clock },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'procurement workflow trail', icon: Calendar },
+        { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Calendar },
       ],
       accountant: [
-        { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
-        { title: "Today's Payments", value: String(metrics.paymentsToday), hint: 'Transactions today', icon: Calendar },
-        { title: 'Pending Approvals', value: String(metrics.pendingApprovals), hint: 'Approval controls now handled here', icon: AlertCircle },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'Outstanding allocations', icon: Clock },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance logs', icon: CheckCircle2 },
+        { title: 'Pending Cash Requests', value: String(metrics.pendingCashRequests), hint: 'requests needing accountant or downstream action', icon: AlertCircle },
+        { title: 'Payment Vouchers', value: String(metrics.paymentVouchers), hint: 'voucher records sent to accountant', icon: Calendar },
+        { title: 'Completed Requests', value: String(metrics.completedCashRequests), hint: 'cash requests fully processed', icon: CheckCircle2 },
+        { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Clock },
       ],
     }),
-    [metrics],
+    [items.length, metrics, myBookings.length, unreadCount],
   );
 
   if (!user) return null;
@@ -180,39 +228,45 @@ export default function Dashboard() {
     : user.role === 'assistant_hall_manager'
     ? [
         { label: 'Bookings', path: '/bookings' },
-        { label: 'Inventory', path: '/rentals' },
-        { label: 'Documents', path: '/documents' },
+        { label: 'Cash Requests', path: '/cash-requests' },
+        { label: 'Purchase Requests', path: '/purchase-requests' },
+        { label: 'Messages', path: '/messages' },
         { label: 'Settings', path: '/settings' },
       ]
     : user.role === 'store_keeper'
       ? [
+          { label: 'Inventory', path: '/rentals' },
+          { label: 'Cash Requests', path: '/cash-requests' },
+          { label: 'Purchase Requests', path: '/purchase-requests' },
+          { label: 'Messages', path: '/messages' },
+        ]
+    : user.role === 'purchaser'
+      ? [
+          { label: 'Purchase Requests', path: '/purchase-requests' },
+          { label: 'Inventory', path: '/rentals' },
+          { label: 'Messages', path: '/messages' },
+          { label: 'Reports', path: '/reports' },
+        ]
+      : user.role === 'accountant'
+        ? [
+            { label: 'Cash Requests', path: '/cash-requests' },
+            { label: 'Payment Vouchers', path: '/payment-vouchers' },
+            { label: 'Money Movement', path: '/cash-movement' },
+            { label: 'Messages', path: '/messages' },
+          ]
+    : user.role === 'cashier_1'
+      ? [
+          { label: 'Cash Requests', path: '/cash-requests' },
+          { label: 'Cash Use', path: '/cash-movement' },
+          { label: 'Messages', path: '/messages' },
+          { label: 'Reports', path: '/reports' },
+        ]
+      : [
           { label: 'Event Planner', path: '/rentals' },
           { label: 'Inventory Reports', path: '/rentals' },
           { label: 'Documents', path: '/documents' },
           { label: 'Settings', path: '/settings' },
-        ]
-    : user.role === 'purchaser'
-      ? [
-          { label: 'Requests Received', path: '/documents?queue=storekeeper-requests' },
-          { label: 'Purchases Done', path: '/documents?queue=purchases-done' },
-          { label: 'Reports', path: '/reports' },
-          { label: 'Settings', path: '/settings' },
-        ]
-      : user.role === 'accountant'
-        ? [
-            { label: 'Inventory & Store', path: '/rentals' },
-            { label: 'Documents', path: '/documents' },
-            { label: 'Money Oversight', path: '/cash-movement' },
-            { label: 'Reports', path: '/reports' },
-            { label: 'Settings', path: '/settings' },
-          ]
-    : [
-        { label: 'Bookings', path: '/bookings' },
-        { label: 'Messages', path: '/messages' },
-        { label: 'Payments', path: '/payments' },
-        { label: 'Reports', path: '/reports' },
-        { label: 'Settings', path: '/settings' },
-      ];
+        ];
 
   return (
     <DashboardLayout title="Dashboard">
