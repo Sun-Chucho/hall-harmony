@@ -187,6 +187,7 @@ export function AppSidebar() {
   const purchaserNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory', icon: Car, path: '/rentals' },
+    { title: 'Storekeeper Requests', icon: FileText, path: '/documents?queue=storekeeper-requests' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
@@ -195,6 +196,7 @@ export function AppSidebar() {
   const accountantNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory & Store', icon: Car, path: '/rentals' },
+    { title: 'Cash Requests', icon: FileText, path: '/documents?queue=cash-requests' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Money Oversight', icon: Banknote, path: '/cash-movement' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },

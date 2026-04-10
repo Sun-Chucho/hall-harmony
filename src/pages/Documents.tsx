@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -38,11 +39,12 @@ interface FormSubmission {
 }
 
 type CashRequestStatus =
-  | 'pending_controller'
-  | 'declined_controller'
-  | 'pending_manager'
-  | 'approved_manager'
-  | 'declined_manager';
+  | 'pending_accountant'
+  | 'declined_accountant'
+  | 'pending_halls_manager'
+  | 'approved_halls_manager'
+  | 'declined_halls_manager'
+  | 'voucher_recorded';
 
 interface CashRequestWorkflow {
   id: string;
@@ -51,9 +53,15 @@ interface CashRequestWorkflow {
   submittedByRole: UserRole;
   fields: Record<string, string>;
   status: CashRequestStatus;
-  reviewedAt?: string;
-  reviewedBy?: string;
-  reviewComment?: string;
+  accountantReviewedAt?: string;
+  accountantReviewedBy?: string;
+  accountantComment?: string;
+  hallsManagerReviewedAt?: string;
+  hallsManagerReviewedBy?: string;
+  hallsManagerComment?: string;
+  paymentVoucherNumber?: string;
+  paymentVoucherRecordedAt?: string;
+  paymentVoucherRecordedBy?: string;
 }
 
 type PurchaseItemStatus = 'pending_purchaser' | 'approved_purchaser' | 'declined_purchaser';
@@ -76,6 +84,34 @@ const CASH_REQUEST_WORKFLOW_COLLECTION = 'cash_request_workflow';
 const CASH_REQUEST_WORKFLOW_CACHE_KEY = 'kuringe_cash_request_workflow_v1';
 const PURCHASE_ITEM_WORKFLOW_COLLECTION = 'purchase_item_workflow';
 const PURCHASE_ITEM_WORKFLOW_CACHE_KEY = 'kuringe_purchase_item_workflow_v1';
+
+function normalizeCashRequest(entry: CashRequestWorkflow): CashRequestWorkflow {
+  const legacyEntry = entry as CashRequestWorkflow & {
+    reviewedAt?: string;
+    reviewedBy?: string;
+    reviewComment?: string;
+  };
+  const normalizedStatus: CashRequestStatus =
+    entry.status === 'pending_controller'
+      ? 'pending_accountant'
+      : entry.status === 'declined_controller'
+        ? 'declined_accountant'
+        : entry.status === 'pending_manager'
+          ? 'pending_halls_manager'
+          : entry.status === 'approved_manager'
+            ? 'approved_halls_manager'
+            : entry.status === 'declined_manager'
+              ? 'declined_halls_manager'
+              : entry.status;
+
+  return {
+    ...entry,
+    status: normalizedStatus,
+    accountantReviewedAt: entry.accountantReviewedAt ?? legacyEntry.reviewedAt,
+    accountantReviewedBy: entry.accountantReviewedBy ?? legacyEntry.reviewedBy,
+    accountantComment: entry.accountantComment ?? legacyEntry.reviewComment,
+  };
+}
 
 const manualForms: ManualForm[] = [
   { id: 'lpo', title: 'Local Purchase Order', roles: ['purchaser', 'accountant'] },
@@ -106,6 +142,7 @@ function serialHeader(title: string) {
 export default function Documents() {
   const { user } = useAuth();
   const { sendManagerAlert } = useMessages();
+  const [searchParams] = useSearchParams();
   const [outputs, setOutputs] = useState<FormSubmission[]>([]);
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItemWorkflow[]>([]);
@@ -115,6 +152,7 @@ export default function Documents() {
   const [accountantComment, setAccountantComment] = useState<Record<string, string>>({});
   const [managerComment, setManagerComment] = useState<Record<string, string>>({});
   const [purchaserComment, setPurchaserComment] = useState<Record<string, string>>({});
+  const requestedQueueView = searchParams.get('queue');
 
   useEffect(() => {
     const raw = localStorage.getItem(DOCUMENT_OUTPUTS_CACHE_KEY);
@@ -134,7 +172,7 @@ export default function Documents() {
     const raw = localStorage.getItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
     if (!raw) return;
     try {
-      setCashRequests(JSON.parse(raw) as CashRequestWorkflow[]);
+      setCashRequests((JSON.parse(raw) as CashRequestWorkflow[]).map(normalizeCashRequest));
     } catch {
       localStorage.removeItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
     }
@@ -203,7 +241,7 @@ export default function Documents() {
       (snapshot) => {
         const next = snapshot.docs.map((item) => {
           const data = item.data() as Omit<CashRequestWorkflow, 'id'>;
-          return { id: item.id, ...data } as CashRequestWorkflow;
+          return normalizeCashRequest({ id: item.id, ...data } as CashRequestWorkflow);
         });
         setCashRequests(next);
       },
@@ -211,7 +249,7 @@ export default function Documents() {
         const raw = localStorage.getItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
         if (!raw) return;
         try {
-          setCashRequests(JSON.parse(raw) as CashRequestWorkflow[]);
+          setCashRequests((JSON.parse(raw) as CashRequestWorkflow[]).map(normalizeCashRequest));
         } catch {
           localStorage.removeItem(CASH_REQUEST_WORKFLOW_CACHE_KEY);
         }
@@ -251,6 +289,27 @@ export default function Documents() {
     return () => unsub();
   }, [user]);
 
+  useEffect(() => {
+    if (!requestedQueueView) return;
+
+    const targetId =
+      requestedQueueView === 'cash-requests'
+        ? 'cash-request-log'
+        : requestedQueueView === 'storekeeper-requests'
+          ? 'storekeeper-requests'
+          : requestedQueueView === 'voucher-capture' || requestedQueueView === 'voucher-register'
+            ? 'cash-request-log'
+            : null;
+
+    if (!targetId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [requestedQueueView]);
+
   const allowedForms = useMemo(() => {
     if (!user) return [];
     if (user.role === 'manager') return [];
@@ -278,21 +337,29 @@ export default function Documents() {
     return true;
   });
 
-  const pendingForController = cashRequests.filter((entry) => entry.status === 'pending_controller');
-  const pendingForManager = cashRequests.filter((entry) => entry.status === 'pending_manager');
+  const pendingForAccountant = cashRequests.filter((entry) => entry.status === 'pending_accountant');
+  const pendingForHallsManager = cashRequests.filter((entry) => entry.status === 'pending_halls_manager');
+  const pendingVoucherCapture = cashRequests.filter((entry) => entry.status === 'approved_halls_manager' && !entry.paymentVoucherNumber);
+  const recordedPaymentVouchers = cashRequests.filter((entry) => entry.status === 'voucher_recorded');
   const pendingForPurchaser = purchaseItems.filter((entry) => entry.status === 'pending_purchaser');
+  const accountantQueueTab =
+    requestedQueueView === 'voucher-capture'
+      ? 'voucher_capture'
+      : requestedQueueView === 'voucher-register'
+        ? 'voucher_register'
+        : 'accountant_intake';
 
   const stats = [
     { title: 'Fillable Forms', value: String(myForms), description: 'forms assigned to your role' },
     { title: 'All Form Types', value: String(manualForms.length), description: 'manual register list' },
     { title: 'Submitted Outputs', value: String(outputs.length), description: 'all saved form entries' },
     {
-      title: user?.role === 'accountant' ? 'Pending Cash Requests' : user?.role === 'manager' ? 'Halls Manager Queue' : user?.role === 'purchaser' ? 'Purchase Queue' : 'My Role',
+      title: user?.role === 'accountant' ? 'Cash Request Desk' : user?.role === 'manager' ? 'Halls Manager Queue' : user?.role === 'purchaser' ? 'Purchase Queue' : 'My Role',
       value:
         user?.role === 'accountant'
-          ? String(pendingForController.length)
+          ? String(pendingForAccountant.length + pendingVoucherCapture.length)
           : user?.role === 'manager'
-            ? String(pendingForManager.length)
+            ? String(pendingForHallsManager.length)
             : user?.role === 'purchaser'
               ? String(pendingForPurchaser.length)
             : user
@@ -300,7 +367,7 @@ export default function Documents() {
               : 'N/A',
       description:
         user?.role === 'accountant'
-          ? 'awaiting accountant decision'
+          ? 'intake and voucher queues'
           : user?.role === 'manager'
             ? 'awaiting hall manager decision'
             : user?.role === 'purchaser'
@@ -342,10 +409,10 @@ export default function Documents() {
         submittedBy: user.id,
         submittedByRole: user.role,
         fields,
-        status: user.role === 'accountant' ? 'pending_manager' : 'pending_controller',
-        reviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
-        reviewedBy: user.role === 'accountant' ? user.id : undefined,
-        reviewComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Halls Manager.' : undefined,
+        status: user.role === 'accountant' ? 'pending_halls_manager' : 'pending_accountant',
+        accountantReviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
+        accountantReviewedBy: user.role === 'accountant' ? user.id : undefined,
+        accountantComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Halls Manager.' : undefined,
         updatedAt: serverTimestamp(),
       };
       try {
@@ -357,10 +424,10 @@ export default function Documents() {
           submittedBy: user.id,
           submittedByRole: user.role,
           fields,
-          status: user.role === 'accountant' ? 'pending_manager' : 'pending_controller',
-          reviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
-          reviewedBy: user.role === 'accountant' ? user.id : undefined,
-          reviewComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Halls Manager.' : undefined,
+          status: user.role === 'accountant' ? 'pending_halls_manager' : 'pending_accountant',
+          accountantReviewedAt: user.role === 'accountant' ? new Date().toISOString() : undefined,
+          accountantReviewedBy: user.role === 'accountant' ? user.id : undefined,
+          accountantComment: user.role === 'accountant' ? 'Accountant submitted and forwarded to Halls Manager.' : undefined,
         };
         setCashRequests((prev) => [localFallback, ...prev]);
       }
@@ -424,10 +491,10 @@ export default function Documents() {
 
     try {
       await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: user.id,
-        reviewComment: comment || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
+        status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
+        accountantReviewedAt: new Date().toISOString(),
+        accountantReviewedBy: user.id,
+        accountantComment: comment || (decision === 'approve' ? 'Approved by accountant and sent to Halls Manager.' : 'Declined by accountant.'),
         updatedAt: serverTimestamp(),
       });
     } catch {
@@ -436,10 +503,10 @@ export default function Documents() {
           entry.id === requestId
             ? {
                 ...entry,
-                status: decision === 'approve' ? 'pending_manager' : 'declined_controller',
-                reviewedAt: new Date().toISOString(),
-                reviewedBy: user.id,
-                reviewComment: comment || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
+                status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
+                accountantReviewedAt: new Date().toISOString(),
+                accountantReviewedBy: user.id,
+                accountantComment: comment || (decision === 'approve' ? 'Approved by accountant and sent to Halls Manager.' : 'Declined by accountant.'),
               }
             : entry,
         ),
@@ -464,10 +531,10 @@ export default function Documents() {
 
     try {
       await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
-        status: decision === 'approve' ? 'approved_manager' : 'declined_manager',
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: user.id,
-        reviewComment: comment,
+        status: decision === 'approve' ? 'approved_halls_manager' : 'declined_halls_manager',
+        hallsManagerReviewedAt: new Date().toISOString(),
+        hallsManagerReviewedBy: user.id,
+        hallsManagerComment: comment,
         updatedAt: serverTimestamp(),
       });
     } catch {
@@ -476,14 +543,84 @@ export default function Documents() {
           entry.id === requestId
             ? {
                 ...entry,
-                status: decision === 'approve' ? 'approved_manager' : 'declined_manager',
-                reviewedAt: new Date().toISOString(),
-                reviewedBy: user.id,
-                reviewComment: comment,
+                status: decision === 'approve' ? 'approved_halls_manager' : 'declined_halls_manager',
+                hallsManagerReviewedAt: new Date().toISOString(),
+                hallsManagerReviewedBy: user.id,
+                hallsManagerComment: comment,
               }
             : entry,
         ),
       );
+    }
+  };
+
+  const handleVoucherRecording = async (requestId: string) => {
+    if (!user || user.role !== 'accountant') return;
+    const request = cashRequests.find((entry) => entry.id === requestId);
+    if (!request) return;
+    const voucherNumber = accountantComment[requestId]?.trim() ?? '';
+    if (!voucherNumber) return;
+    if (!confirmAction(`Record payment voucher ${voucherNumber} for this cash request?`)) return;
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, requestId), {
+        status: 'voucher_recorded',
+        paymentVoucherNumber: voucherNumber,
+        paymentVoucherRecordedAt: new Date().toISOString(),
+        paymentVoucherRecordedBy: user.id,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setCashRequests((prev) =>
+        prev.map((entry) =>
+          entry.id === requestId
+            ? {
+                ...entry,
+                status: 'voucher_recorded',
+                paymentVoucherNumber: voucherNumber,
+                paymentVoucherRecordedAt: new Date().toISOString(),
+                paymentVoucherRecordedBy: user.id,
+              }
+            : entry,
+        ),
+      );
+    }
+
+    try {
+      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+        formId: 'payment_voucher',
+        formTitle: 'Payment Voucher',
+        submittedAt: new Date().toISOString(),
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields: {
+          request_number: request.id,
+          voucher_number: voucherNumber,
+          payee_name: request.fields.full_name ?? '',
+          amount: request.fields.total_requested ?? '',
+          source: 'cash_request_workflow',
+        },
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setOutputs((prev) => [
+        {
+          id: `LOCAL-PV-${Date.now()}`,
+          formId: 'payment_voucher',
+          formTitle: 'Payment Voucher',
+          submittedAt: new Date().toISOString(),
+          submittedBy: user.id,
+          submittedByRole: user.role,
+          fields: {
+            request_number: request.id,
+            voucher_number: voucherNumber,
+            payee_name: request.fields.full_name ?? '',
+            amount: request.fields.total_requested ?? '',
+            source: 'cash_request_workflow',
+          },
+        },
+        ...prev,
+      ]);
     }
   };
 
@@ -737,7 +874,7 @@ export default function Documents() {
                   {formShell('cash_request', 'Cash Request Form', (
                     <>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                        Cash request submissions are routed to the accountant first, then approved requests are forwarded to the Halls Manager.
+                        Cash request submissions are routed to the accountant first. Accountant-approved requests move to the Halls Manager, and Halls Manager-approved requests return to the accountant for payment voucher capture.
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4 grid gap-3 md:grid-cols-2">
                         <input name="pef_no" className={inputClass()} placeholder="PEF No" />
@@ -847,41 +984,99 @@ export default function Documents() {
           ) : null}
 
           {user?.role === 'accountant' ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Accountant Cash Request Queue</p>
+            <div id="cash-request-log" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Accountant Cash Request Desk</p>
               <p className="mt-1 text-sm text-slate-600">
-                Review cash request forms and forward approved requests to Halls Manager.
+                First review cash requests, then record payment vouchers after Halls Manager approval.
               </p>
-              <div className="mt-3 space-y-3">
-                {pendingForController.length === 0 ? (
-                  <p className="text-sm text-slate-500">No pending cash request forms.</p>
-                ) : (
-                  pendingForController.map((entry) => (
-                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                      <p className="font-semibold text-slate-900">
-                        {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
-                      </p>
-                      <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
-                      <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
-                      <p className="text-slate-500">Details: {entry.fields.requester_declaration ?? '-'}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          className={inputClass('h-9 w-[320px]')}
-                          placeholder="Accountant comment"
-                          value={accountantComment[entry.id] ?? ''}
-                          onChange={(event) => setAccountantComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
-                        />
-                        <Button size="sm" onClick={() => void handleControllerCashDecision(entry.id, 'approve')}>
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => void handleControllerCashDecision(entry.id, 'decline')}>
-                          Decline
-                        </Button>
+              <Tabs defaultValue={accountantQueueTab} className="mt-3 space-y-4">
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTrigger value="accountant_intake">Cash Request Intake</TabsTrigger>
+                  <TabsTrigger value="voucher_capture">Payment Voucher Capture</TabsTrigger>
+                  <TabsTrigger value="voucher_register">Recorded Vouchers</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="accountant_intake" className="space-y-3">
+                  {pendingForAccountant.length === 0 ? (
+                    <p className="text-sm text-slate-500">No cash requests waiting for accountant review.</p>
+                  ) : (
+                    pendingForAccountant.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="font-semibold text-slate-900">
+                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                        </p>
+                        <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
+                        <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
+                        <p className="text-slate-500">Details: {entry.fields.requester_declaration ?? '-'}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <input
+                            className={inputClass('h-9 w-[320px]')}
+                            placeholder="Accountant comment"
+                            value={accountantComment[entry.id] ?? ''}
+                            onChange={(event) => setAccountantComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                          />
+                          <Button size="sm" onClick={() => void handleControllerCashDecision(entry.id, 'approve')}>
+                            Send to Halls Manager
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => void handleControllerCashDecision(entry.id, 'decline')}>
+                            Decline
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </TabsContent>
+
+                <TabsContent value="voucher_capture" className="space-y-3">
+                  {pendingVoucherCapture.length === 0 ? (
+                    <p className="text-sm text-slate-500">No Halls Manager-approved cash requests waiting for payment voucher entry.</p>
+                  ) : (
+                    pendingVoucherCapture.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p className="font-semibold text-slate-900">
+                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                        </p>
+                        <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
+                        <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
+                        <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
+                        <p className="text-slate-500">Halls Manager note: {entry.hallsManagerComment ?? '-'}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <input
+                            className={inputClass('h-9 w-[320px]')}
+                            placeholder="Payment voucher number"
+                            value={accountantComment[entry.id] ?? ''}
+                            onChange={(event) => setAccountantComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                          />
+                          <Button size="sm" onClick={() => void handleVoucherRecording(entry.id)}>
+                            Record Payment Voucher
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </TabsContent>
+
+                <TabsContent value="voucher_register" className="space-y-3">
+                  {recordedPaymentVouchers.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recorded payment vouchers yet.</p>
+                  ) : (
+                    recordedPaymentVouchers.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">
+                            Voucher {entry.paymentVoucherNumber ?? '-'} | {entry.fields.full_name ?? '-'}
+                          </p>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            Payment Voucher
+                          </span>
+                        </div>
+                        <p className="text-slate-600">Requested amount: TZS {entry.fields.total_requested ?? '0'}</p>
+                        <p className="text-slate-500">Recorded: {entry.paymentVoucherRecordedAt ? new Date(entry.paymentVoucherRecordedAt).toLocaleString() : '-'}</p>
+                      </div>
+                    ))
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           ) : null}
 
@@ -889,20 +1084,20 @@ export default function Documents() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Halls Manager Cash Request Decisions</p>
               <p className="mt-1 text-sm text-slate-600">
-                Review accountant-forwarded cash requests and approve or decline with reason.
+                Review accountant-cleared cash requests and approve or decline with reason before they return to accountant for payment voucher processing.
               </p>
               <div className="mt-3 space-y-3">
-                {pendingForManager.length === 0 ? (
+                {pendingForHallsManager.length === 0 ? (
                   <p className="text-sm text-slate-500">No cash requests waiting for Halls Manager.</p>
                 ) : (
-                  pendingForManager.map((entry) => (
+                  pendingForHallsManager.map((entry) => (
                     <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
                       <p className="font-semibold text-slate-900">
                         {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
                       </p>
                       <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
                       <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
-                      <p className="text-slate-500">Accountant note: {entry.reviewComment ?? '-'}</p>
+                      <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
                           className={inputClass('h-9 w-[320px]')}
@@ -977,7 +1172,7 @@ export default function Documents() {
           )}
 
           {user?.role === 'purchaser' ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div id="storekeeper-requests" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Purchaser Queue</p>
               <p className="mt-1 text-sm text-slate-600">
                 Review purchase item requests sent from Event Planner/Storekeeper.
