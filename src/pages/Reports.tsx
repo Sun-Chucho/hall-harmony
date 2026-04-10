@@ -2,27 +2,37 @@ import { useEffect, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePayments } from '@/contexts/PaymentContext';
-import { useEventFinance } from '@/contexts/EventFinanceContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
-
-interface AuditRow {
-  date: string;
-  category: string;
-  amount: number;
-  comment: string;
-  reference: string;
-}
 
 interface SavedDocumentRow {
   id: string;
   formId: string;
   formTitle: string;
   submittedAt: string;
+  submittedBy: string;
   submittedByRole: UserRole;
   fields: Record<string, string>;
+}
+
+type PurchaseItemStatus = 'pending_purchaser' | 'approved_purchaser' | 'declined_purchaser' | 'purchased';
+
+interface PurchaseItemWorkflow {
+  id: string;
+  submittedAt: string;
+  submittedBy: string;
+  submittedByRole: UserRole;
+  fields: Record<string, string>;
+  status: PurchaseItemStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewComment?: string;
+  purchaseReference?: string;
+  purchaseRecordedAt?: string;
+  purchaseRecordedBy?: string;
+  purchaseComment?: string;
 }
 
 function isInLastDays(iso: string, days: number): boolean {
@@ -53,13 +63,6 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-function exportAuditRowsCsv(filename: string, rows: AuditRow[]) {
-  downloadCsv(filename, [
-    ['Date', 'Category', 'Amount (TZS)', 'Comment', 'Reference'],
-    ...rows.map((row) => [row.date, row.category, row.amount, row.comment, row.reference]),
-  ]);
-}
-
 function exportSavedDocumentsCsv(filename: string, rows: SavedDocumentRow[]) {
   downloadCsv(filename, [
     ['Date', 'Form', 'Submitted By Role', 'Summary', 'Reference'],
@@ -73,49 +76,23 @@ function exportSavedDocumentsCsv(filename: string, rows: SavedDocumentRow[]) {
   ]);
 }
 
-function toTableRows(rows: AuditRow[], exportFilename: string) {
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button size="sm" variant="outline" onClick={() => exportAuditRowsCsv(exportFilename, rows)}>
-          Export CSV
-        </Button>
-      </div>
-      <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
-          <tr className="border-b border-slate-200">
-            <th className="px-2 py-2">Date</th>
-            <th className="px-2 py-2">Category</th>
-            <th className="px-2 py-2">Amount (TZS)</th>
-            <th className="px-2 py-2">Comment</th>
-            <th className="px-2 py-2">Reference</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td className="px-2 py-3 text-slate-600" colSpan={5}>No records for this period.</td>
-            </tr>
-          ) : (
-            rows.map((row, index) => (
-              <tr key={`${row.reference}-${index}`} className="border-b border-slate-100">
-                <td className="px-2 py-2 text-slate-700">{new Date(row.date).toLocaleString()}</td>
-                <td className="px-2 py-2 text-slate-700">{row.category}</td>
-                <td className="px-2 py-2 text-slate-700">{row.amount.toLocaleString()}</td>
-                <td className="px-2 py-2 text-slate-700">{row.comment || '-'}</td>
-                <td className="px-2 py-2 text-slate-700">{row.reference}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  );
+function exportPurchaseRowsCsv(filename: string, rows: PurchaseItemWorkflow[]) {
+  downloadCsv(filename, [
+    ['Request Date', 'Requested By', 'Status', 'Total Amount', 'Review Comment', 'Purchase Reference', 'Purchase Comment', 'Reference'],
+    ...rows.map((row) => [
+      row.submittedAt,
+      row.fields.requested_by ?? '',
+      row.status,
+      row.fields.total_amount ?? '',
+      row.reviewComment ?? '',
+      row.purchaseReference ?? '',
+      row.purchaseComment ?? '',
+      row.id,
+    ]),
+  ]);
 }
 
-function toSavedDocumentsTable(rows: SavedDocumentRow[], exportFilename: string) {
+function toSavedDocumentsTable(rows: SavedDocumentRow[], exportFilename: string, emptyText: string) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -124,47 +101,94 @@ function toSavedDocumentsTable(rows: SavedDocumentRow[], exportFilename: string)
         </Button>
       </div>
       <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] text-left text-sm">
-        <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
-          <tr className="border-b border-slate-200">
-            <th className="px-2 py-2">Date</th>
-            <th className="px-2 py-2">Form</th>
-            <th className="px-2 py-2">Submitted By Role</th>
-            <th className="px-2 py-2">Summary</th>
-            <th className="px-2 py-2">Reference</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td className="px-2 py-3 text-slate-600" colSpan={5}>No saved document outputs yet.</td>
+        <table className="w-full min-w-[920px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+            <tr className="border-b border-slate-200">
+              <th className="px-2 py-2">Date</th>
+              <th className="px-2 py-2">Form</th>
+              <th className="px-2 py-2">Submitted By Role</th>
+              <th className="px-2 py-2">Summary</th>
+              <th className="px-2 py-2">Reference</th>
             </tr>
-          ) : (
-            rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-100">
-                <td className="px-2 py-2 text-slate-700">{new Date(row.submittedAt).toLocaleString()}</td>
-                <td className="px-2 py-2 text-slate-700">{row.formTitle}</td>
-                <td className="px-2 py-2 text-slate-700">{ROLE_LABELS[row.submittedByRole] ?? row.submittedByRole}</td>
-                <td className="px-2 py-2 text-slate-700">
-                  {Object.entries(row.fields).slice(0, 3).map(([key, value]) => `${key}: ${value}`).join(' | ') || '-'}
-                </td>
-                <td className="px-2 py-2 text-slate-700">{row.id}</td>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td className="px-2 py-3 text-slate-600" colSpan={5}>{emptyText}</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id} className="border-b border-slate-100">
+                  <td className="px-2 py-2 text-slate-700">{new Date(row.submittedAt).toLocaleString()}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.formTitle}</td>
+                  <td className="px-2 py-2 text-slate-700">{ROLE_LABELS[row.submittedByRole] ?? row.submittedByRole}</td>
+                  <td className="px-2 py-2 text-slate-700">
+                    {Object.entries(row.fields).slice(0, 3).map(([key, value]) => `${key}: ${value}`).join(' | ') || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-slate-700">{row.id}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function toPurchaseTable(rows: PurchaseItemWorkflow[], exportFilename: string, emptyText: string) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => exportPurchaseRowsCsv(exportFilename, rows)}>
+          Export CSV
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+            <tr className="border-b border-slate-200">
+              <th className="px-2 py-2">Request Date</th>
+              <th className="px-2 py-2">Requested By</th>
+              <th className="px-2 py-2">Status</th>
+              <th className="px-2 py-2">Total Amount</th>
+              <th className="px-2 py-2">Review</th>
+              <th className="px-2 py-2">Purchase Ref</th>
+              <th className="px-2 py-2">Purchase Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td className="px-2 py-3 text-slate-600" colSpan={7}>{emptyText}</td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id} className="border-b border-slate-100">
+                  <td className="px-2 py-2 text-slate-700">{new Date(row.submittedAt).toLocaleString()}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.fields.requested_by ?? '-'}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.status.replace(/_/g, ' ')}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.fields.total_amount ?? '-'}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.reviewComment ?? '-'}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.purchaseReference ?? '-'}</td>
+                  <td className="px-2 py-2 text-slate-700">{row.purchaseComment ?? '-'}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
 export default function Reports() {
-  const { payments } = usePayments();
-  const { cashTransfers, mdTransfers, logs } = useEventFinance();
+  const { user } = useAuth();
   const [savedDocuments, setSavedDocuments] = useState<SavedDocumentRow[]>([]);
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItemWorkflow[]>([]);
 
   useEffect(() => {
+    if (!user) return undefined;
     const q = query(collection(db, 'document_form_outputs'), orderBy('submittedAt', 'desc'));
     const unsub = onSnapshot(
       q,
@@ -178,89 +202,105 @@ export default function Reports() {
         }).filter((entry) => Boolean(entry.formId && entry.formTitle && entry.submittedAt));
         setSavedDocuments(next);
       },
-      () => {
-        setSavedDocuments([]);
-      },
+      () => setSavedDocuments([]),
     );
     return () => unsub();
-  }, []);
+  }, [user]);
 
-  const auditRows = useMemo<AuditRow[]>(() => {
-    const paymentRows: AuditRow[] = payments.map((entry) => ({
-      date: entry.receivedAt,
-      category: 'Payment Received',
-      amount: entry.amount,
-      comment: entry.notes,
-      reference: `${entry.bookingId} / ${entry.referenceNumber}`,
-    }));
-
-    const cashMoveRows: AuditRow[] = cashTransfers.map((entry) => ({
-      date: entry.receivedAt ?? entry.sentAt ?? entry.requestedAt,
-      category: `Cash Movement (${entry.status.replace(/_/g, ' ')})`,
-      amount: entry.approvedAmount || entry.requestedAmount,
-      comment: [entry.requestComment, entry.decisionComment, entry.receiveComment].filter(Boolean).join(' | '),
-      reference: entry.id,
-    }));
-
-    const mdRows: AuditRow[] = mdTransfers.map((entry) => ({
-      date: entry.transferredAt,
-      category: 'Managing Director Transfer',
-      amount: entry.amount,
-      comment: entry.notes,
-      reference: entry.reference,
-    }));
-
-    const logRows: AuditRow[] = logs.map((entry) => ({
-      date: entry.timestamp,
-      category: `Audit: ${entry.action}`,
-      amount: 0,
-      comment: entry.detail,
-      reference: entry.referenceId,
-    }));
-
-    return [...paymentRows, ...cashMoveRows, ...mdRows, ...logRows].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  useEffect(() => {
+    if (!user || user.role !== 'purchaser') return undefined;
+    const q = query(collection(db, 'purchase_item_workflow'), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = snapshot.docs.map((entry) => {
+          const data = entry.data() as Omit<PurchaseItemWorkflow, 'id'>;
+          return { id: entry.id, ...data } as PurchaseItemWorkflow;
+        });
+        setPurchaseItems(next);
+      },
+      () => setPurchaseItems([]),
     );
-  }, [cashTransfers, logs, mdTransfers, payments]);
+    return () => unsub();
+  }, [user]);
 
-  const dailyRows = auditRows.filter((row) => row.date.slice(0, 10) === new Date().toISOString().slice(0, 10));
-  const weeklyRows = auditRows.filter((row) => isInLastDays(row.date, 7));
-  const monthlyRows = auditRows.filter((row) => isInLastDays(row.date, 30));
-  const allTimeRows = auditRows;
-  const savedDocumentRows = useMemo(
-    () => [...savedDocuments].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()),
-    [savedDocuments],
+  const myDocuments = useMemo(
+    () => savedDocuments
+      .filter((entry) => entry.submittedBy === user?.id)
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()),
+    [savedDocuments, user?.id],
   );
 
-  const stats = [
-    { title: 'Daily Records', value: `${dailyRows.length}`, description: 'today' },
-    { title: 'Weekly Records', value: `${weeklyRows.length}`, description: 'last 7 days' },
-    { title: 'Monthly Records', value: `${monthlyRows.length}`, description: 'last 30 days' },
-    { title: 'All Time Records', value: `${allTimeRows.length}`, description: 'full audit history' },
-  ];
+  const dailyRows = myDocuments.filter((row) => row.submittedAt.slice(0, 10) === new Date().toISOString().slice(0, 10));
+  const weeklyRows = myDocuments.filter((row) => isInLastDays(row.submittedAt, 7));
+  const monthlyRows = myDocuments.filter((row) => isInLastDays(row.submittedAt, 30));
+
+  const purchaserRequests = useMemo(
+    () => purchaseItems.filter((entry) => entry.status !== 'purchased'),
+    [purchaseItems],
+  );
+  const purchaserCompleted = useMemo(
+    () => purchaseItems.filter((entry) => entry.status === 'purchased'),
+    [purchaseItems],
+  );
+
+  const stats = user?.role === 'purchaser'
+    ? [
+        { title: 'My Documents', value: `${myDocuments.length}`, description: 'documents saved by purchaser' },
+        { title: 'Requests Received', value: `${purchaserRequests.length}`, description: 'from storekeeper/event planner' },
+        { title: 'Purchases Done', value: `${purchaserCompleted.length}`, description: 'completed purchase records' },
+        { title: 'Monthly Documents', value: `${monthlyRows.length}`, description: 'last 30 days' },
+      ]
+    : [
+        { title: 'My Documents', value: `${myDocuments.length}`, description: 'documents saved by this user' },
+        { title: 'Today', value: `${dailyRows.length}`, description: 'documents saved today' },
+        { title: 'Last 7 Days', value: `${weeklyRows.length}`, description: 'recent document activity' },
+        { title: 'Last 30 Days', value: `${monthlyRows.length}`, description: 'monthly document activity' },
+      ];
 
   return (
     <ManagementPageTemplate
       pageTitle="Reports"
-      subtitle="Audit table of operational activity grouped by daily, weekly, monthly, and all time periods with CSV export. Saved Documents shows outputs saved from the Documents section."
+      subtitle={
+        user?.role === 'purchaser'
+          ? 'Purchaser reports only: requests received from Storekeeper/Event Planner, completed purchases, and your own saved document records.'
+          : 'Personal document reports only. This page no longer shows general system-wide operational activity.'
+      }
       stats={stats}
       sections={[]}
       action={
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <Tabs defaultValue="daily" className="space-y-4">
-            <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="daily">Daily</TabsTrigger>
-              <TabsTrigger value="weekly">Weekly</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
-              <TabsTrigger value="all-time">All Time</TabsTrigger>
-              <TabsTrigger value="saved-documents">Saved Documents</TabsTrigger>
-            </TabsList>
-            <TabsContent value="daily">{toTableRows(dailyRows, 'reports-daily.csv')}</TabsContent>
-            <TabsContent value="weekly">{toTableRows(weeklyRows, 'reports-weekly.csv')}</TabsContent>
-            <TabsContent value="monthly">{toTableRows(monthlyRows, 'reports-monthly.csv')}</TabsContent>
-            <TabsContent value="all-time">{toTableRows(allTimeRows, 'reports-all-time.csv')}</TabsContent>
-            <TabsContent value="saved-documents">{toSavedDocumentsTable(savedDocumentRows, 'reports-saved-documents.csv')}</TabsContent>
-          </Tabs>
+          {user?.role === 'purchaser' ? (
+            <Tabs defaultValue="requests-received" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="requests-received">Requests Received</TabsTrigger>
+                <TabsTrigger value="purchases-done">Purchases Done</TabsTrigger>
+                <TabsTrigger value="my-documents">My Documents</TabsTrigger>
+              </TabsList>
+              <TabsContent value="requests-received">
+                {toPurchaseTable(purchaserRequests, 'purchaser-requests-received.csv', 'No request records assigned to purchaser yet.')}
+              </TabsContent>
+              <TabsContent value="purchases-done">
+                {toPurchaseTable(purchaserCompleted, 'purchaser-purchases-done.csv', 'No completed purchases recorded yet.')}
+              </TabsContent>
+              <TabsContent value="my-documents">
+                {toSavedDocumentsTable(myDocuments, 'purchaser-my-documents.csv', 'No purchaser document records yet.')}
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <Tabs defaultValue="daily" className="space-y-4">
+              <TabsList className="w-full justify-start overflow-x-auto">
+                <TabsTrigger value="daily">Daily</TabsTrigger>
+                <TabsTrigger value="weekly">Weekly</TabsTrigger>
+                <TabsTrigger value="monthly">Monthly</TabsTrigger>
+                <TabsTrigger value="all-time">All Time</TabsTrigger>
+              </TabsList>
+              <TabsContent value="daily">{toSavedDocumentsTable(dailyRows, 'reports-daily-documents.csv', 'No documents saved today.')}</TabsContent>
+              <TabsContent value="weekly">{toSavedDocumentsTable(weeklyRows, 'reports-weekly-documents.csv', 'No documents saved in the last 7 days.')}</TabsContent>
+              <TabsContent value="monthly">{toSavedDocumentsTable(monthlyRows, 'reports-monthly-documents.csv', 'No documents saved in the last 30 days.')}</TabsContent>
+              <TabsContent value="all-time">{toSavedDocumentsTable(myDocuments, 'reports-my-documents.csv', 'No personal document records yet.')}</TabsContent>
+            </Tabs>
+          )}
         </div>
       }
     />

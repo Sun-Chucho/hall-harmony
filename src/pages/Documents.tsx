@@ -64,7 +64,7 @@ interface CashRequestWorkflow {
   paymentVoucherRecordedBy?: string;
 }
 
-type PurchaseItemStatus = 'pending_purchaser' | 'approved_purchaser' | 'declined_purchaser';
+type PurchaseItemStatus = 'pending_purchaser' | 'approved_purchaser' | 'declined_purchaser' | 'purchased';
 
 interface PurchaseItemWorkflow {
   id: string;
@@ -76,6 +76,10 @@ interface PurchaseItemWorkflow {
   reviewedAt?: string;
   reviewedBy?: string;
   reviewComment?: string;
+  purchaseReference?: string;
+  purchaseRecordedAt?: string;
+  purchaseRecordedBy?: string;
+  purchaseComment?: string;
 }
 
 const DOCUMENT_OUTPUTS_COLLECTION = 'document_form_outputs';
@@ -152,6 +156,7 @@ export default function Documents() {
   const [accountantComment, setAccountantComment] = useState<Record<string, string>>({});
   const [managerComment, setManagerComment] = useState<Record<string, string>>({});
   const [purchaserComment, setPurchaserComment] = useState<Record<string, string>>({});
+  const [purchaseReference, setPurchaseReference] = useState<Record<string, string>>({});
   const requestedQueueView = searchParams.get('queue');
 
   useEffect(() => {
@@ -297,6 +302,8 @@ export default function Documents() {
         ? 'cash-request-log'
         : requestedQueueView === 'storekeeper-requests'
           ? 'storekeeper-requests'
+          : requestedQueueView === 'purchases-done'
+            ? 'storekeeper-requests'
           : requestedQueueView === 'voucher-capture' || requestedQueueView === 'voucher-register'
             ? 'cash-request-log'
             : null;
@@ -342,12 +349,14 @@ export default function Documents() {
   const pendingVoucherCapture = cashRequests.filter((entry) => entry.status === 'approved_halls_manager' && !entry.paymentVoucherNumber);
   const recordedPaymentVouchers = cashRequests.filter((entry) => entry.status === 'voucher_recorded');
   const pendingForPurchaser = purchaseItems.filter((entry) => entry.status === 'pending_purchaser');
+  const purchasesDone = purchaseItems.filter((entry) => entry.status === 'purchased');
   const accountantQueueTab =
     requestedQueueView === 'voucher-capture'
       ? 'voucher_capture'
       : requestedQueueView === 'voucher-register'
         ? 'voucher_register'
         : 'accountant_intake';
+  const purchaserQueueTab = requestedQueueView === 'purchases-done' ? 'purchases_done' : 'requests_received';
 
   const stats = [
     { title: 'Fillable Forms', value: String(myForms), description: 'forms assigned to your role' },
@@ -653,6 +662,79 @@ export default function Documents() {
             : entry,
         ),
       );
+    }
+  };
+
+  const handlePurchaseDone = async (requestId: string) => {
+    if (!user || user.role !== 'purchaser') return;
+    const request = purchaseItems.find((entry) => entry.id === requestId);
+    if (!request) return;
+    const reference = purchaseReference[requestId]?.trim() ?? '';
+    const comment = purchaserComment[requestId]?.trim() ?? '';
+    if (!reference) return;
+    if (!confirmAction(`Record purchase ${reference} for this request?`)) return;
+
+    try {
+      await updateDoc(doc(db, PURCHASE_ITEM_WORKFLOW_COLLECTION, requestId), {
+        status: 'purchased',
+        purchaseReference: reference,
+        purchaseComment: comment || 'Purchase completed by purchaser.',
+        purchaseRecordedAt: new Date().toISOString(),
+        purchaseRecordedBy: user.id,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setPurchaseItems((prev) =>
+        prev.map((entry) =>
+          entry.id === requestId
+            ? {
+                ...entry,
+                status: 'purchased',
+                purchaseReference: reference,
+                purchaseComment: comment || 'Purchase completed by purchaser.',
+                purchaseRecordedAt: new Date().toISOString(),
+                purchaseRecordedBy: user.id,
+              }
+            : entry,
+        ),
+      );
+    }
+
+    try {
+      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+        formId: 'purchase_items',
+        formTitle: 'Purchase Done Record',
+        submittedAt: new Date().toISOString(),
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields: {
+          request_number: request.id,
+          purchase_reference: reference,
+          requested_by: request.fields.requested_by ?? '',
+          total_amount: request.fields.total_amount ?? '',
+          purchase_comment: comment || 'Purchase completed by purchaser.',
+        },
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      setOutputs((prev) => [
+        {
+          id: `LOCAL-PD-${Date.now()}`,
+          formId: 'purchase_items',
+          formTitle: 'Purchase Done Record',
+          submittedAt: new Date().toISOString(),
+          submittedBy: user.id,
+          submittedByRole: user.role,
+          fields: {
+            request_number: request.id,
+            purchase_reference: reference,
+            requested_by: request.fields.requested_by ?? '',
+            total_amount: request.fields.total_amount ?? '',
+            purchase_comment: comment || 'Purchase completed by purchaser.',
+          },
+        },
+        ...prev,
+      ]);
     }
   };
 
@@ -1177,45 +1259,94 @@ export default function Documents() {
               <p className="mt-1 text-sm text-slate-600">
                 Review purchase item requests sent from Event Planner/Storekeeper.
               </p>
-              <div className="mt-3 space-y-3">
-                {purchaseItems.length === 0 ? (
-                  <p className="text-sm text-slate-500">No purchase item requests yet.</p>
-                ) : (
-                  purchaseItems.map((entry) => (
-                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-900">
-                          {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
-                        </p>
-                        <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                          {entry.status.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
-                      <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
-                      <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          className={inputClass('h-9 w-[320px]')}
-                          placeholder="Purchaser comment"
-                          value={purchaserComment[entry.id] ?? ''}
-                          onChange={(event) => setPurchaserComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
-                        />
-                        {entry.status === 'pending_purchaser' ? (
-                          <>
-                            <Button size="sm" onClick={() => void handlePurchaserDecision(entry.id, 'approve')}>
-                              Approve
+              <Tabs defaultValue={purchaserQueueTab} className="mt-3 space-y-4">
+                <TabsList className="w-full justify-start overflow-x-auto">
+                  <TabsTrigger value="requests_received">Requests Received</TabsTrigger>
+                  <TabsTrigger value="purchases_done">Purchases Done</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="requests_received" className="space-y-3">
+                  {purchaseItems.length === 0 ? (
+                    <p className="text-sm text-slate-500">No purchase item requests yet.</p>
+                  ) : (
+                    purchaseItems.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">
+                            {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
+                          </p>
+                          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {entry.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
+                        <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
+                        <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <input
+                            className={inputClass('h-9 w-[320px]')}
+                            placeholder="Purchaser comment"
+                            value={purchaserComment[entry.id] ?? ''}
+                            onChange={(event) => setPurchaserComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                          />
+                          {entry.status === 'pending_purchaser' ? (
+                            <>
+                              <Button size="sm" onClick={() => void handlePurchaserDecision(entry.id, 'approve')}>
+                                Accept Request
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => void handlePurchaserDecision(entry.id, 'decline')}>
+                                Decline
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                        {entry.status === 'approved_purchaser' ? (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+                            <input
+                              className={inputClass('h-9 w-[220px]')}
+                              placeholder="Purchase reference"
+                              value={purchaseReference[entry.id] ?? ''}
+                              onChange={(event) => setPurchaseReference((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                            />
+                            <input
+                              className={inputClass('h-9 w-[320px]')}
+                              placeholder="Purchase completion note"
+                              value={purchaserComment[entry.id] ?? ''}
+                              onChange={(event) => setPurchaserComment((prev) => ({ ...prev, [entry.id]: event.target.value }))}
+                            />
+                            <Button size="sm" onClick={() => void handlePurchaseDone(entry.id)}>
+                              Record Purchase Done
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => void handlePurchaserDecision(entry.id, 'decline')}>
-                              Decline
-                            </Button>
-                          </>
+                          </div>
                         ) : null}
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </TabsContent>
+
+                <TabsContent value="purchases_done" className="space-y-3">
+                  {purchasesDone.length === 0 ? (
+                    <p className="text-sm text-slate-500">No completed purchase records yet.</p>
+                  ) : (
+                    purchasesDone.map((entry) => (
+                      <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-900">
+                            Purchase {entry.purchaseReference ?? '-'} | {entry.fields.requested_by ?? '-'}
+                          </p>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            Purchase Done
+                          </span>
+                        </div>
+                        <p className="text-slate-600">Request amount: TZS {entry.fields.total_amount ?? '0'}</p>
+                        <p className="text-slate-600">Request notes: {entry.fields.request_notes ?? '-'}</p>
+                        <p className="text-slate-500">Completion note: {entry.purchaseComment ?? '-'}</p>
+                        <p className="text-slate-500">Recorded: {entry.purchaseRecordedAt ? new Date(entry.purchaseRecordedAt).toLocaleString() : '-'}</p>
+                      </div>
+                    ))
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           ) : null}
 

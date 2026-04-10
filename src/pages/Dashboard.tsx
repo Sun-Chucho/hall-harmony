@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { usePayments } from '@/contexts/PaymentContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { useInventory } from '@/contexts/InventoryContext';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Users } from 'lucide-react';
 
@@ -39,6 +41,24 @@ export default function Dashboard() {
   const { allocations, logs } = useEventFinance();
   const { items } = useInventory();
   const navigate = useNavigate();
+  const [purchaseStats, setPurchaseStats] = useState({ received: 0, completed: 0 });
+
+  useEffect(() => {
+    if (user?.role !== 'purchaser') return undefined;
+    const q = query(collection(db, 'purchase_item_workflow'), orderBy('submittedAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const rows = snapshot.docs.map((item) => item.data() as { status?: string });
+        setPurchaseStats({
+          received: rows.filter((item) => item.status !== 'purchased').length,
+          completed: rows.filter((item) => item.status === 'purchased').length,
+        });
+      },
+      () => setPurchaseStats({ received: 0, completed: 0 }),
+    );
+    return () => unsub();
+  }, [user?.role]);
 
   const metrics = useMemo(() => {
     const todayBookings = bookings.filter((item) => item.date === new Date().toISOString().slice(0, 10)).length;
@@ -127,10 +147,10 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Stock-related actions', icon: Users },
       ],
       purchaser: [
-        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'items at or below reorder level', icon: AlertCircle },
-        { title: 'Out of Stock', value: String(metrics.criticalLowStockItems), hint: 'items with zero balance', icon: Clock },
-        { title: 'Open Allocations', value: String(metrics.openAllocations), hint: 'procurement demand visibility', icon: Calendar },
-        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'approval and finance trail', icon: CheckCircle2 },
+        { title: 'Requests Received', value: String(purchaseStats.received), hint: 'storekeeper and event planner requests', icon: AlertCircle },
+        { title: 'Purchases Done', value: String(purchaseStats.completed), hint: 'completed purchase records', icon: CheckCircle2 },
+        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'inventory visibility only', icon: Clock },
+        { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'procurement workflow trail', icon: Calendar },
       ],
       accountant: [
         { title: 'Total Received', value: formatTZS(metrics.totalReceived), hint: 'All recorded payments', icon: DollarSign },
@@ -173,8 +193,9 @@ export default function Dashboard() {
         ]
     : user.role === 'purchaser'
       ? [
-          { label: 'Inventory', path: '/rentals' },
-          { label: 'Documents', path: '/documents' },
+          { label: 'Requests Received', path: '/documents?queue=storekeeper-requests' },
+          { label: 'Purchases Done', path: '/documents?queue=purchases-done' },
+          { label: 'Reports', path: '/reports' },
           { label: 'Settings', path: '/settings' },
         ]
       : user.role === 'accountant'

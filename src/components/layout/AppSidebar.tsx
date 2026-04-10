@@ -186,9 +186,8 @@ export function AppSidebar() {
 
   const purchaserNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { title: 'Inventory', icon: Car, path: '/rentals' },
-    { title: 'Storekeeper Requests', icon: FileText, path: '/documents?queue=storekeeper-requests' },
-    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Requests Received', icon: FileText, path: '/documents?queue=storekeeper-requests' },
+    { title: 'Purchases Done', icon: FileText, path: '/documents?queue=purchases-done' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
