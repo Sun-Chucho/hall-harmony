@@ -161,6 +161,22 @@ function serialHeader(title: string) {
   );
 }
 
+function renderFieldsList(fields: Record<string, string>) {
+  const visible = Object.entries(fields).filter(([_, v]) => v && v.trim() !== '');
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-2 text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
+      <div className="grid gap-1 md:grid-cols-2 max-h-[250px] overflow-y-auto pr-2">
+        {visible.map(([key, value]) => (
+          <p key={key} className="break-words">
+            <span className="font-semibold capitalize text-slate-900">{key.replace(/_/g, ' ')}:</span> {value}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Documents() {
   const { user } = useAuth();
   const { sendManagerAlert } = useMessages();
@@ -658,6 +674,9 @@ export default function Documents() {
           voucher_number: voucherNumber,
           payee_name: request.fields.full_name ?? '',
           amount: request.fields.total_requested ?? '',
+          description: `Voucher for Cash Request workflow. Requester: ${request.fields.full_name ?? 'N/A'}`,
+          department: request.fields.designation ?? '',
+          date: new Date().toISOString().slice(0, 10),
           source: 'cash_request_workflow',
         },
         updatedAt: serverTimestamp(),
@@ -676,6 +695,9 @@ export default function Documents() {
             voucher_number: voucherNumber,
             payee_name: request.fields.full_name ?? '',
             amount: request.fields.total_requested ?? '',
+            description: `Voucher for Cash Request workflow. Requester: ${request.fields.full_name ?? 'N/A'}`,
+            department: request.fields.designation ?? '',
+            date: new Date().toISOString().slice(0, 10),
             source: 'cash_request_workflow',
           },
         },
@@ -1207,9 +1229,7 @@ export default function Documents() {
                         <p className="font-semibold text-slate-900">
                           {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
                         </p>
-                        <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
-                        <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
-                        <p className="text-slate-500">Details: {entry.fields.requester_declaration ?? '-'}</p>
+                        {renderFieldsList(entry.fields)}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <input
                             className={inputClass('h-9 w-[320px]')}
@@ -1238,10 +1258,9 @@ export default function Documents() {
                         <p className="font-semibold text-slate-900">
                           {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
                         </p>
-                        <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
-                        <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
                         <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
                         <p className="text-slate-500">Halls Manager note: {entry.hallsManagerComment ?? '-'}</p>
+                        {renderFieldsList(entry.fields)}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <input
                             className={inputClass('h-9 w-[320px]')}
@@ -1333,10 +1352,7 @@ export default function Documents() {
                           pending accountant
                         </span>
                       </div>
-                      <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
-                      <p className="text-slate-600">Department: {entry.fields.department ?? '-'}</p>
-                      <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
-                      <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
+                      {renderFieldsList(entry.fields)}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
                           className={inputClass('h-9 w-[320px]')}
@@ -1373,9 +1389,8 @@ export default function Documents() {
                       <p className="font-semibold text-slate-900">
                         {ROLE_LABELS[entry.submittedByRole]} | {new Date(entry.submittedAt).toLocaleString()}
                       </p>
-                      <p className="text-slate-600">Requested: TZS {entry.fields.total_requested ?? '0'}</p>
-                      <p className="text-slate-600">Requester: {entry.fields.full_name ?? '-'}</p>
                       <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
+                      {renderFieldsList(entry.fields)}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <input
                           className={inputClass('h-9 w-[320px]')}
@@ -1438,7 +1453,7 @@ export default function Documents() {
                       {new Date(entry.submittedAt).toLocaleString()} | {ROLE_LABELS[entry.submittedByRole]}
                     </p>
                     <div className="mt-2 grid gap-1 text-xs text-slate-700 md:grid-cols-2">
-                      {Object.entries(entry.fields).slice(0, 8).map(([key, value]) => (
+                      {Object.entries(entry.fields).filter(([_, v]) => v).map(([key, value]) => (
                         <p key={key}><span className="font-semibold">{key.replace(/_/g, ' ')}:</span> {value}</p>
                       ))}
                     </div>
@@ -1484,10 +1499,8 @@ export default function Documents() {
                                   {entry.status.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
-                              <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
                               <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
-                              <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
+                              {renderFieldsList(entry.fields)}
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <input
                                   className={inputClass('h-9 w-[320px]')}
@@ -1539,10 +1552,8 @@ export default function Documents() {
                                   {entry.status.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              <p className="text-slate-600">Requested by: {entry.fields.requested_by ?? '-'}</p>
-                              <p className="text-slate-600">Total amount: TZS {entry.fields.total_amount ?? '0'}</p>
                               <p className="text-slate-500">Accountant note: {entry.accountantComment ?? '-'}</p>
-                              <p className="text-slate-500">Notes: {entry.fields.request_notes ?? '-'}</p>
+                              {renderFieldsList(entry.fields)}
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <input
                                   className={inputClass('h-9 w-[320px]')}
