@@ -199,6 +199,7 @@ export function AppSidebar() {
     { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
     { title: 'Documents', icon: FileText, path: '/documents' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   const purchaserNavItems: NavItem[] = [

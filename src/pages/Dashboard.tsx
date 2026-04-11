@@ -13,16 +13,16 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
-  DOCUMENT_OUTPUTS_COLLECTION,
   PURCHASE_REQUEST_WORKFLOW_COLLECTION,
   CashRequestWorkflow,
-  DocumentOutput,
   PurchaseRequestWorkflow,
+  getCashRequestStatusLabel,
   normalizeCashRequest,
+  parseCurrencyAmount,
   normalizePurchaseRequest,
 } from '@/lib/requestWorkflows';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
-import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Users } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Package, Users } from 'lucide-react';
 
 interface StatCard {
   title: string;
@@ -44,6 +44,10 @@ function isTodayIso(value: string): boolean {
   return value.slice(0, 10) === new Date().toISOString().slice(0, 10);
 }
 
+function isClosedCashRequest(status: CashRequestWorkflow['currentStatus']): boolean {
+  return status === 'completed' || status === 'declined';
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { bookings } = useBookings();
@@ -55,13 +59,11 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
-  const [outputs, setOutputs] = useState<DocumentOutput[]>([]);
 
   useEffect(() => {
     if (!user) {
       setCashRequests([]);
       setPurchaseRequests([]);
-      setOutputs([]);
       return undefined;
     }
 
@@ -75,16 +77,10 @@ export default function Dashboard() {
       (snapshot) => setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() }))),
       () => setPurchaseRequests([]),
     );
-    const outputsUnsub = onSnapshot(
-      query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) }))),
-      () => setOutputs([]),
-    );
 
     return () => {
       cashUnsub();
       purchaseUnsub();
-      outputsUnsub();
     };
   }, [user]);
 
@@ -117,14 +113,14 @@ export default function Dashboard() {
     const lowStockItems = items.filter((item) => item.currentQuantity <= item.reorderLevel).length;
     const criticalLowStockItems = items.filter((item) => item.currentQuantity === 0).length;
     const recentActivityCount = auditLog.length + logs.length;
+    const inventoryItems = items.length;
     const myCashRequests = cashRequests.filter((item) => item.submittedBy === user?.id).length;
-    const pendingCashRequests = cashRequests.filter((item) => item.currentStatus !== 'completed' && item.currentStatus !== 'declined').length;
+    const pendingCashRequests = cashRequests.filter((item) => !isClosedCashRequest(item.currentStatus)).length;
     const completedCashRequests = cashRequests.filter((item) => item.currentStatus === 'completed').length;
     const pendingCashierRequests = cashRequests.filter((item) => item.currentStatus === 'pending_cashier').length;
     const myPurchaseRequests = purchaseRequests.filter((item) => item.submittedBy === user?.id).length;
     const pendingPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'pending_purchaser').length;
     const completedPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'purchase_done').length;
-    const paymentVouchers = outputs.filter((item) => item.formId === 'payment_voucher').length;
     return {
       todayBookings,
       pendingBookings,
@@ -140,6 +136,7 @@ export default function Dashboard() {
       lowStockItems,
       criticalLowStockItems,
       recentActivityCount,
+      inventoryItems,
       myCashRequests,
       pendingCashRequests,
       completedCashRequests,
@@ -147,9 +144,8 @@ export default function Dashboard() {
       myPurchaseRequests,
       pendingPurchaseRequests,
       completedPurchaseRequests,
-      paymentVouchers,
     };
-  }, [allocations, approvals, auditLog.length, bookings, cashRequests, items, logs.length, outputs, payments, purchaseRequests, user?.id]);
+  }, [allocations, approvals, auditLog.length, bookings, cashRequests, items, logs.length, payments, purchaseRequests, user?.id]);
 
   const statsByRole = useMemo<Record<UserRole, StatCard[]>>(
     () => ({
@@ -203,9 +199,9 @@ export default function Dashboard() {
       ],
       accountant: [
         { title: 'Pending Cash Requests', value: String(metrics.pendingCashRequests), hint: 'requests needing accountant or downstream action', icon: AlertCircle },
-        { title: 'Payment Vouchers', value: String(metrics.paymentVouchers), hint: 'voucher records sent to accountant', icon: Calendar },
+        { title: 'Inventory Items', value: String(metrics.inventoryItems), hint: 'inventory records visible to accountant', icon: Package },
+        { title: 'Low Stock Alerts', value: String(metrics.lowStockItems), hint: 'items at or below reorder level', icon: Clock },
         { title: 'Completed Requests', value: String(metrics.completedCashRequests), hint: 'cash requests fully processed', icon: CheckCircle2 },
-        { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Clock },
       ],
     }),
     [items.length, metrics, myBookings.length, unreadCount],
@@ -217,6 +213,23 @@ export default function Dashboard() {
   const recentBookings = [...bookings]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
+  const recentCashRequests = [...cashRequests]
+    .sort((a, b) => {
+      const aClosed = isClosedCashRequest(a.currentStatus);
+      const bClosed = isClosedCashRequest(b.currentStatus);
+      if (aClosed !== bClosed) return aClosed ? 1 : -1;
+      return b.submittedAt.localeCompare(a.submittedAt);
+    })
+    .slice(0, 6);
+  const inventoryWatchlist = [...items]
+    .sort((a, b) => {
+      const aLow = a.currentQuantity <= a.reorderLevel;
+      const bLow = b.currentQuantity <= b.reorderLevel;
+      if (aLow !== bLow) return aLow ? -1 : 1;
+      if (a.currentQuantity !== b.currentQuantity) return a.currentQuantity - b.currentQuantity;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 6);
 
   const quickLinks = user.role === 'manager'
     ? [
@@ -249,6 +262,7 @@ export default function Dashboard() {
         ]
       : user.role === 'accountant'
         ? [
+            { label: 'Inventory', path: '/rentals' },
             { label: 'Cash Requests', path: '/cash-requests' },
             { label: 'Payment Vouchers', path: '/payment-vouchers' },
             { label: 'Money Movement', path: '/cash-movement' },
@@ -260,6 +274,7 @@ export default function Dashboard() {
           { label: 'Cash Use', path: '/cash-movement' },
           { label: 'Messages', path: '/messages' },
           { label: 'Reports', path: '/reports' },
+          { label: 'Settings', path: '/settings' },
         ]
       : [
           { label: 'Event Planner', path: '/rentals' },
@@ -291,63 +306,164 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-slate-900">Recent Bookings</CardTitle>
-              <CardDescription className="text-slate-600">Latest real booking records</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recentBookings.length === 0 ? (
-                <p className="text-sm text-slate-500">No booking records yet.</p>
-              ) : (
-                recentBookings.map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{booking.eventName}</p>
-                      <p className="text-xs text-slate-600">{booking.hall}</p>
-                      {booking.pastBookingSubmission ? (
-                        <p className="text-[11px] font-semibold text-violet-700">
-                          Past Record: {booking.pastBookingApprovalStatus?.replace(/_/g, ' ') ?? 'pending cashier'}
-                          {booking.pastReviewedAt ? ` | ${new Date(booking.pastReviewedAt).toLocaleDateString()}` : ''}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500">{booking.date}</p>
-                      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-kuringe-red">
-                        {booking.bookingStatus}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+        {user.role === 'accountant' ? (
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-slate-900">Cash Request Queue</CardTitle>
+                <CardDescription className="text-slate-600">Latest requests with live workflow status</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentCashRequests.length === 0 ? (
+                  <p className="text-sm text-slate-500">No cash requests found.</p>
+                ) : (
+                  recentCashRequests.map((request) => {
+                    const latestStage = request.stages[request.stages.length - 1];
+                    const amount = parseCurrencyAmount(request.fields.total_requested);
+                    return (
+                      <div
+                        key={request.id}
+                        className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{request.reference}</p>
+                          <p className="text-xs text-slate-600">
+                            {request.fields.full_name ?? 'Unknown requester'} | {latestStage?.label ?? 'Workflow started'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-500">
+                            {amount > 0 ? formatTZS(amount) : 'Amount not set'}
+                          </p>
+                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-kuringe-red">
+                            {getCashRequestStatusLabel(request.currentStatus)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-slate-900">Quick Links</CardTitle>
-              <CardDescription className="text-slate-600">Open a working module</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {quickLinks.map((item) => (
-                <button
-                  key={item.path}
-                  type="button"
-                  onClick={() => navigate(item.path)}
-                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-left"
-                >
-                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                  <span className="text-xs uppercase tracking-[0.2em] text-red-500">Open</span>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-slate-900">Inventory Watchlist</CardTitle>
+                  <CardDescription className="text-slate-600">Low stock and critical stock positions</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {inventoryWatchlist.length === 0 ? (
+                    <p className="text-sm text-slate-500">No inventory records found.</p>
+                  ) : (
+                    inventoryWatchlist.map((item) => {
+                      const isLowStock = item.currentQuantity <= item.reorderLevel;
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                            <p className="text-xs text-slate-600">
+                              Reorder at {item.reorderLevel} {item.unit}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {item.currentQuantity} {item.unit}
+                            </p>
+                            <span className={`text-xs font-semibold uppercase tracking-[0.2em] ${isLowStock ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {isLowStock ? 'Low Stock' : 'In Stock'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-slate-900">Quick Links</CardTitle>
+                  <CardDescription className="text-slate-600">Open a working module</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {quickLinks.map((item) => (
+                    <button
+                      key={item.path}
+                      type="button"
+                      onClick={() => navigate(item.path)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-left"
+                    >
+                      <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                      <span className="text-xs uppercase tracking-[0.2em] text-red-500">Open</span>
+                    </button>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-slate-900">Recent Bookings</CardTitle>
+                <CardDescription className="text-slate-600">Latest real booking records</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentBookings.length === 0 ? (
+                  <p className="text-sm text-slate-500">No booking records yet.</p>
+                ) : (
+                  recentBookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{booking.eventName}</p>
+                        <p className="text-xs text-slate-600">{booking.hall}</p>
+                        {booking.pastBookingSubmission ? (
+                          <p className="text-[11px] font-semibold text-violet-700">
+                            Past Record: {booking.pastBookingApprovalStatus?.replace(/_/g, ' ') ?? 'pending cashier'}
+                            {booking.pastReviewedAt ? ` | ${new Date(booking.pastReviewedAt).toLocaleDateString()}` : ''}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500">{booking.date}</p>
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-kuringe-red">
+                          {booking.bookingStatus}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-slate-900">Quick Links</CardTitle>
+                <CardDescription className="text-slate-600">Open a working module</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {quickLinks.map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => navigate(item.path)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-left"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                    <span className="text-xs uppercase tracking-[0.2em] text-red-500">Open</span>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

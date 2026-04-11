@@ -13,6 +13,21 @@ import {
   normalizeCashRequest,
 } from '@/lib/requestWorkflows';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { CashDistributionCategory } from '@/types/eventFinance';
+
+const cashUseCategories: Array<{ value: CashDistributionCategory; label: string }> = [
+  { value: 'cleaning', label: 'Cleaning' },
+  { value: 'stationary', label: 'Stationary' },
+  { value: 'repairs_maintenance', label: 'Repairs and Maintenance' },
+  { value: 'electricity', label: 'Electricity' },
+  { value: 'petty_cash', label: 'Petty Cash' },
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'decoration', label: 'Decoration' },
+  { value: 'cooling', label: 'Cooling' },
+  { value: 'drink', label: 'Drink' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function CashMovement() {
   const { user } = useAuth();
@@ -27,6 +42,8 @@ export default function CashMovement() {
   const [mdAmount, setMdAmount] = useState('');
   const [mdNotes, setMdNotes] = useState('');
   const [cashUseAmount, setCashUseAmount] = useState('');
+  const [cashUseCategory, setCashUseCategory] = useState<CashDistributionCategory | ''>('');
+  const [cashUseOtherDetails, setCashUseOtherDetails] = useState('');
   const [cashUseReason, setCashUseReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -87,17 +104,27 @@ export default function CashMovement() {
   const handleSaveCashUse = async () => {
     const amount = Number(cashUseAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
+    if (!cashUseCategory) {
+      toast({ title: 'Missing category', description: 'Select a cash use category first.', variant: 'destructive' });
+      return;
+    }
+    if (cashUseCategory === 'other' && !cashUseOtherDetails.trim()) {
+      toast({ title: 'Missing details', description: 'Enter the Other cash-use details.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     const result = await recordCashDistribution({
       amount,
+      category: cashUseCategory,
       reason: cashUseReason.trim(),
-      category: 'other',
-      otherDetails: 'Cash Use',
+      otherDetails: cashUseCategory === 'other' ? cashUseOtherDetails.trim() : undefined,
       actionId: crypto.randomUUID(),
     });
     toast({ title: result.ok ? 'Saved' : 'Failed', description: result.message, variant: result.ok ? 'default' : 'destructive' });
     if (result.ok) {
       setCashUseAmount('');
+      setCashUseCategory('');
+      setCashUseOtherDetails('');
       setCashUseReason('');
     }
     setIsSaving(false);
@@ -134,6 +161,26 @@ export default function CashMovement() {
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Cash Use</p>
                 <div className="mt-4 grid gap-3">
+                  <select
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                    value={cashUseCategory}
+                    onChange={(event) => setCashUseCategory(event.target.value as CashDistributionCategory | '')}
+                  >
+                    <option value="">Select cash use category</option>
+                    {cashUseCategories.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                  {cashUseCategory === 'other' ? (
+                    <input
+                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                      placeholder="Other cash use details"
+                      value={cashUseOtherDetails}
+                      onChange={(event) => setCashUseOtherDetails(event.target.value)}
+                    />
+                  ) : null}
                   <input className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" placeholder="Amount used (TZS)" value={cashUseAmount} onChange={(event) => setCashUseAmount(event.target.value)} />
                   <textarea className="min-h-24 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm" placeholder="Reason / notes" value={cashUseReason} onChange={(event) => setCashUseReason(event.target.value)} />
                   <Button onClick={() => void handleSaveCashUse()} disabled={isSaving}>

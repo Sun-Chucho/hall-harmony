@@ -440,6 +440,36 @@ export function getPurchaseRequestStatusLabel(status: PurchaseRequestStatus) {
   }
 }
 
+export function getCashDistributionCategoryLabel(
+  category: CashDistributionRecord['category'],
+  customCategoryLabel?: string,
+) {
+  switch (category) {
+    case 'cleaning':
+      return 'Cleaning';
+    case 'stationary':
+      return 'Stationary';
+    case 'repairs_maintenance':
+      return 'Repairs and Maintenance';
+    case 'electricity':
+      return 'Electricity';
+    case 'petty_cash':
+      return 'Petty Cash';
+    case 'fuel':
+      return 'Fuel';
+    case 'logistics':
+      return 'Logistics';
+    case 'decoration':
+      return 'Decoration';
+    case 'cooling':
+      return 'Cooling';
+    case 'drink':
+      return 'Drink';
+    case 'other':
+      return customCategoryLabel?.trim() ? `Other - ${customCategoryLabel.trim()}` : 'Other';
+  }
+}
+
 export function parseCurrencyAmount(value?: string) {
   if (!value) return 0;
   const numeric = Number(String(value).replace(/[^0-9.-]/g, ''));
@@ -487,7 +517,7 @@ export function buildMoneyMovementRows(
       date: entry.distributedAt,
       reference: entry.id,
       amount: entry.amount,
-      movementStage: 'Other cash movement actions',
+      movementStage: `Cash Use - ${getCashDistributionCategoryLabel(entry.category, entry.customCategoryLabel)}`,
       notes: entry.reason,
     })),
     ...cashRequests.flatMap((entry) => {
