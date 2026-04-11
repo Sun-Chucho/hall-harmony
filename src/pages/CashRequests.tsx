@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { confirmAction } from '@/lib/confirmAction';
 import { db } from '@/lib/firebase';
+import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
   CashRequestWorkflow,
@@ -159,6 +160,7 @@ export default function CashRequests() {
   const { user } = useAuth();
   const { sendUserNotification } = useMessages();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('my-requests');
   const [selectedRequest, setSelectedRequest] = useState<CashRequestWorkflow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
@@ -188,9 +190,13 @@ export default function CashRequests() {
     const unsub = onSnapshot(
       requestsQuery,
       (snapshot) => {
+        setListenerError(null);
         setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() })));
       },
-      () => setCashRequests([]),
+      (error) => {
+        reportSnapshotError('cash-requests', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
 
     return () => unsub();
@@ -503,6 +509,11 @@ export default function CashRequests() {
       sections={[]}
       action={
         <div className="space-y-6">
+          {listenerError ? (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {listenerError}
+            </div>
+          ) : null}
           {user.role === 'cashier_1' ? (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">

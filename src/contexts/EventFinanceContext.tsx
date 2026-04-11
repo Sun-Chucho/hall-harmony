@@ -5,6 +5,7 @@ import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { usePayments } from '@/contexts/PaymentContext';
 import { db } from '@/lib/firebase';
+import { reportSnapshotError } from '@/lib/firestoreListeners';
 import {
   AllocationRequest,
   BudgetCategory,
@@ -57,6 +58,7 @@ const CASH_DISTRIBUTIONS_COLLECTION = 'cash_distributions';
 function sumBudget(categories: Record<BudgetCategory, number>): number { return Object.values(categories).reduce((sum, amount) => sum + (Number(amount) || 0), 0); }
 function generateReference(prefix: string) { return `${prefix}-${Date.now()}`; }
 function normalizeActionId(value?: string): string { return (value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64); }
+function handleEventFinanceSnapshotError(scope: string, error: unknown) { reportSnapshotError(`event-finance:${scope}`, error); }
 
 export function EventFinanceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -77,7 +79,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<EventBudget, 'id'>) }))
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setBudgets(next);
-    }, () => setBudgets([]));
+    }, (error) => handleEventFinanceSnapshotError('budgets', error));
     return () => unsub();
   }, [user]);
 
@@ -87,7 +89,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<AllocationRequest, 'id'>) }))
         .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
       setAllocations(next);
-    }, () => setAllocations([]));
+    }, (error) => handleEventFinanceSnapshotError('allocations', error));
     return () => unsub();
   }, [user]);
 
@@ -97,7 +99,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<ExpenseDistribution, 'id'>) }))
         .sort((a, b) => new Date(b.distributedAt).getTime() - new Date(a.distributedAt).getTime());
       setDistributions(next);
-    }, () => setDistributions([]));
+    }, (error) => handleEventFinanceSnapshotError('distributions', error));
     return () => unsub();
   }, [user]);
 
@@ -107,7 +109,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<CashTransfer, 'id'>) }))
         .sort((a, b) => new Date((b.receivedAt ?? b.sentAt ?? b.requestedAt)).getTime() - new Date((a.receivedAt ?? a.sentAt ?? a.requestedAt)).getTime());
       setCashTransfers(next);
-    }, () => setCashTransfers([]));
+    }, (error) => handleEventFinanceSnapshotError('cash-transfers', error));
     return () => unsub();
   }, [user]);
   useEffect(() => {
@@ -116,7 +118,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<ManagingDirectorTransfer, 'id'>) }))
         .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
       setMdTransfers(next);
-    }, () => setMdTransfers([]));
+    }, (error) => handleEventFinanceSnapshotError('md-transfers', error));
     return () => unsub();
   }, [user]);
 
@@ -126,7 +128,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       const next = snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<CashDistributionRecord, 'id'>) }))
         .sort((a, b) => new Date(b.distributedAt).getTime() - new Date(a.distributedAt).getTime());
       setCashDistributions(next);
-    }, () => setCashDistributions([]));
+    }, (error) => handleEventFinanceSnapshotError('cash-distributions', error));
     return () => unsub();
   }, [user]);
 

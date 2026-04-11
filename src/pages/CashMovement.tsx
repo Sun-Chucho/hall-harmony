@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
+import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
   CashRequestWorkflow,
@@ -39,6 +40,7 @@ export default function CashMovement() {
     recordCashDistribution,
   } = useEventFinance();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
   const [mdAmount, setMdAmount] = useState('');
   const [mdNotes, setMdNotes] = useState('');
   const [cashUseAmount, setCashUseAmount] = useState('');
@@ -56,8 +58,14 @@ export default function CashMovement() {
     const requestsQuery = query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc'));
     const unsub = onSnapshot(
       requestsQuery,
-      (snapshot) => setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() }))),
-      () => setCashRequests([]),
+      (snapshot) => {
+        setListenerError(null);
+        setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() })));
+      },
+      (error) => {
+        reportSnapshotError('cash-movement', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
 
     return () => unsub();
@@ -146,6 +154,11 @@ export default function CashMovement() {
       sections={[]}
       action={
         <div className="space-y-6">
+          {listenerError ? (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {listenerError}
+            </div>
+          ) : null}
           {user.role === 'cashier_1' ? (
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">

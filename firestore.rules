@@ -21,12 +21,17 @@ service cloud.firestore {
       return get(staffDocPath()).data.role;
     }
 
+    function effectiveRole() {
+      let currentRole = role();
+      return currentRole == 'controller' ? 'accountant' : currentRole;
+    }
+
     function hasRole(targetRole) {
-      return isActiveStaff() && role() == targetRole;
+      return isActiveStaff() && effectiveRole() == targetRole;
     }
 
     function hasAnyRole(roles) {
-      return isActiveStaff() && role() in roles;
+      return isActiveStaff() && effectiveRole() in roles;
     }
 
     function canReadBookings() {

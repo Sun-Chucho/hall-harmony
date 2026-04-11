@@ -11,6 +11,7 @@ import { useEventFinance } from '@/contexts/EventFinanceContext';
 import { useInventory } from '@/contexts/InventoryContext';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
   PURCHASE_REQUEST_WORKFLOW_COLLECTION,
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
+  const [workflowListenerError, setWorkflowListenerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -69,13 +71,25 @@ export default function Dashboard() {
 
     const cashUnsub = onSnapshot(
       query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() }))),
-      () => setCashRequests([]),
+      (snapshot) => {
+        setWorkflowListenerError(null);
+        setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() })));
+      },
+      (error) => {
+        reportSnapshotError('dashboard-cash-requests', error);
+        setWorkflowListenerError(LIVE_SYNC_WARNING);
+      },
     );
     const purchaseUnsub = onSnapshot(
       query(collection(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() }))),
-      () => setPurchaseRequests([]),
+      (snapshot) => {
+        setWorkflowListenerError(null);
+        setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() })));
+      },
+      (error) => {
+        reportSnapshotError('dashboard-purchase-requests', error);
+        setWorkflowListenerError(LIVE_SYNC_WARNING);
+      },
     );
 
     return () => {
@@ -287,6 +301,11 @@ export default function Dashboard() {
   return (
     <DashboardLayout title="Dashboard">
       <div className="space-y-6 text-slate-900">
+        {workflowListenerError ? (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {workflowListenerError}
+          </div>
+        ) : null}
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Welcome back, {user.name.split(' ')[0]}!</h1>
           <p className="text-sm text-slate-600">{ROLE_LABELS[user.role]} | Live system overview</p>
