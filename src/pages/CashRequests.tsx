@@ -158,7 +158,7 @@ function renderRequestTable(
 
 export default function CashRequests() {
   const { user } = useAuth();
-  const { sendUserNotification } = useMessages();
+  const { sendManagerAlert, sendUserNotification } = useMessages();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('my-requests');
@@ -179,6 +179,19 @@ export default function CashRequests() {
     invoiceDate: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
+
+  const refreshPageAfterApproval = () => {
+    if (typeof window === 'undefined') return;
+    setIsRefreshingPage(true);
+    window.setTimeout(() => {
+      if (window.location.search) {
+        window.location.assign(window.location.pathname);
+        return;
+      }
+      window.location.reload();
+    }, 450);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -335,7 +348,7 @@ export default function CashRequests() {
   };
 
   const handleAccountantDecision = async (decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving) return;
+    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving || isRefreshingPage) return;
     if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     setIsSaving(true);
 
@@ -362,6 +375,13 @@ export default function CashRequests() {
         stages: nextStages,
         updatedAt: serverTimestamp(),
       });
+      if (decision === 'approve') {
+        await sendManagerAlert({
+          title: 'Cash request awaiting manager review',
+          body: `Cash request ${selectedRequest.reference} from ${selectedRequest.fields.full_name ?? 'requester'} has been approved by Accountant and moved to Halls Manager.`,
+          link: '/cash-requests',
+        });
+      }
       await sendUserNotification({
         userId: selectedRequest.submittedBy,
         title: decision === 'approve' ? 'Cash request approved by Accountant' : 'Cash request declined by Accountant',
@@ -373,13 +393,14 @@ export default function CashRequests() {
         link: '/cash-requests',
       });
       closeDialog();
+      if (decision === 'approve') refreshPageAfterApproval();
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleManagerDecision = async (decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'manager' || !selectedRequest || isSaving) return;
+    if (!user || user.role !== 'manager' || !selectedRequest || isSaving || isRefreshingPage) return;
     if (!reviewComment.trim()) return;
     if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     setIsSaving(true);
@@ -418,6 +439,7 @@ export default function CashRequests() {
         link: '/cash-requests',
       });
       closeDialog();
+      if (decision === 'approve') refreshPageAfterApproval();
     } finally {
       setIsSaving(false);
     }
@@ -425,7 +447,7 @@ export default function CashRequests() {
 
   const handleVoucherSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user || user.role !== 'cashier_1' || !selectedRequest || isSaving) return;
+    if (!user || user.role !== 'cashier_1' || !selectedRequest || isSaving || isRefreshingPage) return;
     if (!confirmAction(`Create payment voucher for ${selectedRequest.reference} and send it to Accountant?`)) return;
     setIsSaving(true);
 
@@ -770,10 +792,10 @@ export default function CashRequests() {
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Accountant comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
                       <div className="mt-4 flex gap-2">
-                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving}>
-                          {isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
+                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving || isRefreshingPage}>
+                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
                         </Button>
-                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving}>
+                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving || isRefreshingPage}>
                           Decline
                         </Button>
                       </div>
@@ -784,10 +806,10 @@ export default function CashRequests() {
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Halls Manager comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
                       <div className="mt-4 flex gap-2">
-                        <Button onClick={() => void handleManagerDecision('approve')} disabled={isSaving || !reviewComment.trim()}>
-                          {isSaving ? 'Saving...' : 'Approve & Move to Cashier'}
+                        <Button onClick={() => void handleManagerDecision('approve')} disabled={isSaving || isRefreshingPage || !reviewComment.trim()}>
+                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Approve & Move to Cashier'}
                         </Button>
-                        <Button variant="outline" onClick={() => void handleManagerDecision('decline')} disabled={isSaving || !reviewComment.trim()}>
+                        <Button variant="outline" onClick={() => void handleManagerDecision('decline')} disabled={isSaving || isRefreshingPage || !reviewComment.trim()}>
                           Decline
                         </Button>
                       </div>
@@ -810,8 +832,8 @@ export default function CashRequests() {
                         <textarea className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Description" value={voucherForm.description} onChange={(event) => setVoucherForm((prev) => ({ ...prev, description: event.target.value }))} required />
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Button type="submit" disabled={isSaving}>
-                          {isSaving ? 'Saving...' : 'Send Voucher to Accountant'}
+                        <Button type="submit" disabled={isSaving || isRefreshingPage}>
+                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Send Voucher to Accountant'}
                         </Button>
                         <Button type="button" variant="outline" onClick={closeDialog}>
                           Close
