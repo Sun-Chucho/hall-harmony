@@ -21,6 +21,7 @@ import Payments from "./pages/Payments";
 import CashMovement from "./pages/CashMovement";
 import Services from "./pages/Services";
 import Rentals from "./pages/Rentals";
+import Inventory from "./pages/Inventory";
 import Documents from "./pages/Documents";
 import CashRequests from "./pages/CashRequests";
 import PurchaseRequests from "./pages/PurchaseRequests";
@@ -114,6 +115,7 @@ const App = () => {
                           <Route path="/cash-movement" element={<RouteGuard path="/cash-movement" transactional><CashMovement /></RouteGuard>} />
                           <Route path="/services" element={<RouteGuard path="/services"><Services /></RouteGuard>} />
                           <Route path="/rentals" element={<RouteGuard path="/rentals"><Rentals /></RouteGuard>} />
+                          <Route path="/inventory" element={<RouteGuard path="/inventory"><Inventory /></RouteGuard>} />
                           <Route path="/documents" element={<RouteGuard path="/documents"><Documents /></RouteGuard>} />
                           <Route path="/cash-requests" element={<RouteGuard path="/cash-requests"><CashRequests /></RouteGuard>} />
                           <Route path="/purchase-requests" element={<RouteGuard path="/purchase-requests"><PurchaseRequests /></RouteGuard>} />

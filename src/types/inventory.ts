@@ -1,3 +1,5 @@
+import type { UserRole } from './auth';
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -13,7 +15,8 @@ export type InventoryMovementType =
   | 'stock_out'
   | 'allocation'
   | 'return'
-  | 'damaged';
+  | 'damaged'
+  | 'adjustment';
 
 export interface InventoryMovement {
   id: string;
@@ -24,6 +27,7 @@ export interface InventoryMovement {
   notes: string;
   eventBookingId?: string;
   performedByUserId: string;
+  performedByRole?: UserRole;
   createdAt: string;
 }
 

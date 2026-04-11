@@ -246,9 +246,10 @@ export default function Dashboard() {
         { label: 'Messages', path: '/messages' },
         { label: 'Settings', path: '/settings' },
       ]
-    : user.role === 'store_keeper'
+      : user.role === 'store_keeper'
       ? [
-          { label: 'Inventory', path: '/rentals' },
+          { label: 'Stock', path: '/rentals' },
+          { label: 'Inventory', path: '/inventory' },
           { label: 'Cash Requests', path: '/cash-requests' },
           { label: 'Purchase Requests', path: '/purchase-requests' },
           { label: 'Messages', path: '/messages' },

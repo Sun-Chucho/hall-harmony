@@ -211,6 +211,18 @@ export function AppSidebar() {
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
+  const storekeeperNavItems: NavItem[] = [
+    { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { title: 'Stock', icon: Car, path: '/rentals' },
+    { title: 'Inventory', icon: Package, path: '/inventory' },
+    { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
+    { title: 'Purchase Requests', icon: FileText, path: '/purchase-requests' },
+    { title: 'Documents', icon: FileText, path: '/documents' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
+
   const accountantNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { title: 'Inventory & Store', icon: Car, path: '/rentals' },
@@ -275,6 +287,8 @@ export function AppSidebar() {
           renderNavGroup('Cashier', cashier1NavItems)
         ) : user.role === 'purchaser' ? (
           renderNavGroup('Purchaser', purchaserNavItems)
+        ) : user.role === 'store_keeper' ? (
+          renderNavGroup('Event Planner / Store', storekeeperNavItems)
         ) : user.role === 'accountant' ? (
           renderNavGroup('Accountant', accountantNavItems)
         ) : (

@@ -919,7 +919,7 @@ export default function Rentals() {
 
   return (
     <ManagementPageTemplate
-      pageTitle="Inventory & Store"
+      pageTitle="Stock"
       subtitle="Storekeeper workspace for stock control, item allocation, and inventory reporting."
       stats={stats}
       sections={sections}

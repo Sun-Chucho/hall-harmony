@@ -7,12 +7,21 @@ import { db } from '@/lib/firebase';
 import { DamagedItemRecord, EventItemAllocation, InventoryItem, InventoryMovement } from '@/types/inventory';
 
 interface InventoryReport { totalItems: number; lowStockItems: number; totalUnits: number; totalAllocatedOpen: number; }
+interface EditInventoryItemInput {
+  name: string;
+  unit: string;
+  currentQuantity: number;
+  reorderLevel: number;
+  reason: string;
+}
 interface InventoryContextValue {
   items: InventoryItem[];
   movements: InventoryMovement[];
   damages: DamagedItemRecord[];
   allocations: EventItemAllocation[];
+  canManageInventory: boolean;
   addItem: (name: string, unit: string, openingQuantity: number, reorderLevel: number) => { ok: boolean; message: string };
+  editItem: (itemId: string, input: EditInventoryItemInput) => { ok: boolean; message: string };
   stockIn: (itemId: string, quantity: number, reference: string, notes: string) => { ok: boolean; message: string };
   stockOut: (itemId: string, quantity: number, reference: string, notes: string) => { ok: boolean; message: string };
   allocateToEvent: (bookingId: string, itemId: string, quantity: number, notes: string) => { ok: boolean; message: string };
@@ -100,22 +109,81 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => [item, ...prev]);
     void setDoc(doc(db, ITEMS_COLLECTION, item.id), { ...item, updatedAt: serverTimestamp() }, { merge: true });
 
-    if (normalizedOpeningQuantity > 0) {
-      const movement: InventoryMovement = {
-        id: `MOV-${crypto.randomUUID()}`,
-        itemId: item.id,
-        type: 'stock_in',
-        quantity: normalizedOpeningQuantity,
-        reference: 'OPENING',
-        notes: 'Opening stock balance',
-        performedByUserId: user.id,
-        createdAt: new Date().toISOString(),
-      };
-      setMovements((prev) => [movement, ...prev]);
-      void setDoc(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
-    }
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId: item.id,
+      type: normalizedOpeningQuantity > 0 ? 'stock_in' : 'adjustment',
+      quantity: normalizedOpeningQuantity,
+      reference: normalizedOpeningQuantity > 0 ? 'OPENING' : 'ITEM-CREATE',
+      notes: normalizedOpeningQuantity > 0 ? 'Opening stock balance' : 'Inventory item created with zero opening balance',
+      performedByUserId: user.id,
+      performedByRole: user.role,
+      createdAt: new Date().toISOString(),
+    };
+    setMovements((prev) => [movement, ...prev]);
+    void setDoc(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
     return { ok: true, message: 'Inventory item created.' };
   }, [canActWhenFrozen, canManage, policy.transactionsFrozen, user]);
+
+  const editItem = useCallback((itemId: string, input: EditInventoryItemInput) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (!canManage()) return { ok: false, message: 'Only Storekeeper or Accountant can edit inventory.' };
+    if (policy.transactionsFrozen && !canActWhenFrozen()) return { ok: false, message: 'Transactions are frozen by accountant.' };
+
+    const targetItem = items.find((item) => item.id === itemId);
+    if (!targetItem) return { ok: false, message: 'Item not found.' };
+
+    const nextName = input.name.trim();
+    const nextUnit = input.unit.trim();
+    const nextQuantity = Math.round(input.currentQuantity);
+    const nextReorderLevel = Math.round(input.reorderLevel);
+    const changeReason = input.reason.trim();
+
+    if (!nextName || !nextUnit) return { ok: false, message: 'Item name and unit are required.' };
+    if (!Number.isFinite(nextQuantity) || nextQuantity < 0 || !Number.isFinite(nextReorderLevel) || nextReorderLevel < 0) {
+      return { ok: false, message: 'Quantities cannot be negative.' };
+    }
+    if (!changeReason) return { ok: false, message: 'Edit reason is required.' };
+
+    const updatedItem: InventoryItem = {
+      ...targetItem,
+      name: nextName,
+      unit: nextUnit,
+      currentQuantity: nextQuantity,
+      reorderLevel: nextReorderLevel,
+    };
+
+    const changes: string[] = [];
+    if (targetItem.name !== updatedItem.name) changes.push(`Name: ${targetItem.name} -> ${updatedItem.name}`);
+    if (targetItem.unit !== updatedItem.unit) changes.push(`Unit: ${targetItem.unit} -> ${updatedItem.unit}`);
+    if (targetItem.currentQuantity !== updatedItem.currentQuantity) changes.push(`Quantity: ${targetItem.currentQuantity} -> ${updatedItem.currentQuantity}`);
+    if (targetItem.reorderLevel !== updatedItem.reorderLevel) changes.push(`Reorder level: ${targetItem.reorderLevel} -> ${updatedItem.reorderLevel}`);
+    if (changes.length === 0) return { ok: false, message: 'No changes detected.' };
+
+    const movement: InventoryMovement = {
+      id: `MOV-${crypto.randomUUID()}`,
+      itemId,
+      type: 'adjustment',
+      quantity: updatedItem.currentQuantity - targetItem.currentQuantity,
+      reference: generateReference('EDIT'),
+      notes: `${changeReason}. ${changes.join(' | ')}`,
+      performedByUserId: user.id,
+      performedByRole: user.role,
+      createdAt: new Date().toISOString(),
+    };
+
+    setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
+    setMovements((prev) => [movement, ...prev]);
+    void updateDoc(doc(db, ITEMS_COLLECTION, itemId), {
+      name: updatedItem.name,
+      unit: updatedItem.unit,
+      currentQuantity: updatedItem.currentQuantity,
+      reorderLevel: updatedItem.reorderLevel,
+      updatedAt: serverTimestamp(),
+    });
+    void setDoc(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
+    return { ok: true, message: 'Inventory item updated.' };
+  }, [canActWhenFrozen, canManage, items, policy.transactionsFrozen, user]);
 
   const stockIn = useCallback((itemId: string, quantity: number, reference: string, notes: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -136,6 +204,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       reference: movementReference,
       notes: notes.trim(),
       performedByUserId: user.id,
+      performedByRole: user.role,
       createdAt: new Date().toISOString(),
     };
     setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
@@ -164,6 +233,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       reference: reference.trim() || generateReference('STKOUT'),
       notes: notes.trim(),
       performedByUserId: user.id,
+      performedByRole: user.role,
       createdAt: new Date().toISOString(),
     };
     setItems((prev) => prev.map((entry) => (entry.id === itemId ? updatedItem : entry)));
@@ -196,6 +266,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       notes: notes.trim(),
       eventBookingId: bookingId,
       performedByUserId: user.id,
+      performedByRole: user.role,
       createdAt: new Date().toISOString(),
     };
     const allocation: EventItemAllocation = {
@@ -236,6 +307,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       notes: 'Event return',
       eventBookingId: allocation.bookingId,
       performedByUserId: user.id,
+      performedByRole: user.role,
       createdAt: new Date().toISOString(),
     };
     const updatedAllocation: EventItemAllocation = {
@@ -274,6 +346,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       notes: reason.trim(),
       eventBookingId: bookingId,
       performedByUserId: user.id,
+      performedByRole: user.role,
       createdAt: new Date().toISOString(),
     };
     const damage: DamagedItemRecord = {
@@ -302,8 +375,20 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }, [allocations, items]);
 
   const value = useMemo<InventoryContextValue>(() => ({
-    items, movements, damages, allocations, addItem, stockIn, stockOut, allocateToEvent, returnFromEvent, recordDamage, getReport,
-  }), [addItem, allocations, allocateToEvent, damages, getReport, items, movements, recordDamage, returnFromEvent, stockIn, stockOut]);
+    items,
+    movements,
+    damages,
+    allocations,
+    canManageInventory: canManage(),
+    addItem,
+    editItem,
+    stockIn,
+    stockOut,
+    allocateToEvent,
+    returnFromEvent,
+    recordDamage,
+    getReport,
+  }), [addItem, allocations, allocateToEvent, canManage, damages, editItem, getReport, items, movements, recordDamage, returnFromEvent, stockIn, stockOut]);
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }
