@@ -1,3 +1,5 @@
+import { UserRole } from '@/types/auth';
+
 export type BookingStatus =
   | 'pending'
   | 'approved'
@@ -40,6 +42,7 @@ export interface BookingRecord {
   notes: string;
   createdAt: string;
   createdByUserId: string;
+  createdByRole?: UserRole;
   bookingStatus: BookingStatus;
   eventDetailStatus: EventDetailStatus;
   assignedToRole?: 'cashier_1';

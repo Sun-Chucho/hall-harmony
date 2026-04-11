@@ -23,6 +23,7 @@ import {
   normalizeCashRequest,
   parseCurrencyAmount,
 } from '@/lib/requestWorkflows';
+import { canAccessDeskScopedWorkflowEntry, isManagerCashRequestQueueEntry } from '@/lib/staffRecordVisibility';
 import { ROLE_LABELS } from '@/types/auth';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -229,15 +230,15 @@ export default function CashRequests() {
     || user?.role === 'accountant';
 
   const myRequests = useMemo(
-    () => cashRequests.filter((entry) => entry.submittedBy === user?.id),
-    [cashRequests, user?.id],
+    () => cashRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [cashRequests, user],
   );
   const accountantRequests = useMemo(
     () => cashRequests,
     [cashRequests],
   );
   const managerQueue = useMemo(
-    () => cashRequests.filter((entry) => entry.currentStatus === 'pending_halls_manager'),
+    () => cashRequests.filter((entry) => isManagerCashRequestQueueEntry(entry)),
     [cashRequests],
   );
   const cashierApprovedRequests = useMemo(
@@ -375,23 +376,26 @@ export default function CashRequests() {
         stages: nextStages,
         updatedAt: serverTimestamp(),
       });
+      const followUpTasks = [
+        sendUserNotification({
+          userId: selectedRequest.submittedBy,
+          title: decision === 'approve' ? 'Cash request approved by Accountant' : 'Cash request declined by Accountant',
+          body: decision === 'approve'
+            ? `Your cash request ${selectedRequest.reference} has been approved by Accountant and moved to Halls Manager.`
+            : `Your cash request ${selectedRequest.reference} was declined by Accountant.`,
+          relatedId: selectedRequest.id,
+          relatedType: 'cash_request',
+          link: '/cash-requests',
+        }),
+      ];
       if (decision === 'approve') {
-        await sendManagerAlert({
+        followUpTasks.push(sendManagerAlert({
           title: 'Cash request awaiting manager review',
           body: `Cash request ${selectedRequest.reference} from ${selectedRequest.fields.full_name ?? 'requester'} has been approved by Accountant and moved to Halls Manager.`,
           link: '/cash-requests',
-        });
+        }));
       }
-      await sendUserNotification({
-        userId: selectedRequest.submittedBy,
-        title: decision === 'approve' ? 'Cash request approved by Accountant' : 'Cash request declined by Accountant',
-        body: decision === 'approve'
-          ? `Your cash request ${selectedRequest.reference} has been approved by Accountant and moved to Halls Manager.`
-          : `Your cash request ${selectedRequest.reference} was declined by Accountant.`,
-        relatedId: selectedRequest.id,
-        relatedType: 'cash_request',
-        link: '/cash-requests',
-      });
+      await Promise.allSettled(followUpTasks);
       closeDialog();
       if (decision === 'approve') refreshPageAfterApproval();
     } finally {
@@ -428,16 +432,18 @@ export default function CashRequests() {
         stages: nextStages,
         updatedAt: serverTimestamp(),
       });
-      await sendUserNotification({
-        userId: selectedRequest.submittedBy,
-        title: decision === 'approve' ? 'Cash request approved by Halls Manager' : 'Cash request declined by Halls Manager',
-        body: decision === 'approve'
-          ? `Your cash request ${selectedRequest.reference} has been approved by Halls Manager and moved to Cashier.`
-          : `Your cash request ${selectedRequest.reference} was declined by Halls Manager.`,
-        relatedId: selectedRequest.id,
-        relatedType: 'cash_request',
-        link: '/cash-requests',
-      });
+      await Promise.allSettled([
+        sendUserNotification({
+          userId: selectedRequest.submittedBy,
+          title: decision === 'approve' ? 'Cash request approved by Halls Manager' : 'Cash request declined by Halls Manager',
+          body: decision === 'approve'
+            ? `Your cash request ${selectedRequest.reference} has been approved by Halls Manager and moved to Cashier.`
+            : `Your cash request ${selectedRequest.reference} was declined by Halls Manager.`,
+          relatedId: selectedRequest.id,
+          relatedType: 'cash_request',
+          link: '/cash-requests',
+        }),
+      ]);
       closeDialog();
       if (decision === 'approve') refreshPageAfterApproval();
     } finally {
@@ -524,7 +530,7 @@ export default function CashRequests() {
       pageTitle="Cash Requests"
       subtitle="Track cash requests through Accountant, Halls Manager, Cashier, and payment voucher completion."
       stats={[
-        { title: 'My Requests', value: `${myRequests.length}`, description: 'cash requests you submitted' },
+        { title: user.role === 'assistant_hall_manager' ? 'Desk Requests' : 'My Requests', value: `${myRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'cash requests visible to assistant hall desk' : 'cash requests you submitted' },
         { title: 'Pending Action', value: `${cashRequests.filter((entry) => entry.currentStatus !== 'completed' && entry.currentStatus !== 'declined').length}`, description: 'requests still moving in workflow' },
         { title: 'Completed', value: `${completedRequests.length}`, description: 'disbursed and closed requests' },
       ]}
@@ -678,7 +684,7 @@ export default function CashRequests() {
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="my-requests">My Requests</TabsTrigger>
+                <TabsTrigger value="my-requests">{user.role === 'assistant_hall_manager' ? 'Desk Requests' : 'My Requests'}</TabsTrigger>
                 {canCreate ? <TabsTrigger value="create">New Request</TabsTrigger> : null}
               </TabsList>
               <TabsContent value="my-requests">
@@ -708,7 +714,9 @@ export default function CashRequests() {
                   ))}
                   {myRequests.length === 0 ? (
                     <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
-                      You have not submitted any cash requests yet.
+                      {user.role === 'assistant_hall_manager'
+                        ? 'No cash requests are visible to the assistant hall desk yet.'
+                        : 'You have not submitted any cash requests yet.'}
                     </div>
                   ) : null}
                 </div>

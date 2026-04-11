@@ -22,6 +22,7 @@ import {
   parseCurrencyAmount,
   normalizePurchaseRequest,
 } from '@/lib/requestWorkflows';
+import { canAccessDeskScopedBooking, canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { AlertCircle, Calendar, CheckCircle2, Clock, DollarSign, Package, Users } from 'lucide-react';
 
@@ -99,8 +100,16 @@ export default function Dashboard() {
   }, [user]);
 
   const myBookings = useMemo(
-    () => bookings.filter((entry) => entry.createdByUserId === user?.id),
-    [bookings, user?.id],
+    () => bookings.filter((entry) => canAccessDeskScopedBooking(entry, user)),
+    [bookings, user],
+  );
+  const myCashRequests = useMemo(
+    () => cashRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [cashRequests, user],
+  );
+  const myPurchaseRequests = useMemo(
+    () => purchaseRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [purchaseRequests, user],
   );
 
   const metrics = useMemo(() => {
@@ -128,11 +137,11 @@ export default function Dashboard() {
     const criticalLowStockItems = items.filter((item) => item.currentQuantity === 0).length;
     const recentActivityCount = auditLog.length + logs.length;
     const inventoryItems = items.length;
-    const myCashRequests = cashRequests.filter((item) => item.submittedBy === user?.id).length;
+    const myCashRequestsCount = myCashRequests.length;
     const pendingCashRequests = cashRequests.filter((item) => !isClosedCashRequest(item.currentStatus)).length;
     const completedCashRequests = cashRequests.filter((item) => item.currentStatus === 'completed').length;
     const pendingCashierRequests = cashRequests.filter((item) => item.currentStatus === 'pending_cashier').length;
-    const myPurchaseRequests = purchaseRequests.filter((item) => item.submittedBy === user?.id).length;
+    const myPurchaseRequestsCount = myPurchaseRequests.length;
     const pendingPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'pending_purchaser').length;
     const completedPurchaseRequests = purchaseRequests.filter((item) => item.currentStatus === 'purchase_done').length;
     return {
@@ -151,15 +160,15 @@ export default function Dashboard() {
       criticalLowStockItems,
       recentActivityCount,
       inventoryItems,
-      myCashRequests,
+      myCashRequests: myCashRequestsCount,
       pendingCashRequests,
       completedCashRequests,
       pendingCashierRequests,
-      myPurchaseRequests,
+      myPurchaseRequests: myPurchaseRequestsCount,
       pendingPurchaseRequests,
       completedPurchaseRequests,
     };
-  }, [allocations, approvals, auditLog.length, bookings, cashRequests, items, logs.length, payments, purchaseRequests, user?.id]);
+  }, [allocations, approvals, auditLog.length, bookings, cashRequests, items, logs.length, myCashRequests.length, myPurchaseRequests.length, payments, purchaseRequests]);
 
   const statsByRole = useMemo<Record<UserRole, StatCard[]>>(
     () => ({
@@ -176,9 +185,9 @@ export default function Dashboard() {
         { title: 'Recent Activity', value: String(metrics.recentActivityCount), hint: 'Audit and finance trail', icon: CheckCircle2 },
       ],
       assistant_hall_manager: [
-        { title: 'My Bookings', value: String(myBookings.length), hint: 'halls bookings submitted by you', icon: Calendar },
-        { title: 'My Cash Requests', value: String(metrics.myCashRequests), hint: 'sent through cash workflow', icon: Clock },
-        { title: 'My Purchase Requests', value: String(metrics.myPurchaseRequests), hint: 'sent to purchaser', icon: CheckCircle2 },
+        { title: 'Desk Bookings', value: String(myBookings.length), hint: 'bookings visible to assistant hall desk', icon: Calendar },
+        { title: 'Desk Cash Requests', value: String(metrics.myCashRequests), hint: 'cash workflow records from assistant desk', icon: Clock },
+        { title: 'Desk Purchase Requests', value: String(metrics.myPurchaseRequests), hint: 'purchase requests from assistant desk', icon: CheckCircle2 },
         { title: 'Unread Messages', value: String(unreadCount), hint: 'new request updates', icon: Users },
       ],
       cashier_1: [
@@ -227,6 +236,9 @@ export default function Dashboard() {
   const recentBookings = [...bookings]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
+  const assistantDeskBookings = [...myBookings]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5);
   const recentCashRequests = [...cashRequests]
     .sort((a, b) => {
       const aClosed = isClosedCashRequest(a.currentStatus);
@@ -255,6 +267,7 @@ export default function Dashboard() {
     : user.role === 'assistant_hall_manager'
     ? [
         { label: 'Bookings', path: '/bookings' },
+        { label: 'Submitted Bookings', path: '/bookings/submitted' },
         { label: 'Cash Requests', path: '/cash-requests' },
         { label: 'Purchase Requests', path: '/purchase-requests' },
         { label: 'Messages', path: '/messages' },
@@ -429,14 +442,18 @@ export default function Dashboard() {
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-slate-900">Recent Bookings</CardTitle>
-                <CardDescription className="text-slate-600">Latest real booking records</CardDescription>
+                <CardTitle className="text-slate-900">{user.role === 'assistant_hall_manager' ? 'Assistant Desk Bookings' : 'Recent Bookings'}</CardTitle>
+                <CardDescription className="text-slate-600">
+                  {user.role === 'assistant_hall_manager'
+                    ? 'Latest bookings recorded from the assistant hall desk'
+                    : 'Latest real booking records'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {recentBookings.length === 0 ? (
+                {(user.role === 'assistant_hall_manager' ? assistantDeskBookings : recentBookings).length === 0 ? (
                   <p className="text-sm text-slate-500">No booking records yet.</p>
                 ) : (
-                  recentBookings.map((booking) => (
+                  (user.role === 'assistant_hall_manager' ? assistantDeskBookings : recentBookings).map((booking) => (
                     <div
                       key={booking.id}
                       className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 p-3"

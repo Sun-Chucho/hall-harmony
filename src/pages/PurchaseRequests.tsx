@@ -20,6 +20,8 @@ import {
 } from '@/lib/requestWorkflows';
 import { confirmAction } from '@/lib/confirmAction';
 import { db } from '@/lib/firebase';
+import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
+import { canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
 import { ROLE_LABELS } from '@/types/auth';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -108,6 +110,7 @@ export default function PurchaseRequests() {
   const { user } = useAuth();
   const { sendUserNotification } = useMessages();
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('my-requests');
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequestWorkflow | null>(null);
   const [purchaseReference, setPurchaseReference] = useState('');
@@ -119,6 +122,7 @@ export default function PurchaseRequests() {
   useEffect(() => {
     if (!user) {
       setPurchaseRequests([]);
+      setListenerError(null);
       return undefined;
     }
 
@@ -126,9 +130,13 @@ export default function PurchaseRequests() {
     const unsub = onSnapshot(
       requestsQuery,
       (snapshot) => {
+        setListenerError(null);
         setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() })));
       },
-      () => setPurchaseRequests([]),
+      (error) => {
+        reportSnapshotError('purchase-requests', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
 
     return () => unsub();
@@ -137,8 +145,8 @@ export default function PurchaseRequests() {
   const canCreate = user?.role === 'assistant_hall_manager' || user?.role === 'store_keeper';
   const isPurchaser = user?.role === 'purchaser';
   const myRequests = useMemo(
-    () => purchaseRequests.filter((entry) => entry.submittedBy === user?.id),
-    [purchaseRequests, user?.id],
+    () => purchaseRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [purchaseRequests, user],
   );
   const pendingRequests = useMemo(
     () => purchaseRequests.filter((entry) => entry.currentStatus === 'pending_purchaser'),
@@ -273,16 +281,21 @@ export default function PurchaseRequests() {
           : 'Create purchase requests and track their progress after submission to Purchaser.'
       }
       stats={[
-        { title: isPurchaser ? 'Requests Received' : 'My Requests', value: `${isPurchaser ? pendingRequests.length : myRequests.length}`, description: isPurchaser ? 'awaiting purchaser action' : 'purchase requests you submitted' },
+        { title: isPurchaser ? 'Requests Received' : user.role === 'assistant_hall_manager' ? 'Desk Requests' : 'My Requests', value: `${isPurchaser ? pendingRequests.length : myRequests.length}`, description: isPurchaser ? 'awaiting purchaser action' : user.role === 'assistant_hall_manager' ? 'purchase requests visible to assistant hall desk' : 'purchase requests you submitted' },
         { title: 'Purchase Done', value: `${completedRequests.length}`, description: 'completed purchase request records' },
       ]}
       sections={[]}
       action={
         <div className="space-y-6">
+          {listenerError ? (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {listenerError}
+            </div>
+          ) : null}
           {canCreate ? (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="my-requests">My Requests</TabsTrigger>
+                <TabsTrigger value="my-requests">{user.role === 'assistant_hall_manager' ? 'Desk Requests' : 'My Requests'}</TabsTrigger>
                 <TabsTrigger value="create">New Purchase Request</TabsTrigger>
               </TabsList>
               <TabsContent value="my-requests">

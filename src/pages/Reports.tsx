@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { db } from '@/lib/firebase';
+import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
   DOCUMENT_OUTPUTS_COLLECTION,
@@ -18,6 +19,7 @@ import {
   normalizeCashRequest,
   normalizePurchaseRequest,
 } from '@/lib/requestWorkflows';
+import { canAccessDeskScopedBooking, canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
 import { BookingRecord } from '@/types/booking';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
@@ -229,6 +231,7 @@ export default function Reports() {
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
   const [outputs, setOutputs] = useState<DocumentOutput[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
   const [bookingWindow, setBookingWindow] = useState<BookingReportWindow>('daily');
   const [bookingAnchorDate, setBookingAnchorDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -237,23 +240,42 @@ export default function Reports() {
       setCashRequests([]);
       setPurchaseRequests([]);
       setOutputs([]);
+      setListenerError(null);
       return undefined;
     }
 
     const cashUnsub = onSnapshot(
       query(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() }))),
-      () => setCashRequests([]),
+      (snapshot) => {
+        setListenerError(null);
+        setCashRequests(snapshot.docs.map((item) => normalizeCashRequest({ id: item.id, ...item.data() })));
+      },
+      (error) => {
+        reportSnapshotError('reports-cash-requests', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
     const purchaseUnsub = onSnapshot(
       query(collection(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() }))),
-      () => setPurchaseRequests([]),
+      (snapshot) => {
+        setListenerError(null);
+        setPurchaseRequests(snapshot.docs.map((item) => normalizePurchaseRequest({ id: item.id, ...item.data() })));
+      },
+      (error) => {
+        reportSnapshotError('reports-purchase-requests', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
     const outputUnsub = onSnapshot(
       query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc')),
-      (snapshot) => setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) }))),
-      () => setOutputs([]),
+      (snapshot) => {
+        setListenerError(null);
+        setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) })));
+      },
+      (error) => {
+        reportSnapshotError('reports-document-outputs', error);
+        setListenerError(LIVE_SYNC_WARNING);
+      },
     );
 
     return () => {
@@ -264,20 +286,20 @@ export default function Reports() {
   }, [user]);
 
   const myBookings = useMemo(
-    () => bookings.filter((entry) => entry.createdByUserId === user?.id),
-    [bookings, user?.id],
+    () => bookings.filter((entry) => canAccessDeskScopedBooking(entry, user)),
+    [bookings, user],
   );
   const myCashRequests = useMemo(
-    () => cashRequests.filter((entry) => entry.submittedBy === user?.id),
-    [cashRequests, user?.id],
+    () => cashRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [cashRequests, user],
   );
   const myPurchaseRequests = useMemo(
-    () => purchaseRequests.filter((entry) => entry.submittedBy === user?.id),
-    [purchaseRequests, user?.id],
+    () => purchaseRequests.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [purchaseRequests, user],
   );
   const myDocuments = useMemo(
-    () => outputs.filter((entry) => entry.submittedBy === user?.id),
-    [outputs, user?.id],
+    () => outputs.filter((entry) => canAccessDeskScopedWorkflowEntry(entry, user)),
+    [outputs, user],
   );
   const purchaserPending = useMemo(
     () => purchaseRequests.filter((entry) => entry.currentStatus === 'pending_purchaser'),
@@ -309,9 +331,9 @@ export default function Reports() {
     : canViewBookingReports
       ? [
           { title: 'Bookings in View', value: `${filteredBookingReports.length}`, description: `${bookingWindow} booking records` },
-          { title: 'My Cash Requests', value: `${myCashRequests.length}`, description: 'cash request records tied to your account' },
-          { title: 'My Purchase Requests', value: `${myPurchaseRequests.length}`, description: 'purchase requests tied to your account' },
-          { title: 'Saved Outputs', value: `${myDocuments.length}`, description: 'document outputs you saved' },
+          { title: user.role === 'assistant_hall_manager' ? 'Desk Cash Requests' : 'My Cash Requests', value: `${myCashRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'cash request records tied to assistant hall desk' : 'cash request records tied to your account' },
+          { title: user.role === 'assistant_hall_manager' ? 'Desk Purchase Requests' : 'My Purchase Requests', value: `${myPurchaseRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'purchase requests tied to assistant hall desk' : 'purchase requests tied to your account' },
+          { title: user.role === 'assistant_hall_manager' ? 'Desk Outputs' : 'Saved Outputs', value: `${myDocuments.length}`, description: user.role === 'assistant_hall_manager' ? 'document outputs visible to assistant hall desk' : 'document outputs you saved' },
         ]
       : [
           { title: 'My Cash Requests', value: `${myCashRequests.length}`, description: 'cash request records tied to your account' },
@@ -346,6 +368,11 @@ export default function Reports() {
       sections={[]}
       action={
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          {listenerError ? (
+            <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {listenerError}
+            </div>
+          ) : null}
           {user.role === 'assistant_hall_manager' ? (
             <Tabs defaultValue="halls-bookings" className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
@@ -357,7 +384,7 @@ export default function Reports() {
                 {bookingReportPanel}
               </TabsContent>
               <TabsContent value="cash-requests">
-                {myCashRequests.length === 0 ? emptyState('No cash requests submitted by you yet.') : (
+                {myCashRequests.length === 0 ? emptyState('No cash requests visible to the assistant hall desk yet.') : (
                   <div className="space-y-3">
                     <div className="flex justify-end">
                       <Button size="sm" variant="outline" onClick={() => downloadCsv('assistant-cash-requests.csv', [
@@ -395,7 +422,7 @@ export default function Reports() {
                 )}
               </TabsContent>
               <TabsContent value="purchase-requests">
-                {myPurchaseRequests.length === 0 ? emptyState('No purchase requests submitted by you yet.') : (
+                {myPurchaseRequests.length === 0 ? emptyState('No purchase requests visible to the assistant hall desk yet.') : (
                   <div className="space-y-3">
                     <div className="flex justify-end">
                       <Button size="sm" variant="outline" onClick={() => downloadCsv('assistant-purchase-requests.csv', [

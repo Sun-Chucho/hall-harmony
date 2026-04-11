@@ -11,6 +11,7 @@ import { usePayments } from '@/contexts/PaymentContext';
 import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
 import { getCashierAlerts } from '@/lib/cashierAlerts';
+import { canAccessDeskScopedBooking } from '@/lib/staffRecordVisibility';
 import { BookingCarType, CreateBookingInput } from '@/types/booking';
 import { PaymentMethod } from '@/types/payment';
 
@@ -560,7 +561,7 @@ export default function Bookings() {
   };
 
   if (isAssistantHall && user) {
-    const assistantBookings = bookings.filter((entry) => entry.createdByUserId === user.id);
+    const assistantBookings = bookings.filter((entry) => canAccessDeskScopedBooking(entry, user));
     const sentToCashierCount = assistantBookings.filter((entry) => entry.assignedToRole === 'cashier_1' || !entry.assignedToRole).length;
     const otherBookingTotal = otherBookingSelections.reduce((sum, item) => sum + item.total, 0);
     const isSubmittedBookingsPage = location.pathname === '/bookings/submitted';
@@ -604,7 +605,7 @@ export default function Bookings() {
           pageTitle="Submitted Bookings"
           subtitle="Standalone list of bookings submitted from Assistant Hall desk."
           stats={[
-            { title: 'My Bookings', value: `${assistantBookings.length}`, description: 'all submitted records' },
+            { title: 'Desk Bookings', value: `${assistantBookings.length}`, description: 'all submitted desk records' },
             { title: 'Sent to Cashier', value: `${sentToCashierCount}`, description: 'waiting payment workflow' },
             { title: 'Pending', value: `${assistantBookings.filter((entry) => entry.bookingStatus === 'pending').length}`, description: 'still pending approval' },
             { title: 'Updated', value: `${assistantBookings.filter((entry) => (entry.revision ?? 0) > 0).length}`, description: 'records edited at least once' },
@@ -634,7 +635,13 @@ export default function Bookings() {
                         {booking.customerName} ({booking.customerPhone}) | TZS {(Number(booking.quotedAmount) || 0).toLocaleString()} | Car: {carLabelMap[booking.carType ?? 'none']} (TZS {(Number(booking.carPrice) || 0).toLocaleString()}) | Booker: {booking.carBookedBy || '-'} | Location: {booking.carLocation || '-'}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/bookings?edit=${booking.id}`)}>Edit Booking</Button>
+                        {booking.createdByUserId === user.id ? (
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/bookings?edit=${booking.id}`)}>Edit Booking</Button>
+                        ) : (
+                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                            Visible from assistant desk history
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -653,7 +660,7 @@ export default function Bookings() {
         stats={[
           { title: "Today's Bookings", value: stats[0].value, description: 'scheduled for today' },
           { title: 'Sent to Cashier', value: `${sentToCashierCount}`, description: 'waiting for payment processing' },
-          { title: 'My Bookings', value: `${assistantBookings.length}`, description: 'created by you' },
+          { title: 'Desk Bookings', value: `${assistantBookings.length}`, description: 'visible to assistant hall desk' },
           { title: 'Pending', value: `${assistantBookings.filter((entry) => entry.bookingStatus === 'pending').length}`, description: 'in booking workflow' },
         ]}
         sections={[

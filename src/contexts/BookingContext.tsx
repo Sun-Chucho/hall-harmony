@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { db } from '@/lib/firebase';
 import { BookingCarType, BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus, PastBookingApprovalStatus } from '@/types/booking';
+import { ROLE_LABELS, UserRole } from '@/types/auth';
 
 interface BookingContextValue {
   bookings: BookingRecord[];
@@ -71,6 +72,10 @@ function normalizeCarSelection(carType?: BookingCarType, carPrice?: number) {
   };
 }
 
+function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && value in ROLE_LABELS;
+}
+
 function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingRecord {
   return {
     id,
@@ -92,6 +97,7 @@ function normalizeBooking(data: Partial<BookingRecord>, id: string): BookingReco
     notes: data.notes ?? '',
     createdAt: data.createdAt ?? new Date().toISOString(),
     createdByUserId: data.createdByUserId ?? '',
+    createdByRole: isUserRole(data.createdByRole) ? data.createdByRole : undefined,
     bookingStatus: (data.bookingStatus as BookingStatus) ?? 'pending',
     eventDetailStatus: (data.eventDetailStatus as EventDetailStatus) ?? 'pending_assistant',
     assignedToRole: data.assignedToRole,
@@ -399,6 +405,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
+      createdByRole: user.role,
       bookingStatus: 'pending',
       eventDetailStatus: 'pending_assistant',
       assignedToRole: 'cashier_1',
@@ -538,6 +545,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       notes: payload.notes?.trim() ?? '',
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
+      createdByRole: user.role,
       bookingStatus: 'pending',
       eventDetailStatus: 'approved_controller',
       assignedToRole: 'cashier_1',
