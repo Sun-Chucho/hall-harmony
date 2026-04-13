@@ -125,18 +125,24 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { ok: false, message: 'Authentication required.' };
 
     const payload: Omit<ManagerAlertRecord, 'id'> & { updatedAt: unknown } = {
-      bookingId: input.bookingId,
       title: input.title,
       body: input.body,
-      decision: input.decision,
       fromUserId: user.id,
       fromRole: user.role,
       toRole: 'manager',
       read: false,
       createdAt: new Date().toISOString(),
-      link: input.link,
       updatedAt: serverTimestamp(),
     };
+    if (typeof input.bookingId === 'string' && input.bookingId.trim()) {
+      payload.bookingId = input.bookingId;
+    }
+    if (input.decision) {
+      payload.decision = input.decision;
+    }
+    if (typeof input.link === 'string' && input.link.trim()) {
+      payload.link = input.link;
+    }
 
     try {
       await addDoc(collection(db, MANAGER_ALERT_COLLECTION), payload);
@@ -160,15 +166,21 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
       userId: input.userId,
       title: input.title,
       body: input.body,
-      link: input.link,
-      relatedId: input.relatedId,
-      relatedType: input.relatedType,
       read: false,
       createdAt: new Date().toISOString(),
       createdByUserId: user.id,
       createdByRole: user.role,
       updatedAt: serverTimestamp(),
     };
+    if (typeof input.link === 'string' && input.link.trim()) {
+      payload.link = input.link;
+    }
+    if (typeof input.relatedId === 'string' && input.relatedId.trim()) {
+      payload.relatedId = input.relatedId;
+    }
+    if (input.relatedType) {
+      payload.relatedType = input.relatedType;
+    }
 
     try {
       await addDoc(collection(db, USER_NOTIFICATION_COLLECTION), payload);

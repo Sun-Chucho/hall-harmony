@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canCashRequestAdvance,
+  createCashRequestStage,
   getCashRequestActionError,
   normalizeCashRequest,
 } from '@/lib/requestWorkflows';
@@ -51,5 +52,19 @@ describe('cash request workflow helpers', () => {
 
     expect(canCashRequestAdvance(request, 'cashier_1')).toBe(false);
     expect(getCashRequestActionError(request, 'cashier_1')).toBe('This cash request is already completed.');
+  });
+
+  it('omits undefined optional fields from approval stages', () => {
+    const stage = createCashRequestStage('moved_to_halls_manager', 'user-1', 'accountant');
+
+    expect(stage).toEqual({
+      id: expect.stringContaining('moved_to_halls_manager-'),
+      code: 'moved_to_halls_manager',
+      label: 'Moved to Halls Manager',
+      at: expect.any(String),
+      actorUserId: 'user-1',
+      actorRole: 'accountant',
+    });
+    expect('note' in stage).toBe(false);
   });
 });

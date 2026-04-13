@@ -145,15 +145,24 @@ function toStageLabel(code: CashRequestStageCode) {
 }
 
 function buildStage(code: CashRequestStageCode, at: string, actorUserId?: string, actorRole?: UserRole, note?: string): CashRequestStageEntry {
-  return {
+  const stage: CashRequestStageEntry = {
     id: `${code}-${at}-${actorUserId ?? 'system'}`,
     code,
     label: toStageLabel(code),
     at,
-    actorUserId,
-    actorRole,
-    note,
   };
+
+  if (typeof actorUserId === 'string' && actorUserId.trim()) {
+    stage.actorUserId = actorUserId;
+  }
+  if (actorRole) {
+    stage.actorRole = actorRole;
+  }
+  if (typeof note === 'string' && note.trim()) {
+    stage.note = note;
+  }
+
+  return stage;
 }
 
 function uniqueStages(stages: CashRequestStageEntry[]) {

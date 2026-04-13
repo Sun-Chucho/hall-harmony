@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
-import { enableIndexedDbPersistence, getFirestore } from 'firebase/firestore';
+import { enableIndexedDbPersistence, getFirestore, initializeFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyA08M8_yfVofSgG4xnNghAbObQaxLeYKVQ',
@@ -15,7 +15,15 @@ export const firebaseConfig = {
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+export const db = (() => {
+  try {
+    return initializeFirestore(firebaseApp, {
+      ignoreUndefinedProperties: true,
+    });
+  } catch {
+    return getFirestore(firebaseApp);
+  }
+})();
 
 if (typeof window !== 'undefined') {
   void setPersistence(auth, browserLocalPersistence).catch(() => {
