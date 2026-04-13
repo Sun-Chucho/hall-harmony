@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { confirmAction } from '@/lib/confirmAction';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { DOCUMENT_OUTPUTS_COLLECTION } from '@/lib/requestWorkflows';
 import { UserRole } from '@/types/auth';
@@ -52,7 +53,7 @@ export default function Documents() {
       fields[key] = fields[key] ? `${fields[key]}, ${normalized}` : normalized;
     }
 
-    await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+    await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
       formId,
       formTitle,
       submittedAt: new Date().toISOString(),
@@ -60,7 +61,7 @@ export default function Documents() {
       submittedByRole: user.role,
       fields,
       updatedAt: serverTimestamp(),
-    });
+    }));
     event.currentTarget.reset();
   };
 

@@ -18,6 +18,7 @@ import {
   User,
   UserRole,
 } from '@/types/auth';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { auth, db, firebaseConfig } from '@/lib/firebase';
 
 interface AuthContextType extends AuthState {
@@ -257,10 +258,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const nowIso = new Date().toISOString();
         try {
-          await updateDoc(doc(db, STAFF_COLLECTION, profile.id), {
+          await updateDoc(doc(db, STAFF_COLLECTION, profile.id), sanitizeFirestoreData({
             lastLogin: nowIso,
             updatedAt: serverTimestamp(),
-          });
+          }));
         } catch {
           // Continue when Firestore is unavailable.
         }
@@ -385,7 +386,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const credential = await createUserWithEmailAndPassword(tempAuth, email, password);
-        await setDoc(doc(db, STAFF_COLLECTION, credential.user.uid), {
+        await setDoc(doc(db, STAFF_COLLECTION, credential.user.uid), sanitizeFirestoreData({
           id: credential.user.uid,
           email,
           name,
@@ -394,7 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: serverTimestamp(),
-        }, { merge: true });
+        }), { merge: true });
 
         await signOut(tempAuth);
         await deleteApp(tempApp);
@@ -420,10 +421,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        await updateDoc(doc(db, STAFF_COLLECTION, userId), {
+        await updateDoc(doc(db, STAFF_COLLECTION, userId), sanitizeFirestoreData({
           notes: notes.trim(),
           updatedAt: serverTimestamp(),
-        });
+        }));
         await refreshStaffUsers();
         return { ok: true, message: 'User notes updated successfully.' };
       } catch {
@@ -444,10 +445,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        await updateDoc(doc(db, STAFF_COLLECTION, userId), {
+        await updateDoc(doc(db, STAFF_COLLECTION, userId), sanitizeFirestoreData({
           role,
           updatedAt: serverTimestamp(),
-        });
+        }));
         await refreshStaffUsers();
         return { ok: true, message: 'Role updated successfully.' };
       } catch {
@@ -468,10 +469,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        await updateDoc(doc(db, STAFF_COLLECTION, userId), {
+        await updateDoc(doc(db, STAFF_COLLECTION, userId), sanitizeFirestoreData({
           isActive,
           updatedAt: serverTimestamp(),
-        });
+        }));
         await refreshStaffUsers();
         return { ok: true, message: isActive ? 'User activated.' : 'User deactivated.' };
       } catch {
@@ -511,14 +512,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nowIso = new Date().toISOString();
       await setDoc(
         SESSION_CONTROL_REF,
-        {
+        sanitizeFirestoreData({
           forceLogoutAt: nowIso,
           forcedByUserId: state.user.id,
           forcedByRole: state.user.role,
           writeToken: 'action_v1',
           clientActionNonce: crypto.randomUUID(),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       return { ok: true, message: 'Global logout signal sent. Active sessions will be signed out.' };

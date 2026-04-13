@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
 import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
@@ -356,11 +357,11 @@ export default function CashRequests() {
     try {
       const outputDoc = doc(collection(db, DOCUMENT_OUTPUTS_COLLECTION));
       const batch = writeBatch(db);
-      batch.set(requestDoc, {
+      batch.set(requestDoc, sanitizeFirestoreData({
         ...payload,
         updatedAt: serverTimestamp(),
-      });
-      batch.set(outputDoc, {
+      }));
+      batch.set(outputDoc, sanitizeFirestoreData({
         formId: 'cash_request',
         formTitle: 'Cash Request',
         submittedAt,
@@ -371,7 +372,7 @@ export default function CashRequests() {
           reference,
         },
         updatedAt: serverTimestamp(),
-      });
+      }));
       await batch.commit();
 
       upsertCashRequest(normalizeCashRequest({ id: requestDoc.id, ...payload }));
@@ -430,7 +431,7 @@ export default function CashRequests() {
               createCashRequestStage('declined_accountant', user.id, user.role, accountantComment, now),
             ];
 
-        transaction.update(requestRef, {
+        transaction.update(requestRef, sanitizeFirestoreData({
           currentStatus: decision === 'approve' ? 'pending_halls_manager' : 'declined',
           status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
           currentAssigneeRole: decision === 'approve' ? 'manager' : null,
@@ -440,7 +441,7 @@ export default function CashRequests() {
           accountantComment,
           stages: nextStages,
           updatedAt: serverTimestamp(),
-        });
+        }));
 
         return normalizeCashRequest({
           ...snapshot.data(),
@@ -528,7 +529,7 @@ export default function CashRequests() {
               createCashRequestStage('declined_halls_manager', user.id, user.role, hallsManagerComment, now),
             ];
 
-        transaction.update(requestRef, {
+        transaction.update(requestRef, sanitizeFirestoreData({
           currentStatus: decision === 'approve' ? 'pending_cashier' : 'declined',
           status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
           currentAssigneeRole: decision === 'approve' ? 'cashier_1' : null,
@@ -538,7 +539,7 @@ export default function CashRequests() {
           hallsManagerComment,
           stages: nextStages,
           updatedAt: serverTimestamp(),
-        });
+        }));
 
         return normalizeCashRequest({
           ...snapshot.data(),
@@ -618,7 +619,7 @@ export default function CashRequests() {
           createCashRequestStage('completed', user.id, user.role, 'Payment processed and request completed.', now),
         ];
 
-        transaction.update(requestRef, {
+        transaction.update(requestRef, sanitizeFirestoreData({
           currentStatus: 'completed',
           status: 'completed',
           currentAssigneeRole: null,
@@ -631,8 +632,8 @@ export default function CashRequests() {
           completedAt: now,
           stages: nextStages,
           updatedAt: serverTimestamp(),
-        });
-        transaction.set(voucherDoc, {
+        }));
+        transaction.set(voucherDoc, sanitizeFirestoreData({
           formId: 'payment_voucher',
           formTitle: 'Payment Voucher',
           submittedAt: now,
@@ -654,7 +655,7 @@ export default function CashRequests() {
             invoice_date: voucherForm.invoiceDate.trim(),
           },
           updatedAt: serverTimestamp(),
-        });
+        }));
 
         return normalizeCashRequest({
           ...snapshot.data(),

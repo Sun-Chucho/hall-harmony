@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { collection, doc, limit, onSnapshot, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import {
   ApprovalLevel,
@@ -156,10 +157,10 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     try {
       await setDoc(
         doc(db, APPROVALS_COLLECTION, request.id),
-        {
+        sanitizeFirestoreData({
           ...request,
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setApprovals((prev) => [request, ...prev.filter((item) => item.id !== request.id)]);
@@ -194,10 +195,10 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     };
 
     setApprovals((prev) => prev.map((item) => (item.id === requestId ? { ...item, ...patch } : item)));
-    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), {
+    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), sanitizeFirestoreData({
       ...patch,
       updatedAt: serverTimestamp(),
-    });
+    }));
 
     return { ok: true, message: `Request ${decision}.` };
   }, [approvals, user]);
@@ -224,10 +225,10 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     };
 
     setApprovals((prev) => prev.map((item) => (item.id === requestId ? { ...item, ...patch } : item)));
-    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), {
+    void updateDoc(doc(db, APPROVALS_COLLECTION, requestId), sanitizeFirestoreData({
       ...patch,
       updatedAt: serverTimestamp(),
-    });
+    }));
 
     return { ok: true, message: `Request override set to ${status}.` };
   }, [approvals, user]);
@@ -247,10 +248,10 @@ export function AuthorizationProvider({ children }: { children: React.ReactNode 
     setPolicy(nextPolicy);
     void setDoc(
       POLICY_REF,
-      {
+      sanitizeFirestoreData({
         ...nextPolicy,
         updatedAt: serverTimestamp(),
-      },
+      }),
       { merge: true },
     );
 

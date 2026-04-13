@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { usePayments } from '@/contexts/PaymentContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { reportSnapshotError } from '@/lib/firestoreListeners';
 import {
@@ -154,7 +155,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     if (existing) {
       const updated: EventBudget = { ...existing, categories: input.categories, totalAmount, notes: input.notes?.trim() ?? '' };
       setBudgets((prev) => prev.map((item) => (item.id === existing.id ? updated : item)));
-      void setDoc(doc(db, BUDGETS_COLLECTION, existing.id), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
+      void setDoc(doc(db, BUDGETS_COLLECTION, existing.id), sanitizeFirestoreData({ ...updated, updatedAt: serverTimestamp() }), { merge: true });
       appendLog('budget.updated', existing.id, `Budget updated for booking ${input.bookingId}`);
       return { ok: true, message: 'Event budget updated.', budgetId: existing.id };
     }
@@ -170,7 +171,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       notes: input.notes?.trim() ?? '',
     };
     setBudgets((prev) => [budget, ...prev]);
-    void setDoc(doc(db, BUDGETS_COLLECTION, budget.id), { ...budget, updatedAt: serverTimestamp() }, { merge: true });
+    void setDoc(doc(db, BUDGETS_COLLECTION, budget.id), sanitizeFirestoreData({ ...budget, updatedAt: serverTimestamp() }), { merge: true });
     appendLog('budget.created', budget.id, `Budget created for booking ${input.bookingId}`);
     return { ok: true, message: 'Event budget created.', budgetId: budget.id };
   }, [appendLog, budgets, findBooking, policy.transactionsFrozen, user]);
@@ -210,7 +211,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       approvalId: approval.requestId,
     };
     setAllocations((prev) => [request, ...prev]);
-    void setDoc(doc(db, ALLOCATIONS_COLLECTION, request.id), { ...request, updatedAt: serverTimestamp() }, { merge: true });
+    void setDoc(doc(db, ALLOCATIONS_COLLECTION, request.id), sanitizeFirestoreData({ ...request, updatedAt: serverTimestamp() }), { merge: true });
     appendLog('allocation.requested', request.id, `Allocation requested for ${budget.bookingId}`);
     return { ok: true, message: 'Allocation request submitted for accountant approval.', requestId: request.id };
   }, [allocations, appendLog, budgets, createApprovalRequest, policy.transactionsFrozen, user]);
@@ -232,7 +233,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     } as const;
     const updated = { ...request, ...patch };
     setAllocations((prev) => prev.map((item) => (item.id === requestId ? updated : item)));
-    void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
+    void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), sanitizeFirestoreData({ ...updated, updatedAt: serverTimestamp() }), { merge: true });
     appendLog(decision === 'approved' ? 'allocation.approved' : 'allocation.rejected', requestId, comment || 'Accountant decision recorded');
     return { ok: true, message: `Allocation ${decision} by accountant.` };
   }, [allocations, appendLog, reviewApproval, user]);
@@ -257,7 +258,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       releaseReference: releaseReference.trim(),
     };
     setAllocations((prev) => prev.map((item) => (item.id === requestId ? updated : item)));
-    void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
+    void setDoc(doc(db, ALLOCATIONS_COLLECTION, requestId), sanitizeFirestoreData({ ...updated, updatedAt: serverTimestamp() }), { merge: true });
     appendLog('allocation.released', requestId, `Funds released with reference ${releaseReference.trim()}`);
     return { ok: true, message: 'Funds released for cashier distribution.' };
   }, [allocations, appendLog, getBookingFinancials, user]);
@@ -298,19 +299,19 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
       distributedByUserId: user.id,
     };
     setDistributions((prev) => [distribution, ...prev]);
-    void setDoc(doc(db, DISTRIBUTIONS_COLLECTION, distribution.id), { ...distribution, updatedAt: serverTimestamp() }, { merge: true });
+    void setDoc(doc(db, DISTRIBUTIONS_COLLECTION, distribution.id), sanitizeFirestoreData({ ...distribution, updatedAt: serverTimestamp() }), { merge: true });
 
     if (summary.remaining - input.amount <= 0) {
       const closed: AllocationRequest = { ...request, status: 'closed' };
       setAllocations((prev) => prev.map((item) => (item.id === request.id ? closed : item)));
-      void updateDoc(doc(db, ALLOCATIONS_COLLECTION, request.id), { status: 'closed', updatedAt: serverTimestamp() });
+      void updateDoc(doc(db, ALLOCATIONS_COLLECTION, request.id), sanitizeFirestoreData({ status: 'closed', updatedAt: serverTimestamp() }));
     }
     appendLog('distribution.recorded', distribution.id, `Expense distribution added to ${input.category}`);
     return { ok: true, message: 'Expense distribution recorded.', distributionId: distribution.id };
   }, [allocations, appendLog, distributions, getAllocationSummary, policy.transactionsFrozen, user]);
 
   const persistCashTransferEvent = useCallback(async (transfer: CashTransfer) => {
-    await setDoc(doc(db, CASH_TRANSFERS_COLLECTION, transfer.id), { ...transfer, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, CASH_TRANSFERS_COLLECTION, transfer.id), sanitizeFirestoreData({ ...transfer, updatedAt: serverTimestamp() }), { merge: true });
   }, []);
   const requestCashTransferFromCashier2 = useCallback(async (input: { amount: number; comment: string; actionId?: string }) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -524,7 +525,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     };
     setMdTransfers((prev) => [transfer, ...prev]);
     try {
-      await setDoc(doc(db, MD_TRANSFERS_COLLECTION, transfer.id), { ...transfer, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, MD_TRANSFERS_COLLECTION, transfer.id), sanitizeFirestoreData({ ...transfer, updatedAt: serverTimestamp() }), { merge: true });
       return { ok: true, message: 'Managing Director transfer recorded.', transferId: transfer.id };
     } catch {
       setMdTransfers((prev) => prev.filter((entry) => entry.id !== transfer.id));
@@ -556,7 +557,7 @@ export function EventFinanceProvider({ children }: { children: React.ReactNode }
     };
     setCashDistributions((prev) => [record, ...prev]);
     try {
-      await setDoc(doc(db, CASH_DISTRIBUTIONS_COLLECTION, record.id), { ...record, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, CASH_DISTRIBUTIONS_COLLECTION, record.id), sanitizeFirestoreData({ ...record, updatedAt: serverTimestamp() }), { merge: true });
       return { ok: true, message: 'Cash distribution recorded.', distributionId: record.id };
     } catch {
       setCashDistributions((prev) => prev.filter((entry) => entry.id !== record.id));

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { BookingCarType, BookingRecord, BookingStatus, CreateBookingInput, EventDetailStatus, PastBookingApprovalStatus } from '@/types/booking';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
@@ -213,15 +214,15 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       for (const action of [...pendingActionsRef.current]) {
         try {
           if (action.type === 'set') {
-            await setDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), {
+            await setDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), sanitizeFirestoreData({
               ...action.record,
               updatedAt: serverTimestamp(),
-            });
+            }));
           } else if (action.type === 'patch') {
-            await updateDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), {
+            await updateDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), sanitizeFirestoreData({
               ...action.patch,
               updatedAt: serverTimestamp(),
-            });
+            }));
           } else {
             await deleteDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId));
           }
@@ -415,10 +416,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      await setDoc(doc(db, BOOKINGS_COLLECTION, id), {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, id), sanitizeFirestoreData({
         ...record,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted for approval.' };
     } catch (error) {
@@ -476,10 +477,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      await setDoc(doc(db, BOOKINGS_COLLECTION, record.id), {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, record.id), sanitizeFirestoreData({
         ...record,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
     } catch (error) {
@@ -555,10 +556,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      await setDoc(doc(db, BOOKINGS_COLLECTION, id), {
+      await setDoc(doc(db, BOOKINGS_COLLECTION, id), sanitizeFirestoreData({
         ...record,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Past booking recorded successfully.' };
     } catch (error) {
@@ -596,10 +597,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
         ...patch,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier and moved to pending payment.' : 'Past booking rejected.' };
     } catch (error) {
@@ -668,10 +669,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     };
 
     try {
-      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
         ...patch,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) =>
         prev.map((entry) =>
           entry.id === bookingId
@@ -715,10 +716,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
         bookingStatus: status,
         updatedAt: serverTimestamp(),
-      });
+      }));
       setBookings((prev) =>
         prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
       );
@@ -772,13 +773,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
         eventType: eventType.trim(),
         expectedGuests,
         notes: notes.trim(),
         eventDetailStatus: 'pending_assistant',
         updatedAt: serverTimestamp(),
-      });
+      }));
       return { ok: true, message: 'Event details submitted for approval.' };
     } catch (error) {
       if (!isRetryableSyncError(error)) {
@@ -828,11 +829,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+          await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
             eventDetailStatus: 'pending_controller',
             eventFinalApprovalId: finalApproval.requestId,
             updatedAt: serverTimestamp(),
-          });
+          }));
           return { ok: true, message: 'Assistant approval recorded, pending accountant final approval.' };
         } catch (error) {
           if (!isRetryableSyncError(error)) {
@@ -867,10 +868,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), {
+      await updateDoc(doc(db, BOOKINGS_COLLECTION, bookingId), sanitizeFirestoreData({
         eventDetailStatus: status,
         updatedAt: serverTimestamp(),
-      });
+      }));
       return { ok: true, message: 'Event detail status updated.' };
     } catch (error) {
       if (!isRetryableSyncError(error)) {

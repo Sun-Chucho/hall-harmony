@@ -3,6 +3,7 @@ import { collection, doc, limit, onSnapshot, query, runTransaction, serverTimest
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import { DamagedItemRecord, EventItemAllocation, InventoryItem, InventoryMovement } from '@/types/inventory';
@@ -147,8 +148,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const batch = writeBatch(db);
-      batch.set(doc(db, ITEMS_COLLECTION, item.id), { ...item, updatedAt: serverTimestamp() }, { merge: true });
-      batch.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
+      batch.set(doc(db, ITEMS_COLLECTION, item.id), sanitizeFirestoreData({ ...item, updatedAt: serverTimestamp() }), { merge: true });
+      batch.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
       await batch.commit();
 
       setItems((prev) => [item, ...prev]);
@@ -214,8 +215,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const batch = writeBatch(db);
-      batch.set(doc(db, ITEMS_COLLECTION, itemId), { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-      batch.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
+      batch.set(doc(db, ITEMS_COLLECTION, itemId), sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+      batch.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
       await batch.commit();
 
       setItems((prev) => prev.map((item) => (item.id === itemId ? updatedItem : item)));
@@ -264,8 +265,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         const liveItem = normalizeInventoryItemRecord(itemId, snapshot.data() as Partial<InventoryItem>, nextItem);
         const updatedItem = { ...liveItem, currentQuantity: liveItem.currentQuantity + normalizedQuantity };
 
-        transaction.set(itemRef, { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(itemRef, sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
         return { updatedItem };
       });
 
@@ -319,8 +320,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         }
 
         const updatedItem = { ...liveItem, currentQuantity: Math.max(liveItem.currentQuantity - normalizedQuantity, 0) };
-        transaction.set(itemRef, { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(itemRef, sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
         return { updatedItem };
       });
 
@@ -391,9 +392,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         }
 
         const updatedItem = { ...liveItem, currentQuantity: Math.max(liveItem.currentQuantity - normalizedQuantity, 0) };
-        transaction.set(itemRef, { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, ALLOCATIONS_COLLECTION, allocation.id), { ...allocation, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(itemRef, sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, ALLOCATIONS_COLLECTION, allocation.id), sanitizeFirestoreData({ ...allocation, updatedAt: serverTimestamp() }), { merge: true });
         return { updatedItem };
       });
 
@@ -469,9 +470,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           returnedAt: createdAt,
         };
 
-        transaction.set(itemRef, { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(allocationRef, { ...updatedAllocation, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(itemRef, sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(allocationRef, sanitizeFirestoreData({ ...updatedAllocation, updatedAt: serverTimestamp() }), { merge: true });
         return { updatedAllocation, updatedItem };
       });
 
@@ -538,9 +539,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         }
 
         const updatedItem = { ...liveItem, currentQuantity: Math.max(liveItem.currentQuantity - normalizedQuantity, 0) };
-        transaction.set(itemRef, { ...updatedItem, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), { ...movement, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(doc(db, DAMAGES_COLLECTION, damage.id), { ...damage, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(itemRef, sanitizeFirestoreData({ ...updatedItem, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, MOVEMENTS_COLLECTION, movement.id), sanitizeFirestoreData({ ...movement, updatedAt: serverTimestamp() }), { merge: true });
+        transaction.set(doc(db, DAMAGES_COLLECTION, damage.id), sanitizeFirestoreData({ ...damage, updatedAt: serverTimestamp() }), { merge: true });
         return { updatedItem };
       });
 

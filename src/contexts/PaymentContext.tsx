@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, limit, onSnapshot, query, serverTimestamp, 
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { BookingPaymentStatus, CreatePaymentInput, PaymentRecord, UpdatePaymentInput } from '@/types/payment';
 
@@ -210,10 +211,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     try {
       await setDoc(
         doc(db, PAYMENTS_COLLECTION, record.id),
-        {
+        sanitizeFirestoreData({
           ...record,
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       await deleteDoc(doc(db, PAYMENT_STATUS_COLLECTION, input.bookingId));
@@ -270,14 +271,14 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     try {
       await setDoc(
         doc(db, PAYMENTS_COLLECTION, paymentId),
-        {
+        sanitizeFirestoreData({
           amount: updated.amount,
           method: updated.method,
           notes: updated.notes,
           receivedAt: updated.receivedAt,
           updatedAt: serverTimestamp(),
           updatedByUserId: user.id,
-        },
+        }),
         { merge: true },
       );
       return { ok: true, message: 'Payment installment updated successfully.' };
@@ -301,12 +302,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     try {
       await setDoc(
         doc(db, PAYMENT_STATUS_COLLECTION, bookingId),
-        {
+        sanitizeFirestoreData({
           bookingId,
           status,
           updatedAt: serverTimestamp(),
           updatedByUserId: user.id,
-        },
+        }),
         { merge: true },
       );
       return { ok: true, message: `Booking marked as ${status.replace('_', ' ')}.` };

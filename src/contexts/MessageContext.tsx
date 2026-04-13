@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, doc, limit, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { USER_NOTIFICATION_COLLECTION, UserNotification } from '@/lib/requestWorkflows';
 import { UserRole } from '@/types/auth';
@@ -145,7 +146,7 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await addDoc(collection(db, MANAGER_ALERT_COLLECTION), payload);
+      await addDoc(collection(db, MANAGER_ALERT_COLLECTION), sanitizeFirestoreData(payload));
       return { ok: true, message: 'Alert sent to Halls Manager.' };
     } catch {
       return { ok: false, message: 'Failed to send manager alert.' };
@@ -183,7 +184,7 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await addDoc(collection(db, USER_NOTIFICATION_COLLECTION), payload);
+      await addDoc(collection(db, USER_NOTIFICATION_COLLECTION), sanitizeFirestoreData(payload));
       return { ok: true, message: 'Notification sent.' };
     } catch {
       if (input.userId === user.id) {
@@ -246,10 +247,10 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     const notification = notifications.find((item) => item.id === messageId);
     if (notification) {
       try {
-        await updateDoc(doc(db, USER_NOTIFICATION_COLLECTION, messageId), {
+        await updateDoc(doc(db, USER_NOTIFICATION_COLLECTION, messageId), sanitizeFirestoreData({
           read: true,
           updatedAt: serverTimestamp(),
-        });
+        }));
       } catch {
         setNotifications((prev) => prev.map((item) => (item.id === messageId ? { ...item, read: true } : item)));
       }
@@ -259,10 +260,10 @@ export function MessageProvider({ children }: { children: React.ReactNode }) {
     if (user.role !== 'manager') return { ok: false, message: 'Message not found.' };
 
     try {
-      await updateDoc(doc(db, MANAGER_ALERT_COLLECTION, messageId), {
+      await updateDoc(doc(db, MANAGER_ALERT_COLLECTION, messageId), sanitizeFirestoreData({
         read: true,
         updatedAt: serverTimestamp(),
-      });
+      }));
     } catch {
       setManagerAlerts((prev) => prev.map((item) => (item.id === messageId ? { ...item, read: true } : item)));
     }

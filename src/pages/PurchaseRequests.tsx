@@ -19,6 +19,7 @@ import {
   normalizePurchaseRequest,
 } from '@/lib/requestWorkflows';
 import { confirmAction } from '@/lib/confirmAction';
+import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import { canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
@@ -187,8 +188,8 @@ export default function PurchaseRequests() {
     };
 
     try {
-      await setDoc(requestDoc, payload);
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+      await setDoc(requestDoc, sanitizeFirestoreData(payload));
+      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
         formId: 'purchase_request',
         formTitle: 'Purchase Request',
         submittedAt,
@@ -199,7 +200,7 @@ export default function PurchaseRequests() {
           reference,
         },
         updatedAt: serverTimestamp(),
-      });
+      }));
       await sendUserNotification({
         userId: user.id,
         title: 'Purchase request submitted',
@@ -221,7 +222,7 @@ export default function PurchaseRequests() {
     setIsSaving(true);
 
     try {
-      await updateDoc(doc(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
+      await updateDoc(doc(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), sanitizeFirestoreData({
         currentStatus: 'purchase_done',
         status: 'purchase_done',
         reviewedAt: new Date().toISOString(),
@@ -234,8 +235,8 @@ export default function PurchaseRequests() {
         purchaseRecordedAt: new Date().toISOString(),
         purchaseRecordedBy: user.id,
         updatedAt: serverTimestamp(),
-      });
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+      }));
+      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
         formId: 'purchase_request',
         formTitle: 'Purchase Done',
         submittedAt: new Date().toISOString(),
@@ -251,7 +252,7 @@ export default function PurchaseRequests() {
           purchase_comment: purchaseComment.trim() || 'Purchase done by purchaser.',
         },
         updatedAt: serverTimestamp(),
-      });
+      }));
       await sendUserNotification({
         userId: selectedRequest.submittedBy,
         title: 'Purchase completed',
