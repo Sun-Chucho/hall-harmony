@@ -11,11 +11,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
+import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
 import { db } from '@/lib/firebase';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
+import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import {
   CASH_REQUEST_WORKFLOW_COLLECTION,
+  canCashRequestAdvance,
+  getCashRequestActionError,
   CashRequestWorkflow,
   DOCUMENT_OUTPUTS_COLLECTION,
   createCashRequestStage,
@@ -25,7 +29,7 @@ import {
 } from '@/lib/requestWorkflows';
 import { canAccessDeskScopedWorkflowEntry, isManagerCashRequestQueueEntry } from '@/lib/staffRecordVisibility';
 import { ROLE_LABELS } from '@/types/auth';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 type DialogMode = 'review' | 'voucher' | null;
 
@@ -80,6 +84,14 @@ function createVoucherDefaults(request: CashRequestWorkflow): VoucherFormState {
     invoiceNumber: '',
     invoiceDate: '',
   };
+}
+
+function createClientStateError(message: string) {
+  return Object.assign(new Error(message), { code: 'client-state' });
+}
+
+function sortCashRequests(rows: CashRequestWorkflow[]) {
+  return [...rows].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 }
 
 function renderFieldsList(fields: Record<string, string>) {
@@ -160,6 +172,7 @@ function renderRequestTable(
 export default function CashRequests() {
   const { user } = useAuth();
   const { sendManagerAlert, sendUserNotification } = useMessages();
+  const { toast } = useToast();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('my-requests');
@@ -180,19 +193,6 @@ export default function CashRequests() {
     invoiceDate: '',
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshingPage, setIsRefreshingPage] = useState(false);
-
-  const refreshPageAfterApproval = () => {
-    if (typeof window === 'undefined') return;
-    setIsRefreshingPage(true);
-    window.setTimeout(() => {
-      if (window.location.search) {
-        window.location.assign(window.location.pathname);
-        return;
-      }
-      window.location.reload();
-    }, 450);
-  };
 
   useEffect(() => {
     if (!user) {
@@ -234,7 +234,7 @@ export default function CashRequests() {
     [cashRequests, user],
   );
   const accountantRequests = useMemo(
-    () => cashRequests,
+    () => cashRequests.filter((entry) => canCashRequestAdvance(entry, 'accountant')),
     [cashRequests],
   );
   const managerQueue = useMemo(
@@ -242,13 +242,23 @@ export default function CashRequests() {
     [cashRequests],
   );
   const cashierApprovedRequests = useMemo(
-    () => cashRequests.filter((entry) => entry.currentStatus === 'pending_cashier' && entry.submittedBy !== user?.id),
+    () => cashRequests.filter((entry) => canCashRequestAdvance(entry, 'cashier_1') && entry.submittedBy !== user?.id),
     [cashRequests, user?.id],
   );
   const completedRequests = useMemo(
     () => cashRequests.filter((entry) => entry.currentStatus === 'completed'),
     [cashRequests],
   );
+
+  const upsertCashRequest = (nextRequest: CashRequestWorkflow) => {
+    setCashRequests((prev) => {
+      const existing = prev.some((entry) => entry.id === nextRequest.id);
+      const next = existing
+        ? prev.map((entry) => (entry.id === nextRequest.id ? nextRequest : entry))
+        : [nextRequest, ...prev];
+      return sortCashRequests(next);
+    });
+  };
 
   const closeDialog = () => {
     setSelectedRequest(null);
@@ -270,6 +280,18 @@ export default function CashRequests() {
   };
 
   const openReviewDialog = (request: CashRequestWorkflow) => {
+    if (user?.role === 'accountant' || user?.role === 'manager') {
+      const actionError = getCashRequestActionError(request, user.role);
+      if (actionError) {
+        toast({
+          title: 'Action unavailable',
+          description: actionError,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setSelectedRequest(request);
     setDialogMode('review');
     setReviewComment(
@@ -280,6 +302,18 @@ export default function CashRequests() {
   };
 
   const openVoucherDialog = (request: CashRequestWorkflow) => {
+    if (user?.role === 'cashier_1') {
+      const actionError = getCashRequestActionError(request, 'cashier_1');
+      if (actionError) {
+        toast({
+          title: 'Action unavailable',
+          description: actionError,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setSelectedRequest(request);
     setDialogMode('voucher');
     setVoucherForm(createVoucherDefaults(request));
@@ -317,12 +351,16 @@ export default function CashRequests() {
       status: 'pending_accountant',
       currentAssigneeRole: 'accountant',
       stages,
-      updatedAt: serverTimestamp(),
     };
 
     try {
-      await setDoc(requestDoc, payload);
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
+      const outputDoc = doc(collection(db, DOCUMENT_OUTPUTS_COLLECTION));
+      const batch = writeBatch(db);
+      batch.set(requestDoc, {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(outputDoc, {
         formId: 'cash_request',
         formTitle: 'Cash Request',
         submittedAt,
@@ -334,6 +372,9 @@ export default function CashRequests() {
         },
         updatedAt: serverTimestamp(),
       });
+      await batch.commit();
+
+      upsertCashRequest(normalizeCashRequest({ id: requestDoc.id, ...payload }));
       await sendUserNotification({
         userId: user.id,
         title: 'Cash request submitted',
@@ -342,48 +383,88 @@ export default function CashRequests() {
         relatedType: 'cash_request',
         link: '/cash-requests',
       });
+      toast({
+        title: 'Cash request submitted',
+        description: `Cash request ${reference} was moved to Accountant.`,
+      });
       event.currentTarget.reset();
+    } catch (error) {
+      toast({
+        title: 'Submission failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to submit cash request right now.',
+          permissionDenied: 'Backend rejected the cash request. Please sign in again and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleAccountantDecision = async (decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving || isRefreshingPage) return;
+    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving) return;
     if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     setIsSaving(true);
 
-    const now = new Date().toISOString();
-    const nextStages = decision === 'approve'
-      ? [
-          ...selectedRequest.stages,
-          createCashRequestStage('approved_by_accountant', user.id, user.role, reviewComment.trim() || 'Approved by accountant.', now),
-          createCashRequestStage('moved_to_halls_manager', user.id, user.role, undefined, now),
-        ]
-      : [
-          ...selectedRequest.stages,
-          createCashRequestStage('declined_accountant', user.id, user.role, reviewComment.trim() || 'Declined by accountant.', now),
-        ];
-
     try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
-        currentStatus: decision === 'approve' ? 'pending_halls_manager' : 'declined',
-        status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
-        currentAssigneeRole: decision === 'approve' ? 'manager' : null,
-        accountantReviewedAt: now,
-        accountantReviewedBy: user.id,
-        accountantComment: reviewComment.trim() || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.'),
-        stages: nextStages,
-        updatedAt: serverTimestamp(),
+      const requestRef = doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id);
+      const updatedRequest = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(requestRef);
+        if (!snapshot.exists()) throw createClientStateError('Cash request not found.');
+
+        const liveRequest = normalizeCashRequest({ id: snapshot.id, ...snapshot.data() });
+        const actionError = getCashRequestActionError(liveRequest, 'accountant');
+        if (actionError) throw createClientStateError(actionError);
+
+        const now = new Date().toISOString();
+        const accountantComment = reviewComment.trim() || (decision === 'approve' ? 'Approved by accountant.' : 'Declined by accountant.');
+        const nextStages = decision === 'approve'
+          ? [
+              ...liveRequest.stages,
+              createCashRequestStage('approved_by_accountant', user.id, user.role, accountantComment, now),
+              createCashRequestStage('moved_to_halls_manager', user.id, user.role, undefined, now),
+            ]
+          : [
+              ...liveRequest.stages,
+              createCashRequestStage('declined_accountant', user.id, user.role, accountantComment, now),
+            ];
+
+        transaction.update(requestRef, {
+          currentStatus: decision === 'approve' ? 'pending_halls_manager' : 'declined',
+          status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
+          currentAssigneeRole: decision === 'approve' ? 'manager' : null,
+          accountantReviewedAt: now,
+          accountantReviewedBy: user.id,
+          accountantReviewedByRole: user.role,
+          accountantComment,
+          stages: nextStages,
+          updatedAt: serverTimestamp(),
+        });
+
+        return normalizeCashRequest({
+          ...snapshot.data(),
+          id: snapshot.id,
+          currentStatus: decision === 'approve' ? 'pending_halls_manager' : 'declined',
+          status: decision === 'approve' ? 'pending_halls_manager' : 'declined_accountant',
+          currentAssigneeRole: decision === 'approve' ? 'manager' : undefined,
+          accountantReviewedAt: now,
+          accountantReviewedBy: user.id,
+          accountantReviewedByRole: user.role,
+          accountantComment,
+          stages: nextStages,
+        });
       });
+
+      upsertCashRequest(updatedRequest);
       const followUpTasks = [
         sendUserNotification({
-          userId: selectedRequest.submittedBy,
+          userId: updatedRequest.submittedBy,
           title: decision === 'approve' ? 'Cash request approved by Accountant' : 'Cash request declined by Accountant',
           body: decision === 'approve'
-            ? `Your cash request ${selectedRequest.reference} has been approved by Accountant and moved to Halls Manager.`
-            : `Your cash request ${selectedRequest.reference} was declined by Accountant.`,
-          relatedId: selectedRequest.id,
+            ? `Your cash request ${updatedRequest.reference} has been approved by Accountant and moved to Halls Manager.`
+            : `Your cash request ${updatedRequest.reference} was declined by Accountant.`,
+          relatedId: updatedRequest.id,
           relatedType: 'cash_request',
           link: '/cash-requests',
         }),
@@ -391,61 +472,118 @@ export default function CashRequests() {
       if (decision === 'approve') {
         followUpTasks.push(sendManagerAlert({
           title: 'Cash request awaiting manager review',
-          body: `Cash request ${selectedRequest.reference} from ${selectedRequest.fields.full_name ?? 'requester'} has been approved by Accountant and moved to Halls Manager.`,
+          body: `Cash request ${updatedRequest.reference} from ${updatedRequest.fields.full_name ?? 'requester'} has been approved by Accountant and moved to Halls Manager.`,
           link: '/cash-requests',
         }));
       }
       await Promise.allSettled(followUpTasks);
+      toast({
+        title: decision === 'approve' ? 'Moved to Halls Manager' : 'Cash request declined',
+        description: decision === 'approve'
+          ? `Cash request ${updatedRequest.reference} is now awaiting Halls Manager review.`
+          : `Cash request ${updatedRequest.reference} was declined by Accountant.`,
+      });
       closeDialog();
-      if (decision === 'approve') refreshPageAfterApproval();
+    } catch (error) {
+      toast({
+        title: 'Update failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to update cash request right now.',
+          permissionDenied: 'Backend rejected the cash request review. Please sign in again and retry.',
+          notFound: 'Cash request was not found in backend. Refresh the page and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleManagerDecision = async (decision: 'approve' | 'decline') => {
-    if (!user || user.role !== 'manager' || !selectedRequest || isSaving || isRefreshingPage) return;
+    if (!user || user.role !== 'manager' || !selectedRequest || isSaving) return;
     if (!reviewComment.trim()) return;
     if (!confirmAction(`Are you sure you want to ${decision} this cash request?`)) return;
     setIsSaving(true);
 
-    const now = new Date().toISOString();
-    const nextStages = decision === 'approve'
-      ? [
-          ...selectedRequest.stages,
-          createCashRequestStage('approved_by_halls_manager', user.id, user.role, reviewComment.trim(), now),
-          createCashRequestStage('moved_to_cashier', user.id, user.role, undefined, now),
-        ]
-      : [
-          ...selectedRequest.stages,
-          createCashRequestStage('declined_halls_manager', user.id, user.role, reviewComment.trim(), now),
-        ];
-
     try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
-        currentStatus: decision === 'approve' ? 'pending_cashier' : 'declined',
-        status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
-        currentAssigneeRole: decision === 'approve' ? 'cashier_1' : null,
-        hallsManagerReviewedAt: now,
-        hallsManagerReviewedBy: user.id,
-        hallsManagerComment: reviewComment.trim(),
-        stages: nextStages,
-        updatedAt: serverTimestamp(),
+      const requestRef = doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id);
+      const updatedRequest = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(requestRef);
+        if (!snapshot.exists()) throw createClientStateError('Cash request not found.');
+
+        const liveRequest = normalizeCashRequest({ id: snapshot.id, ...snapshot.data() });
+        const actionError = getCashRequestActionError(liveRequest, 'manager');
+        if (actionError) throw createClientStateError(actionError);
+
+        const now = new Date().toISOString();
+        const hallsManagerComment = reviewComment.trim();
+        const nextStages = decision === 'approve'
+          ? [
+              ...liveRequest.stages,
+              createCashRequestStage('approved_by_halls_manager', user.id, user.role, hallsManagerComment, now),
+              createCashRequestStage('moved_to_cashier', user.id, user.role, undefined, now),
+            ]
+          : [
+              ...liveRequest.stages,
+              createCashRequestStage('declined_halls_manager', user.id, user.role, hallsManagerComment, now),
+            ];
+
+        transaction.update(requestRef, {
+          currentStatus: decision === 'approve' ? 'pending_cashier' : 'declined',
+          status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
+          currentAssigneeRole: decision === 'approve' ? 'cashier_1' : null,
+          hallsManagerReviewedAt: now,
+          hallsManagerReviewedBy: user.id,
+          hallsManagerReviewedByRole: user.role,
+          hallsManagerComment,
+          stages: nextStages,
+          updatedAt: serverTimestamp(),
+        });
+
+        return normalizeCashRequest({
+          ...snapshot.data(),
+          id: snapshot.id,
+          currentStatus: decision === 'approve' ? 'pending_cashier' : 'declined',
+          status: decision === 'approve' ? 'pending_cashier' : 'declined_halls_manager',
+          currentAssigneeRole: decision === 'approve' ? 'cashier_1' : undefined,
+          hallsManagerReviewedAt: now,
+          hallsManagerReviewedBy: user.id,
+          hallsManagerReviewedByRole: user.role,
+          hallsManagerComment,
+          stages: nextStages,
+        });
       });
+
+      upsertCashRequest(updatedRequest);
       await Promise.allSettled([
         sendUserNotification({
-          userId: selectedRequest.submittedBy,
+          userId: updatedRequest.submittedBy,
           title: decision === 'approve' ? 'Cash request approved by Halls Manager' : 'Cash request declined by Halls Manager',
           body: decision === 'approve'
-            ? `Your cash request ${selectedRequest.reference} has been approved by Halls Manager and moved to Cashier.`
-            : `Your cash request ${selectedRequest.reference} was declined by Halls Manager.`,
-          relatedId: selectedRequest.id,
+            ? `Your cash request ${updatedRequest.reference} has been approved by Halls Manager and moved to Cashier.`
+            : `Your cash request ${updatedRequest.reference} was declined by Halls Manager.`,
+          relatedId: updatedRequest.id,
           relatedType: 'cash_request',
           link: '/cash-requests',
         }),
       ]);
+      toast({
+        title: decision === 'approve' ? 'Moved to Cashier' : 'Cash request declined',
+        description: decision === 'approve'
+          ? `Cash request ${updatedRequest.reference} is now awaiting Cashier action.`
+          : `Cash request ${updatedRequest.reference} was declined by Halls Manager.`,
+      });
       closeDialog();
-      if (decision === 'approve') refreshPageAfterApproval();
+    } catch (error) {
+      toast({
+        title: 'Update failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to update cash request right now.',
+          permissionDenied: 'Backend rejected the manager review. Please sign in again and retry.',
+          notFound: 'Cash request was not found in backend. Refresh the page and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -453,71 +591,112 @@ export default function CashRequests() {
 
   const handleVoucherSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user || user.role !== 'cashier_1' || !selectedRequest || isSaving || isRefreshingPage) return;
+    if (!user || user.role !== 'cashier_1' || !selectedRequest || isSaving) return;
     if (!confirmAction(`Create payment voucher for ${selectedRequest.reference} and send it to Accountant?`)) return;
     setIsSaving(true);
 
-    const now = new Date().toISOString();
-    const voucherNote = voucherForm.voucherNumber.trim()
-      ? `Payment voucher ${voucherForm.voucherNumber.trim()}`
-      : 'Payment voucher created';
-
-    const nextStages = [
-      ...selectedRequest.stages,
-      createCashRequestStage('payment_voucher_created', user.id, user.role, voucherNote, now),
-      createCashRequestStage('sent_to_accountant', user.id, user.role, voucherNote, now),
-      createCashRequestStage('completed', user.id, user.role, 'Payment processed and request completed.', now),
-    ];
-
     try {
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
-        currentStatus: 'completed',
-        status: 'completed',
-        currentAssigneeRole: null,
-        cashierReviewedAt: now,
-        cashierReviewedBy: user.id,
-        paymentVoucherNumber: voucherForm.voucherNumber.trim(),
-        paymentVoucherCreatedAt: now,
-        completedAt: now,
-        stages: nextStages,
-        updatedAt: serverTimestamp(),
+      const requestRef = doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id);
+      const voucherDoc = doc(collection(db, DOCUMENT_OUTPUTS_COLLECTION));
+      const updatedRequest = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(requestRef);
+        if (!snapshot.exists()) throw createClientStateError('Cash request not found.');
+
+        const liveRequest = normalizeCashRequest({ id: snapshot.id, ...snapshot.data() });
+        const actionError = getCashRequestActionError(liveRequest, 'cashier_1');
+        if (actionError) throw createClientStateError(actionError);
+
+        const now = new Date().toISOString();
+        const paymentVoucherNumber = voucherForm.voucherNumber.trim();
+        const voucherNote = paymentVoucherNumber
+          ? `Payment voucher ${paymentVoucherNumber}`
+          : 'Payment voucher created';
+        const nextStages = [
+          ...liveRequest.stages,
+          createCashRequestStage('payment_voucher_created', user.id, user.role, voucherNote, now),
+          createCashRequestStage('sent_to_accountant', user.id, user.role, voucherNote, now),
+          createCashRequestStage('completed', user.id, user.role, 'Payment processed and request completed.', now),
+        ];
+
+        transaction.update(requestRef, {
+          currentStatus: 'completed',
+          status: 'completed',
+          currentAssigneeRole: null,
+          cashierReviewedAt: now,
+          cashierReviewedBy: user.id,
+          cashierReviewedByRole: user.role,
+          paymentVoucherId: voucherDoc.id,
+          paymentVoucherNumber,
+          paymentVoucherCreatedAt: now,
+          completedAt: now,
+          stages: nextStages,
+          updatedAt: serverTimestamp(),
+        });
+        transaction.set(voucherDoc, {
+          formId: 'payment_voucher',
+          formTitle: 'Payment Voucher',
+          submittedAt: now,
+          submittedBy: user.id,
+          submittedByRole: user.role,
+          fields: {
+            request_reference: liveRequest.reference,
+            request_number: liveRequest.id,
+            voucher_number: paymentVoucherNumber,
+            payee_name: voucherForm.payeeName.trim(),
+            department: voucherForm.department.trim(),
+            date: voucherForm.date,
+            amount: voucherForm.amount.trim(),
+            description: voucherForm.description.trim(),
+            pos_code: voucherForm.posCode.trim(),
+            address: voucherForm.address.trim(),
+            tin: voucherForm.tin.trim(),
+            invoice_number: voucherForm.invoiceNumber.trim(),
+            invoice_date: voucherForm.invoiceDate.trim(),
+          },
+          updatedAt: serverTimestamp(),
+        });
+
+        return normalizeCashRequest({
+          ...snapshot.data(),
+          id: snapshot.id,
+          currentStatus: 'completed',
+          status: 'completed',
+          currentAssigneeRole: undefined,
+          cashierReviewedAt: now,
+          cashierReviewedBy: user.id,
+          cashierReviewedByRole: user.role,
+          paymentVoucherId: voucherDoc.id,
+          paymentVoucherNumber,
+          paymentVoucherCreatedAt: now,
+          completedAt: now,
+          stages: nextStages,
+        });
       });
-      const voucherDoc = await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), {
-        formId: 'payment_voucher',
-        formTitle: 'Payment Voucher',
-        submittedAt: now,
-        submittedBy: user.id,
-        submittedByRole: user.role,
-        fields: {
-          request_reference: selectedRequest.reference,
-          request_number: selectedRequest.id,
-          voucher_number: voucherForm.voucherNumber.trim(),
-          payee_name: voucherForm.payeeName.trim(),
-          department: voucherForm.department.trim(),
-          date: voucherForm.date,
-          amount: voucherForm.amount.trim(),
-          description: voucherForm.description.trim(),
-          pos_code: voucherForm.posCode.trim(),
-          address: voucherForm.address.trim(),
-          tin: voucherForm.tin.trim(),
-          invoice_number: voucherForm.invoiceNumber.trim(),
-          invoice_date: voucherForm.invoiceDate.trim(),
-        },
-        updatedAt: serverTimestamp(),
-      });
-      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), {
-        paymentVoucherId: voucherDoc.id,
-        updatedAt: serverTimestamp(),
-      });
+
+      upsertCashRequest(updatedRequest);
       await sendUserNotification({
-        userId: selectedRequest.submittedBy,
+        userId: updatedRequest.submittedBy,
         title: 'Payment processed',
-        body: `Your cash request ${selectedRequest.reference} has been processed. Payment voucher ${voucherForm.voucherNumber.trim() || 'created'} was sent to Accountant.`,
-        relatedId: selectedRequest.id,
+        body: `Your cash request ${updatedRequest.reference} has been processed. Payment voucher ${updatedRequest.paymentVoucherNumber || 'created'} was sent to Accountant.`,
+        relatedId: updatedRequest.id,
         relatedType: 'payment_voucher',
         link: '/cash-requests',
       });
+      toast({
+        title: 'Payment voucher created',
+        description: `Cash request ${updatedRequest.reference} was completed and the voucher was recorded.`,
+      });
       closeDialog();
+    } catch (error) {
+      toast({
+        title: 'Voucher save failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to record the payment voucher right now.',
+          permissionDenied: 'Backend rejected the payment voucher. Please sign in again and retry.',
+          notFound: 'Cash request was not found in backend. Refresh the page and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -632,7 +811,7 @@ export default function CashRequests() {
           ) : user.role === 'accountant' ? (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
-                <TabsTrigger value="all-requests">All Requests</TabsTrigger>
+                <TabsTrigger value="all-requests">Open Requests</TabsTrigger>
                 <TabsTrigger value="create">New Request</TabsTrigger>
               </TabsList>
               <TabsContent value="all-requests">
@@ -800,10 +979,10 @@ export default function CashRequests() {
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Accountant comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
                       <div className="mt-4 flex gap-2">
-                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving || isRefreshingPage}>
-                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
+                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving}>
+                          {isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
                         </Button>
-                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving || isRefreshingPage}>
+                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving}>
                           Decline
                         </Button>
                       </div>
@@ -814,10 +993,10 @@ export default function CashRequests() {
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Halls Manager comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
                       <div className="mt-4 flex gap-2">
-                        <Button onClick={() => void handleManagerDecision('approve')} disabled={isSaving || isRefreshingPage || !reviewComment.trim()}>
-                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Approve & Move to Cashier'}
+                        <Button onClick={() => void handleManagerDecision('approve')} disabled={isSaving || !reviewComment.trim()}>
+                          {isSaving ? 'Saving...' : 'Approve & Move to Cashier'}
                         </Button>
-                        <Button variant="outline" onClick={() => void handleManagerDecision('decline')} disabled={isSaving || isRefreshingPage || !reviewComment.trim()}>
+                        <Button variant="outline" onClick={() => void handleManagerDecision('decline')} disabled={isSaving || !reviewComment.trim()}>
                           Decline
                         </Button>
                       </div>
@@ -840,8 +1019,8 @@ export default function CashRequests() {
                         <textarea className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" placeholder="Description" value={voucherForm.description} onChange={(event) => setVoucherForm((prev) => ({ ...prev, description: event.target.value }))} required />
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Button type="submit" disabled={isSaving || isRefreshingPage}>
-                          {isRefreshingPage ? 'Refreshing...' : isSaving ? 'Saving...' : 'Send Voucher to Accountant'}
+                        <Button type="submit" disabled={isSaving}>
+                          {isSaving ? 'Saving...' : 'Send Voucher to Accountant'}
                         </Button>
                         <Button type="button" variant="outline" onClick={closeDialog}>
                           Close

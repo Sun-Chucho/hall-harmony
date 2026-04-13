@@ -493,6 +493,7 @@ export default function Bookings() {
       title: `Accountant ${decision} recommendation`,
       body: `Booking ${booking.id} (${booking.eventName}) reviewed by accountant. Recommendation: ${decision.toUpperCase()}.`,
       decision,
+      link: '/bookings',
     });
     setMessage(result.message);
     if (result.ok) refreshPageAfterUpdate('Recommendation sent. Refreshing page...');

@@ -1,4 +1,4 @@
-import { CashRequestWorkflow, DocumentOutput, PurchaseRequestWorkflow } from '@/lib/requestWorkflows';
+import { CashRequestWorkflow, DocumentOutput, PurchaseRequestWorkflow, canCashRequestAdvance } from '@/lib/requestWorkflows';
 import { BookingRecord } from '@/types/booking';
 import { User, UserRole } from '@/types/auth';
 
@@ -30,9 +30,5 @@ export function canAccessDeskScopedWorkflowEntry(
 }
 
 export function isManagerCashRequestQueueEntry(entry: CashRequestWorkflow) {
-  if (entry.currentStatus === 'pending_halls_manager') return true;
-  return entry.currentAssigneeRole === 'manager'
-    && entry.currentStatus !== 'pending_cashier'
-    && entry.currentStatus !== 'completed'
-    && entry.currentStatus !== 'declined';
+  return canCashRequestAdvance(entry, 'manager');
 }

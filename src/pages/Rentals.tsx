@@ -85,8 +85,8 @@ export default function Rentals() {
   const stockOutMovements = movements.filter((movement) => movement.type === 'stock_out');
   const canManage = user?.role === 'store_keeper' || user?.role === 'accountant';
 
-  const runInventoryAction = (
-    action: () => { ok: boolean; message: string },
+  const runInventoryAction = async (
+    action: () => Promise<{ ok: boolean; message: string }>,
     successTitle: string,
     failureTitle: string,
     onSuccess?: () => void,
@@ -95,16 +95,19 @@ export default function Rentals() {
     const now = Date.now();
     if (now - lastInventoryActionAtRef.current < 900) return;
     setIsSavingAction(true);
-    const result = action();
-    setMessage(result.message);
-    toast({
-      title: result.ok ? successTitle : failureTitle,
-      description: result.message,
-      variant: result.ok ? 'default' : 'destructive',
-    });
-    if (result.ok) onSuccess?.();
-    lastInventoryActionAtRef.current = now;
-    window.setTimeout(() => setIsSavingAction(false), 700);
+    try {
+      const result = await action();
+      setMessage(result.message);
+      toast({
+        title: result.ok ? successTitle : failureTitle,
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      });
+      if (result.ok) onSuccess?.();
+    } finally {
+      lastInventoryActionAtRef.current = now;
+      window.setTimeout(() => setIsSavingAction(false), 700);
+    }
   };
 
   const handleAddItem = () => {
@@ -113,7 +116,7 @@ export default function Rentals() {
       toast({ title: 'Missing fields', description: 'Item name and unit are required.', variant: 'destructive' });
       return;
     }
-    runInventoryAction(
+    void runInventoryAction(
       () => addItem(itemForm.name, itemForm.unit, itemForm.openingQuantity, itemForm.reorderLevel),
       'Inventory item saved',
       'Save failed',
@@ -127,7 +130,7 @@ export default function Rentals() {
       toast({ title: 'Incomplete stock in', description: 'Select item and enter stock in quantity.', variant: 'destructive' });
       return;
     }
-    runInventoryAction(
+    void runInventoryAction(
       () => stockIn(stockInForm.itemId, stockInForm.quantity, stockInForm.reference, stockInForm.notes),
       'Stock in saved',
       'Stock in failed',
@@ -141,7 +144,7 @@ export default function Rentals() {
       toast({ title: 'Incomplete stock out', description: 'Select item and enter stock out quantity.', variant: 'destructive' });
       return;
     }
-    runInventoryAction(
+    void runInventoryAction(
       () => stockOut(stockOutForm.itemId, stockOutForm.quantity, stockOutForm.reference, stockOutForm.notes),
       'Stock out saved',
       'Stock out failed',
@@ -155,7 +158,7 @@ export default function Rentals() {
       toast({ title: 'Incomplete damage form', description: 'Select item, quantity, and reason for damage.', variant: 'destructive' });
       return;
     }
-    runInventoryAction(
+    void runInventoryAction(
       () => recordDamage(damageForm.itemId, damageForm.quantity, damageForm.reason, damageForm.bookingId || undefined),
       'Damage saved',
       'Damage save failed',
@@ -169,7 +172,7 @@ export default function Rentals() {
       toast({ title: 'Incomplete allocation form', description: 'Select event, item, and quantity before allocation.', variant: 'destructive' });
       return;
     }
-    runInventoryAction(
+    void runInventoryAction(
       () => allocateToEvent(allocationForm.bookingId, allocationForm.itemId, allocationForm.quantity, allocationForm.notes),
       'Allocation saved',
       'Allocation failed',
@@ -208,7 +211,7 @@ export default function Rentals() {
     setPlannerForm((prev) => ({ ...prev, itemId: '', quantity: 1, notes: '' }));
   };
 
-  const handleSaveEventPlan = () => {
+  const handleSaveEventPlan = async () => {
     if (!plannerForm.bookingId) {
       setMessage('Select an approved event before saving the event plan.');
       toast({ title: 'Missing event', description: 'Select an approved event before saving the event plan.', variant: 'destructive' });
@@ -236,7 +239,7 @@ export default function Rentals() {
 
     for (const entry of plannerItems) {
       const item = items.find((stockItem) => stockItem.id === entry.itemId);
-      const result = allocateToEvent(
+      const result = await allocateToEvent(
         plannerForm.bookingId,
         entry.itemId,
         entry.quantity,
@@ -268,7 +271,7 @@ export default function Rentals() {
   };
 
   const handleReturnAllocation = (allocationId: string) => {
-    runInventoryAction(
+    void runInventoryAction(
       () => returnFromEvent(allocationId),
       'Return saved',
       'Return failed',

@@ -115,25 +115,28 @@ export default function Inventory() {
     });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedItem || isSaving) return;
     if (!confirmAction(`Save changes to ${selectedItem.name}?`)) return;
 
     setIsSaving(true);
-    const result = editItem(selectedItem.id, {
-      name: editForm.name,
-      unit: editForm.unit,
-      currentQuantity: Number(editForm.currentQuantity),
-      reorderLevel: Number(editForm.reorderLevel),
-      reason: editForm.reason,
-    });
-    toast({
-      title: result.ok ? 'Inventory updated' : 'Update failed',
-      description: result.message,
-      variant: result.ok ? 'default' : 'destructive',
-    });
-    if (result.ok) closeEditDialog();
-    setIsSaving(false);
+    try {
+      const result = await editItem(selectedItem.id, {
+        name: editForm.name,
+        unit: editForm.unit,
+        currentQuantity: Number(editForm.currentQuantity),
+        reorderLevel: Number(editForm.reorderLevel),
+        reason: editForm.reason,
+      });
+      toast({
+        title: result.ok ? 'Inventory updated' : 'Update failed',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      });
+      if (result.ok) closeEditDialog();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -330,7 +333,7 @@ export default function Inventory() {
                     <Input id="inventory-reason" value={editForm.reason} onChange={(event) => setEditForm((prev) => ({ ...prev, reason: event.target.value }))} placeholder="Describe why you changed this item" />
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={handleSaveEdit} disabled={isSaving}>
+                    <Button onClick={() => void handleSaveEdit()} disabled={isSaving}>
                       {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
                     <Button type="button" variant="outline" onClick={closeEditDialog}>

@@ -27,6 +27,8 @@ export type CashRequestStatus =
   | 'completed'
   | 'declined';
 
+export type CashRequestActionRole = Extract<UserRole, 'accountant' | 'manager' | 'cashier_1'>;
+
 export interface CashRequestStageEntry {
   id: string;
   code: CashRequestStageCode;
@@ -194,7 +196,7 @@ function toCashStatus(rawStatus: unknown): CashRequestStatus {
   }
 }
 
-function getCashAssignee(status: CashRequestStatus): UserRole | undefined {
+export function getCashRequestAssignee(status: CashRequestStatus): UserRole | undefined {
   switch (status) {
     case 'pending_accountant':
       return 'accountant';
@@ -207,6 +209,43 @@ function getCashAssignee(status: CashRequestStatus): UserRole | undefined {
     default:
       return undefined;
   }
+}
+
+export function getCashRequestActionError(
+  request: Pick<CashRequestWorkflow, 'currentStatus' | 'currentAssigneeRole'>,
+  role: CashRequestActionRole,
+) {
+  if (request.currentStatus === 'completed') {
+    return 'This cash request is already completed.';
+  }
+
+  if (request.currentStatus === 'declined') {
+    return 'This cash request has already been declined.';
+  }
+
+  const expectedRole = getCashRequestAssignee(request.currentStatus);
+  const assignedRole = request.currentAssigneeRole ?? expectedRole;
+
+  if (assignedRole && assignedRole !== role) {
+    return `This cash request is currently assigned to ${ROLE_LABELS[assignedRole]}.`;
+  }
+
+  if (expectedRole && expectedRole !== role) {
+    return `This cash request is currently waiting for ${ROLE_LABELS[expectedRole]}.`;
+  }
+
+  if (!expectedRole && !assignedRole) {
+    return 'This cash request is not awaiting action right now.';
+  }
+
+  return null;
+}
+
+export function canCashRequestAdvance(
+  request: Pick<CashRequestWorkflow, 'currentStatus' | 'currentAssigneeRole'>,
+  role: CashRequestActionRole,
+) {
+  return getCashRequestActionError(request, role) === null;
 }
 
 function buildLegacyCashStages(raw: Record<string, unknown>, currentStatus: CashRequestStatus) {
@@ -319,7 +358,7 @@ export function normalizeCashRequest(rawValue: Record<string, unknown>): CashReq
     submittedByRole: isUserRole(rawValue.submittedByRole) ? rawValue.submittedByRole : 'assistant_hall_manager',
     fields: (rawValue.fields as Record<string, string>) ?? {},
     currentStatus,
-    currentAssigneeRole: isUserRole(rawValue.currentAssigneeRole) ? rawValue.currentAssigneeRole : getCashAssignee(currentStatus),
+    currentAssigneeRole: isUserRole(rawValue.currentAssigneeRole) ? rawValue.currentAssigneeRole : getCashRequestAssignee(currentStatus),
     stages,
     accountantReviewedAt: typeof rawValue.accountantReviewedAt === 'string'
       ? rawValue.accountantReviewedAt
