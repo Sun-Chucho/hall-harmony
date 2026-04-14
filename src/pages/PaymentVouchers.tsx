@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
-import { DOCUMENT_OUTPUTS_COLLECTION, DocumentOutput, downloadCsv } from '@/lib/requestWorkflows';
+import { DOCUMENT_OUTPUTS_COLLECTION, DocumentOutput, downloadCsv, normalizeDocumentOutput } from '@/lib/requestWorkflows';
 import { ROLE_LABELS } from '@/types/auth';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
@@ -24,7 +24,7 @@ export default function PaymentVouchers() {
       outputsQuery,
       (snapshot) => {
         setListenerError(null);
-        setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) })));
+        setOutputs(snapshot.docs.map((item) => normalizeDocumentOutput({ id: item.id, ...item.data() })));
       },
       (error) => {
         reportSnapshotError('payment-vouchers', error);
@@ -59,7 +59,7 @@ export default function PaymentVouchers() {
   return (
     <ManagementPageTemplate
       pageTitle="Payment Vouchers"
-      subtitle="Table register of all payment vouchers sent to Accountant."
+      subtitle="Table register of all payment vouchers sent to Accountant, including manual entries from Documents."
       stats={[
         { title: 'Total Vouchers', value: `${vouchers.length}`, description: 'payment vouchers recorded in the system' },
       ]}
@@ -81,9 +81,10 @@ export default function PaymentVouchers() {
                 size="sm"
                 variant="outline"
                 onClick={() => downloadCsv('payment-vouchers.csv', [
-                  ['Date', 'Voucher Number', 'Request Reference', 'Payee', 'Amount', 'Department', 'Submitted By', 'Description'],
+                  ['Date', 'Reference Number', 'Voucher Number', 'Request Reference', 'Payee', 'Amount', 'Department', 'Submitted By', 'Description'],
                   ...vouchers.map((entry) => [
                     entry.submittedAt,
+                    entry.reference ?? '',
                     entry.fields.voucher_number ?? '',
                     entry.fields.request_reference ?? entry.fields.request_number ?? '',
                     entry.fields.payee_name ?? '',
@@ -98,10 +99,11 @@ export default function PaymentVouchers() {
               </Button>
             </div>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left text-sm">
+              <table className="w-full min-w-[1240px] text-left text-sm">
                 <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
                   <tr className="border-b border-slate-200">
                     <th className="px-3 py-3">Date</th>
+                    <th className="px-3 py-3">Reference Number</th>
                     <th className="px-3 py-3">Voucher Number</th>
                     <th className="px-3 py-3">Request Reference</th>
                     <th className="px-3 py-3">Payee</th>
@@ -114,12 +116,13 @@ export default function PaymentVouchers() {
                 <tbody>
                   {vouchers.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-4 text-slate-500" colSpan={8}>No payment vouchers recorded yet.</td>
+                      <td className="px-3 py-4 text-slate-500" colSpan={9}>No payment vouchers recorded yet.</td>
                     </tr>
                   ) : (
                     vouchers.map((entry) => (
                       <tr key={entry.id} className="border-b border-slate-100">
                         <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+                        <td className="px-3 py-3 font-semibold text-slate-900">{entry.reference ?? '-'}</td>
                         <td className="px-3 py-3 font-semibold text-slate-900">{entry.fields.voucher_number ?? '-'}</td>
                         <td className="px-3 py-3 text-slate-700">{entry.fields.request_reference ?? entry.fields.request_number ?? '-'}</td>
                         <td className="px-3 py-3 text-slate-700">{entry.fields.payee_name ?? '-'}</td>

@@ -17,6 +17,7 @@ import {
   getCashRequestStatusLabel,
   getPurchaseRequestStatusLabel,
   normalizeCashRequest,
+  normalizeDocumentOutput,
   normalizePurchaseRequest,
 } from '@/lib/requestWorkflows';
 import { canAccessDeskScopedBooking, canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
@@ -270,7 +271,7 @@ export default function Reports() {
       query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc')),
       (snapshot) => {
         setListenerError(null);
-        setOutputs(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<DocumentOutput, 'id'>) })));
+        setOutputs(snapshot.docs.map((item) => normalizeDocumentOutput({ id: item.id, ...item.data() })));
       },
       (error) => {
         reportSnapshotError('reports-document-outputs', error);
@@ -584,10 +585,11 @@ export default function Reports() {
               </TabsContent>
               <TabsContent value="my-documents">
                 {myDocuments.length === 0 ? emptyState('No saved document outputs tied to your account yet.') : tableWrap(
-                  <table className="w-full min-w-[980px] text-left text-sm">
+                  <table className="w-full min-w-[1120px] text-left text-sm">
                     <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
                       <tr className="border-b border-slate-200">
                         <th className="px-3 py-3">Date</th>
+                        <th className="px-3 py-3">Reference</th>
                         <th className="px-3 py-3">Form</th>
                         <th className="px-3 py-3">Summary</th>
                       </tr>
@@ -596,9 +598,14 @@ export default function Reports() {
                       {myDocuments.map((entry) => (
                         <tr key={entry.id} className="border-b border-slate-100">
                           <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+                          <td className="px-3 py-3 font-semibold text-slate-900">{entry.reference ?? '-'}</td>
                           <td className="px-3 py-3 font-semibold text-slate-900">{entry.formTitle}</td>
                           <td className="px-3 py-3 text-slate-700">
-                            {Object.entries(entry.fields).slice(0, 3).map(([key, value]) => `${key}: ${value}`).join(' | ') || '-'}
+                            {Object.entries(entry.fields)
+                              .filter(([key]) => !['reference_number', 'reference', 'request_reference', 'request_number'].includes(key))
+                              .slice(0, 3)
+                              .map(([key, value]) => `${key}: ${value}`)
+                              .join(' | ') || '-'}
                           </td>
                         </tr>
                       ))}

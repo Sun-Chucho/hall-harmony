@@ -4,6 +4,7 @@ import {
   createCashRequestStage,
   getCashRequestActionError,
   normalizeCashRequest,
+  normalizeDocumentOutput,
 } from '@/lib/requestWorkflows';
 
 function buildCashRequest(raw: Record<string, unknown>) {
@@ -66,5 +67,40 @@ describe('cash request workflow helpers', () => {
       actorRole: 'accountant',
     });
     expect('note' in stage).toBe(false);
+  });
+
+  it('restores document reference numbers from saved voucher fields', () => {
+    const output = normalizeDocumentOutput({
+      id: 'doc-1',
+      formId: 'payment_voucher',
+      formTitle: 'Payment Voucher',
+      submittedAt: '2026-04-13T10:00:00.000Z',
+      submittedBy: 'user-2',
+      submittedByRole: 'cashier_1',
+      fields: {
+        reference_number: 'REF-1002',
+        voucher_number: 'PV-2026-014',
+        payee_name: 'Jane Doe',
+      },
+    });
+
+    expect(output.reference).toBe('REF-1002');
+  });
+
+  it('falls back to request reference for older payment voucher records', () => {
+    const output = normalizeDocumentOutput({
+      id: 'doc-2',
+      formId: 'payment_voucher',
+      formTitle: 'Payment Voucher',
+      submittedAt: '2026-04-13T10:00:00.000Z',
+      submittedBy: 'user-2',
+      submittedByRole: 'cashier_1',
+      fields: {
+        request_reference: 'CR-AB1234',
+        voucher_number: 'PV-2026-015',
+      },
+    });
+
+    expect(output.reference).toBe('CR-AB1234');
   });
 });

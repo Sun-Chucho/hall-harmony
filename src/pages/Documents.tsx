@@ -8,12 +8,12 @@ import { confirmAction } from '@/lib/confirmAction';
 import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
 import { getTrimmedFormFields } from '@/lib/formFields';
-import { DOCUMENT_OUTPUTS_COLLECTION } from '@/lib/requestWorkflows';
+import { DOCUMENT_OUTPUTS_COLLECTION, getDocumentOutputReference } from '@/lib/requestWorkflows';
 import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import { UserRole } from '@/types/auth';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-type FormId = 'lpo' | 'delivery_note' | 'grn' | 'stores_ledger' | 'tax_invoice' | 'petty_cash' | 'hall_registration';
+type FormId = 'lpo' | 'delivery_note' | 'grn' | 'stores_ledger' | 'tax_invoice' | 'petty_cash' | 'hall_registration' | 'payment_voucher';
 
 interface ManualForm {
   id: FormId;
@@ -29,6 +29,7 @@ const MANUAL_FORMS: ManualForm[] = [
   { id: 'tax_invoice', title: 'Tax Invoice', roles: ['accountant', 'cashier_1'] },
   { id: 'petty_cash', title: 'Petty Cash Voucher', roles: ['accountant', 'cashier_1', 'manager'] },
   { id: 'hall_registration', title: 'Hall Registration Form', roles: ['cashier_1', 'manager'] },
+  { id: 'payment_voucher', title: 'Payment Voucher', roles: ['cashier_1', 'accountant'] },
 ];
 
 function inputClass(extra = '') {
@@ -51,12 +52,14 @@ export default function Documents() {
     if (!confirmAction(`Save ${formTitle}?`)) return;
     const formElement = event.currentTarget;
     const fields = getTrimmedFormFields(formElement);
+    const reference = getDocumentOutputReference(formId, fields);
     setSavingFormId(formId);
 
     try {
       await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
         formId,
         formTitle,
+        reference,
         submittedAt: new Date().toISOString(),
         submittedBy: user.id,
         submittedByRole: user.role,
@@ -203,6 +206,27 @@ export default function Documents() {
                     <input name="total_amount" className={inputClass()} placeholder="Total Amount" />
                   </div>
                   <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'hall_registration' ? 'Saving...' : 'Save Hall Registration'}</Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="payment_voucher">
+                <form className="space-y-4" onSubmit={(event) => void saveOutput('payment_voucher', 'Payment Voucher', event)}>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input name="reference_number" className={inputClass()} placeholder="Reference Number" />
+                    <input name="voucher_number" className={inputClass()} placeholder="Voucher Number" />
+                    <input name="request_reference" className={inputClass()} placeholder="Request Reference" />
+                    <input name="payee_name" className={inputClass()} placeholder="Payee Name" />
+                    <input name="department" className={inputClass()} placeholder="Department" />
+                    <input name="date" className={inputClass()} placeholder="Date" />
+                    <input name="amount" className={inputClass()} placeholder="Amount" />
+                    <input name="pos_code" className={inputClass()} placeholder="POS Code" />
+                    <input name="address" className={inputClass()} placeholder="Address" />
+                    <input name="tin" className={inputClass()} placeholder="TIN" />
+                    <input name="invoice_number" className={inputClass()} placeholder="Invoice Number" />
+                    <input name="invoice_date" className={inputClass()} placeholder="Invoice Date" />
+                  </div>
+                  <textarea name="description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Description" />
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'payment_voucher' ? 'Saving...' : 'Save Payment Voucher'}</Button>
                 </form>
               </TabsContent>
             </Tabs>

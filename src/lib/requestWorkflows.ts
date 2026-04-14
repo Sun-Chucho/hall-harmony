@@ -92,6 +92,7 @@ export interface DocumentOutput {
   submittedBy: string;
   submittedByRole: UserRole;
   fields: Record<string, string>;
+  reference?: string;
 }
 
 export interface UserNotification {
@@ -131,6 +132,32 @@ const CASH_STAGE_LABELS: Record<CashRequestStageCode, string> = {
   declined_halls_manager: 'Declined by Halls Manager',
 };
 
+const DOCUMENT_REFERENCE_KEYS = [
+  'reference_number',
+  'reference',
+  'request_reference',
+  'purchase_reference',
+  'voucher_number',
+  'voucher_no',
+  'invoice_number',
+  'grn_number',
+  'grn_no',
+  'order_number',
+  'delivery_note_number',
+  'receipt_number',
+] as const;
+
+const DOCUMENT_REFERENCE_KEYS_BY_FORM: Record<string, readonly string[]> = {
+  payment_voucher: ['reference_number', 'request_reference', 'request_number', 'voucher_number'],
+  petty_cash: ['voucher_no', 'reference_number'],
+  tax_invoice: ['invoice_number', 'reference_number'],
+  grn: ['grn_number', 'delivery_note_number', 'reference_number'],
+  stores_ledger: ['grn_no', 'reference_number'],
+  delivery_note: ['order_number', 'invoice_number', 'reference_number'],
+  purchase_request: ['reference', 'purchase_reference'],
+  cash_request: ['reference'],
+};
+
 function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && value in ROLE_LABELS;
 }
@@ -138,6 +165,31 @@ function isUserRole(value: unknown): value is UserRole {
 function fallbackIso(value?: unknown) {
   if (typeof value === 'string' && value.trim()) return value;
   return new Date().toISOString();
+}
+
+function getRecordString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+export function getDocumentOutputReference(
+  formId: string,
+  fields: Record<string, string>,
+  explicitReference?: unknown,
+) {
+  const directReference = getRecordString(explicitReference);
+  if (directReference) return directReference;
+
+  const candidateKeys = [
+    ...(DOCUMENT_REFERENCE_KEYS_BY_FORM[formId] ?? []),
+    ...DOCUMENT_REFERENCE_KEYS,
+  ];
+
+  for (const key of candidateKeys) {
+    const value = getRecordString(fields[key]);
+    if (value) return value;
+  }
+
+  return undefined;
 }
 
 function toStageLabel(code: CashRequestStageCode) {
@@ -447,6 +499,23 @@ export function normalizePurchaseRequest(rawValue: Record<string, unknown>): Pur
     purchaseComment: typeof rawValue.purchaseComment === 'string' ? rawValue.purchaseComment : undefined,
     purchaseSupplier: typeof rawValue.purchaseSupplier === 'string' ? rawValue.purchaseSupplier : undefined,
     purchaseDate: typeof rawValue.purchaseDate === 'string' ? rawValue.purchaseDate : undefined,
+  };
+}
+
+export function normalizeDocumentOutput(rawValue: Record<string, unknown>): DocumentOutput {
+  const id = String(rawValue.id ?? '');
+  const formId = typeof rawValue.formId === 'string' ? rawValue.formId : '';
+  const fields = (rawValue.fields as Record<string, string>) ?? {};
+
+  return {
+    id,
+    formId,
+    formTitle: typeof rawValue.formTitle === 'string' ? rawValue.formTitle : formId,
+    submittedAt: fallbackIso(rawValue.submittedAt ?? rawValue.createdAt),
+    submittedBy: String(rawValue.submittedBy ?? ''),
+    submittedByRole: isUserRole(rawValue.submittedByRole) ? rawValue.submittedByRole : 'assistant_hall_manager',
+    fields,
+    reference: getDocumentOutputReference(formId, fields, rawValue.reference),
   };
 }
 

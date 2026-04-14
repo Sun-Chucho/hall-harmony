@@ -733,10 +733,12 @@ export default function CashRequests() {
         transaction.set(voucherDoc, sanitizeFirestoreData({
           formId: 'payment_voucher',
           formTitle: 'Payment Voucher',
+          reference: liveRequest.reference,
           submittedAt: now,
           submittedBy: user.id,
           submittedByRole: user.role,
           fields: {
+            reference_number: liveRequest.reference,
             request_reference: liveRequest.reference,
             request_number: liveRequest.id,
             voucher_number: paymentVoucherNumber,
