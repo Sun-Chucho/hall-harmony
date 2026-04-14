@@ -1,12 +1,15 @@
-import { FormEvent, useMemo } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
 import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
+import { getTrimmedFormFields } from '@/lib/formFields';
 import { DOCUMENT_OUTPUTS_COLLECTION } from '@/lib/requestWorkflows';
+import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import { UserRole } from '@/types/auth';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
@@ -34,6 +37,8 @@ function inputClass(extra = '') {
 
 export default function Documents() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [savingFormId, setSavingFormId] = useState<FormId | null>(null);
 
   const allowedForms = useMemo(
     () => MANUAL_FORMS.filter((form) => user && form.roles.includes(user.role)),
@@ -42,27 +47,39 @@ export default function Documents() {
 
   const saveOutput = async (formId: FormId, formTitle: string, event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!user) return;
+    if (!user || savingFormId) return;
     if (!confirmAction(`Save ${formTitle}?`)) return;
+    const formElement = event.currentTarget;
+    const fields = getTrimmedFormFields(formElement);
+    setSavingFormId(formId);
 
-    const formData = new FormData(event.currentTarget);
-    const fields: Record<string, string> = {};
-    for (const [key, value] of formData.entries()) {
-      const normalized = String(value).trim();
-      if (!normalized) continue;
-      fields[key] = fields[key] ? `${fields[key]}, ${normalized}` : normalized;
+    try {
+      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
+        formId,
+        formTitle,
+        submittedAt: new Date().toISOString(),
+        submittedBy: user.id,
+        submittedByRole: user.role,
+        fields,
+        updatedAt: serverTimestamp(),
+      }));
+      formElement.reset();
+      toast({
+        title: `${formTitle} saved`,
+        description: 'Document output recorded successfully.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Save failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: `Unable to save ${formTitle.toLowerCase()} right now.`,
+          permissionDenied: `Backend rejected the ${formTitle.toLowerCase()} save. Please sign in again and retry.`,
+        }),
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingFormId((current) => (current === formId ? null : current));
     }
-
-    await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
-      formId,
-      formTitle,
-      submittedAt: new Date().toISOString(),
-      submittedBy: user.id,
-      submittedByRole: user.role,
-      fields,
-      updatedAt: serverTimestamp(),
-    }));
-    event.currentTarget.reset();
   };
 
   if (!user) return null;
@@ -100,7 +117,7 @@ export default function Documents() {
                     <input name="total" className={inputClass()} placeholder="Total Amount" />
                     <input name="payment_type" className={inputClass()} placeholder="Payment Type" />
                   </div>
-                  <Button type="submit">Save LPO</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'lpo' ? 'Saving...' : 'Save LPO'}</Button>
                 </form>
               </TabsContent>
 
@@ -114,7 +131,7 @@ export default function Documents() {
                     <input name="shipping_date" className={inputClass()} placeholder="Shipping Date" />
                     <input name="contact_person" className={inputClass()} placeholder="Contact Person" />
                   </div>
-                  <Button type="submit">Save Delivery Note</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'delivery_note' ? 'Saving...' : 'Save Delivery Note'}</Button>
                 </form>
               </TabsContent>
 
@@ -128,7 +145,7 @@ export default function Documents() {
                     <input name="received_by" className={inputClass()} placeholder="Received By" />
                     <input name="receiving_department" className={inputClass()} placeholder="Receiving Department" />
                   </div>
-                  <Button type="submit">Save GRN</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'grn' ? 'Saving...' : 'Save GRN'}</Button>
                 </form>
               </TabsContent>
 
@@ -142,7 +159,7 @@ export default function Documents() {
                     <input name="balance" className={inputClass()} placeholder="Balance" />
                     <input name="remarks" className={inputClass()} placeholder="Remarks" />
                   </div>
-                  <Button type="submit">Save Stores Ledger</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'stores_ledger' ? 'Saving...' : 'Save Stores Ledger'}</Button>
                 </form>
               </TabsContent>
 
@@ -157,7 +174,7 @@ export default function Documents() {
                     <input name="vat" className={inputClass()} placeholder="VAT" />
                   </div>
                   <textarea name="item_description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Item Description" />
-                  <Button type="submit">Save Tax Invoice</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'tax_invoice' ? 'Saving...' : 'Save Tax Invoice'}</Button>
                 </form>
               </TabsContent>
 
@@ -171,7 +188,7 @@ export default function Documents() {
                     <input name="amount" className={inputClass()} placeholder="Amount" />
                     <input name="approved_by" className={inputClass()} placeholder="Approved By" />
                   </div>
-                  <Button type="submit">Save Petty Cash Voucher</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'petty_cash' ? 'Saving...' : 'Save Petty Cash Voucher'}</Button>
                 </form>
               </TabsContent>
 
@@ -185,7 +202,7 @@ export default function Documents() {
                     <input name="event_type" className={inputClass()} placeholder="Event Type" />
                     <input name="total_amount" className={inputClass()} placeholder="Total Amount" />
                   </div>
-                  <Button type="submit">Save Hall Registration</Button>
+                  <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'hall_registration' ? 'Saving...' : 'Save Hall Registration'}</Button>
                 </form>
               </TabsContent>
             </Tabs>

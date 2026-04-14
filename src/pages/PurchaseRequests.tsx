@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessageContext';
+import { useToast } from '@/hooks/use-toast';
 import {
   DOCUMENT_OUTPUTS_COLLECTION,
   PURCHASE_REQUEST_WORKFLOW_COLLECTION,
@@ -21,10 +22,12 @@ import {
 import { confirmAction } from '@/lib/confirmAction';
 import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
+import { getTrimmedFormFields } from '@/lib/formFields';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
+import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import { canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
 import { ROLE_LABELS } from '@/types/auth';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 function inputClass(extra = '') {
   return `h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm ${extra}`;
@@ -39,6 +42,10 @@ function statusBadgeClass(status: PurchaseRequestWorkflow['currentStatus']) {
     default:
       return 'bg-amber-100 text-amber-800';
   }
+}
+
+function sortPurchaseRequests(rows: PurchaseRequestWorkflow[]) {
+  return [...rows].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 }
 
 function renderFieldsList(fields: Record<string, string>) {
@@ -110,6 +117,7 @@ function renderTable(rows: PurchaseRequestWorkflow[], onOpen?: (request: Purchas
 export default function PurchaseRequests() {
   const { user } = useAuth();
   const { sendUserNotification } = useMessages();
+  const { toast } = useToast();
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('my-requests');
@@ -158,21 +166,34 @@ export default function PurchaseRequests() {
     [purchaseRequests],
   );
 
+  const upsertPurchaseRequest = (nextRequest: PurchaseRequestWorkflow) => {
+    setPurchaseRequests((prev) => {
+      const existing = prev.some((entry) => entry.id === nextRequest.id);
+      const next = existing
+        ? prev.map((entry) => (entry.id === nextRequest.id ? nextRequest : entry))
+        : [nextRequest, ...prev];
+      return sortPurchaseRequests(next);
+    });
+  };
+
+  const closeRequestDialog = () => {
+    setSelectedRequest(null);
+    setPurchaseReference('');
+    setPurchaseSupplier('');
+    setPurchaseDate(new Date().toISOString().slice(0, 10));
+    setPurchaseComment('');
+  };
+
   const handleSubmitRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || !canCreate || isSaving) return;
     if (!confirmAction('Submit this purchase request to purchaser?')) return;
     setIsSaving(true);
-
-    const formData = new FormData(event.currentTarget);
-    const fields: Record<string, string> = {};
-    for (const [key, value] of formData.entries()) {
-      const normalized = String(value).trim();
-      if (!normalized) continue;
-      fields[key] = fields[key] ? `${fields[key]}, ${normalized}` : normalized;
-    }
+    const formElement = event.currentTarget;
+    const fields = getTrimmedFormFields(formElement);
 
     const requestDoc = doc(collection(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION));
+    const outputDoc = doc(collection(db, DOCUMENT_OUTPUTS_COLLECTION));
     const submittedAt = new Date().toISOString();
     const reference = `PR-${requestDoc.id.slice(0, 6).toUpperCase()}`;
 
@@ -188,8 +209,9 @@ export default function PurchaseRequests() {
     };
 
     try {
-      await setDoc(requestDoc, sanitizeFirestoreData(payload));
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
+      const batch = writeBatch(db);
+      batch.set(requestDoc, sanitizeFirestoreData(payload));
+      batch.set(outputDoc, sanitizeFirestoreData({
         formId: 'purchase_request',
         formTitle: 'Purchase Request',
         submittedAt,
@@ -201,15 +223,32 @@ export default function PurchaseRequests() {
         },
         updatedAt: serverTimestamp(),
       }));
-      await sendUserNotification({
-        userId: user.id,
+      await batch.commit();
+      upsertPurchaseRequest(normalizePurchaseRequest({ id: requestDoc.id, ...payload }));
+      formElement.reset();
+      await Promise.allSettled([
+        sendUserNotification({
+          userId: user.id,
+          title: 'Purchase request submitted',
+          body: `Your purchase request ${reference} has been sent to Purchaser.`,
+          relatedId: requestDoc.id,
+          relatedType: 'purchase_request',
+          link: '/purchase-requests',
+        }),
+      ]);
+      toast({
         title: 'Purchase request submitted',
-        body: `Your purchase request ${reference} has been sent to Purchaser.`,
-        relatedId: requestDoc.id,
-        relatedType: 'purchase_request',
-        link: '/purchase-requests',
+        description: `Purchase request ${reference} was sent to Purchaser.`,
       });
-      event.currentTarget.reset();
+    } catch (error) {
+      toast({
+        title: 'Submission failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to submit purchase request right now.',
+          permissionDenied: 'Backend rejected the purchase request. Please sign in again and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -222,24 +261,29 @@ export default function PurchaseRequests() {
     setIsSaving(true);
 
     try {
-      await updateDoc(doc(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), sanitizeFirestoreData({
+      const now = new Date().toISOString();
+      const outputDoc = doc(collection(db, DOCUMENT_OUTPUTS_COLLECTION));
+      const purchaseNote = purchaseComment.trim() || 'Purchase done by purchaser.';
+      const nextPayload = {
         currentStatus: 'purchase_done',
         status: 'purchase_done',
-        reviewedAt: new Date().toISOString(),
+        reviewedAt: now,
         reviewedBy: user.id,
-        reviewComment: purchaseComment.trim() || 'Purchase done by purchaser.',
+        reviewComment: purchaseNote,
         purchaseReference: purchaseReference.trim(),
         purchaseSupplier: purchaseSupplier.trim(),
         purchaseDate,
-        purchaseComment: purchaseComment.trim() || 'Purchase done by purchaser.',
-        purchaseRecordedAt: new Date().toISOString(),
+        purchaseComment: purchaseNote,
+        purchaseRecordedAt: now,
         purchaseRecordedBy: user.id,
         updatedAt: serverTimestamp(),
-      }));
-      await addDoc(collection(db, DOCUMENT_OUTPUTS_COLLECTION), sanitizeFirestoreData({
+      };
+      const batch = writeBatch(db);
+      batch.update(doc(db, PURCHASE_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), sanitizeFirestoreData(nextPayload));
+      batch.set(outputDoc, sanitizeFirestoreData({
         formId: 'purchase_request',
         formTitle: 'Purchase Done',
-        submittedAt: new Date().toISOString(),
+        submittedAt: now,
         submittedBy: user.id,
         submittedByRole: user.role,
         fields: {
@@ -249,23 +293,40 @@ export default function PurchaseRequests() {
           purchase_date: purchaseDate,
           requested_by: selectedRequest.fields.requested_by ?? '',
           total_amount: selectedRequest.fields.total_amount ?? '',
-          purchase_comment: purchaseComment.trim() || 'Purchase done by purchaser.',
+          purchase_comment: purchaseNote,
         },
         updatedAt: serverTimestamp(),
       }));
-      await sendUserNotification({
-        userId: selectedRequest.submittedBy,
-        title: 'Purchase completed',
-        body: `Your purchase request ${selectedRequest.reference} has been marked as Purchase Done.`,
-        relatedId: selectedRequest.id,
-        relatedType: 'purchase_request',
-        link: '/purchase-requests',
+      await batch.commit();
+      upsertPurchaseRequest(normalizePurchaseRequest({
+        ...selectedRequest,
+        ...nextPayload,
+      }));
+      await Promise.allSettled([
+        sendUserNotification({
+          userId: selectedRequest.submittedBy,
+          title: 'Purchase completed',
+          body: `Your purchase request ${selectedRequest.reference} has been marked as Purchase Done.`,
+          relatedId: selectedRequest.id,
+          relatedType: 'purchase_request',
+          link: '/purchase-requests',
+        }),
+      ]);
+      closeRequestDialog();
+      toast({
+        title: 'Purchase marked done',
+        description: `Purchase request ${selectedRequest.reference} was completed successfully.`,
       });
-      setSelectedRequest(null);
-      setPurchaseReference('');
-      setPurchaseSupplier('');
-      setPurchaseDate(new Date().toISOString().slice(0, 10));
-      setPurchaseComment('');
+    } catch (error) {
+      toast({
+        title: 'Update failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to complete purchase request right now.',
+          permissionDenied: 'Backend rejected the purchase update. Please sign in again and retry.',
+          notFound: 'Purchase request was not found in backend. Refresh the page and retry.',
+        }),
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -367,7 +428,7 @@ export default function PurchaseRequests() {
             </Tabs>
           ) : null}
 
-          <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+          <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && closeRequestDialog()}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Purchase Request Details</DialogTitle>
@@ -404,7 +465,7 @@ export default function PurchaseRequests() {
                       <Button onClick={() => void handlePurchaseDone()} disabled={isSaving}>
                         {isSaving ? 'Saving...' : 'Mark as Purchase Done'}
                       </Button>
-                      <Button type="button" variant="outline" onClick={() => setSelectedRequest(null)}>
+                      <Button type="button" variant="outline" onClick={closeRequestDialog}>
                         Close
                       </Button>
                     </div>

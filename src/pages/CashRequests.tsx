@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { confirmAction } from '@/lib/confirmAction';
 import { sanitizeFirestoreData } from '@/lib/firestoreData';
 import { db } from '@/lib/firebase';
+import { getTrimmedFormFields, trimFieldRecord } from '@/lib/formFields';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import { getFirestoreWriteErrorMessage } from '@/lib/firestoreWriteErrors';
 import {
@@ -29,8 +30,8 @@ import {
   parseCurrencyAmount,
 } from '@/lib/requestWorkflows';
 import { canAccessDeskScopedWorkflowEntry, isManagerCashRequestQueueEntry } from '@/lib/staffRecordVisibility';
-import { ROLE_LABELS } from '@/types/auth';
-import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { ROLE_LABELS, UserRole } from '@/types/auth';
+import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 
 type DialogMode = 'review' | 'voucher' | null;
 
@@ -48,8 +49,48 @@ interface VoucherFormState {
   invoiceDate: string;
 }
 
+const CASH_REQUEST_LINE_COUNT = 4;
+const CASH_REQUEST_REQUIRED_FIELDS = [
+  { key: 'pef_no', label: 'PEF No' },
+  { key: 'date', label: 'Date' },
+  { key: 'full_name', label: 'Full Name' },
+  { key: 'designation', label: 'Designation' },
+  { key: 'total_requested', label: 'Total Amount Requested' },
+  { key: 'amount_words', label: 'Amount in Words' },
+  { key: 'requester_declaration', label: 'Requester Declaration / Reason' },
+] as const;
+
 function inputClass(extra = '') {
   return `h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm ${extra}`;
+}
+
+function createCashRequestFormState(initialFields: Record<string, string> = {}, fallbackUser?: { name: string; role: UserRole }) {
+  const defaults: Record<string, string> = {
+    pef_no: '',
+    date: new Date().toISOString().slice(0, 10),
+    full_name: fallbackUser?.name ?? '',
+    designation: fallbackUser ? ROLE_LABELS[fallbackUser.role] : '',
+    total_requested: '',
+    amount_words: '',
+    requester_declaration: '',
+  };
+
+  for (let index = 1; index <= CASH_REQUEST_LINE_COUNT; index += 1) {
+    defaults[`row_${index}`] = String(index);
+    defaults[`item_${index}`] = '';
+    defaults[`qty_${index}`] = '';
+    defaults[`price_${index}`] = '';
+    defaults[`amount_${index}`] = '';
+  }
+
+  return {
+    ...defaults,
+    ...initialFields,
+  };
+}
+
+function getMissingCashRequestFieldLabel(fields: Record<string, string>) {
+  return CASH_REQUEST_REQUIRED_FIELDS.find((field) => !fields[field.key])?.label ?? null;
 }
 
 function statusBadgeClass(status: CashRequestWorkflow['currentStatus']) {
@@ -180,6 +221,8 @@ export default function CashRequests() {
   const [selectedRequest, setSelectedRequest] = useState<CashRequestWorkflow | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [reviewComment, setReviewComment] = useState('');
+  const [isEditingRequest, setIsEditingRequest] = useState(false);
+  const [requestEditFields, setRequestEditFields] = useState<Record<string, string>>(() => createCashRequestFormState());
   const [voucherForm, setVoucherForm] = useState<VoucherFormState>({
     voucherNumber: '',
     payeeName: '',
@@ -265,6 +308,8 @@ export default function CashRequests() {
     setSelectedRequest(null);
     setDialogMode(null);
     setReviewComment('');
+    setIsEditingRequest(false);
+    setRequestEditFields(createCashRequestFormState());
     setVoucherForm({
       voucherNumber: '',
       payeeName: '',
@@ -300,6 +345,8 @@ export default function CashRequests() {
         ? request.accountantComment ?? ''
         : request.hallsManagerComment ?? '',
     );
+    setIsEditingRequest(false);
+    setRequestEditFields(createCashRequestFormState(request.fields, user ? { name: user.name, role: user.role } : undefined));
   };
 
   const openVoucherDialog = (request: CashRequestWorkflow) => {
@@ -317,7 +364,14 @@ export default function CashRequests() {
 
     setSelectedRequest(request);
     setDialogMode('voucher');
+    setIsEditingRequest(false);
+    setRequestEditFields(createCashRequestFormState());
     setVoucherForm(createVoucherDefaults(request));
+  };
+
+  const cancelRequestEdit = () => {
+    setIsEditingRequest(false);
+    setRequestEditFields(createCashRequestFormState(selectedRequest?.fields ?? {}, user ? { name: user.name, role: user.role } : undefined));
   };
 
   const handleCreateRequest = async (event: FormEvent<HTMLFormElement>) => {
@@ -325,14 +379,8 @@ export default function CashRequests() {
     if (!user || !canCreate || isSaving) return;
     if (!confirmAction('Submit this cash request to Accountant?')) return;
     setIsSaving(true);
-
-    const formData = new FormData(event.currentTarget);
-    const fields: Record<string, string> = {};
-    for (const [key, value] of formData.entries()) {
-      const normalized = String(value).trim();
-      if (!normalized) continue;
-      fields[key] = fields[key] ? `${fields[key]}, ${normalized}` : normalized;
-    }
+    const formElement = event.currentTarget;
+    const fields = getTrimmedFormFields(formElement);
 
     const requestDoc = doc(collection(db, CASH_REQUEST_WORKFLOW_COLLECTION));
     const submittedAt = new Date().toISOString();
@@ -376,25 +424,74 @@ export default function CashRequests() {
       await batch.commit();
 
       upsertCashRequest(normalizeCashRequest({ id: requestDoc.id, ...payload }));
-      await sendUserNotification({
-        userId: user.id,
-        title: 'Cash request submitted',
-        body: `Your cash request ${reference} has been moved to Accountant.`,
-        relatedId: requestDoc.id,
-        relatedType: 'cash_request',
-        link: '/cash-requests',
-      });
+      formElement.reset();
+      await Promise.allSettled([
+        sendUserNotification({
+          userId: user.id,
+          title: 'Cash request submitted',
+          body: `Your cash request ${reference} has been moved to Accountant.`,
+          relatedId: requestDoc.id,
+          relatedType: 'cash_request',
+          link: '/cash-requests',
+        }),
+      ]);
       toast({
         title: 'Cash request submitted',
         description: `Cash request ${reference} was moved to Accountant.`,
       });
-      event.currentTarget.reset();
     } catch (error) {
       toast({
         title: 'Submission failed',
         description: getFirestoreWriteErrorMessage(error, {
           fallback: 'Unable to submit cash request right now.',
           permissionDenied: 'Backend rejected the cash request. Please sign in again and retry.',
+        }),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAccountantRequestEdit = async () => {
+    if (!user || user.role !== 'accountant' || !selectedRequest || isSaving) return;
+    const fields = trimFieldRecord(requestEditFields);
+    const missingField = getMissingCashRequestFieldLabel(fields);
+    if (missingField) {
+      toast({
+        title: 'Incomplete request form',
+        description: `${missingField} is required before saving changes.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!confirmAction(`Save changes to cash request ${selectedRequest.reference}?`)) return;
+    setIsSaving(true);
+
+    try {
+      await updateDoc(doc(db, CASH_REQUEST_WORKFLOW_COLLECTION, selectedRequest.id), sanitizeFirestoreData({
+        fields,
+        updatedAt: serverTimestamp(),
+      }));
+      const updatedRequest = normalizeCashRequest({
+        ...selectedRequest,
+        fields,
+      });
+      upsertCashRequest(updatedRequest);
+      setSelectedRequest(updatedRequest);
+      setRequestEditFields(createCashRequestFormState(updatedRequest.fields, { name: user.name, role: user.role }));
+      setIsEditingRequest(false);
+      toast({
+        title: 'Request updated',
+        description: `Cash request ${selectedRequest.reference} was updated successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Edit failed',
+        description: getFirestoreWriteErrorMessage(error, {
+          fallback: 'Unable to save request changes right now.',
+          permissionDenied: 'Backend rejected the cash request edit. Please sign in again and retry.',
+          notFound: 'Cash request was not found in backend. Refresh the page and retry.',
         }),
         variant: 'destructive',
       });
@@ -817,7 +914,7 @@ export default function CashRequests() {
               </TabsList>
               <TabsContent value="all-requests">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  {renderRequestTable(accountantRequests, 'Open Request', openReviewDialog)}
+                  {renderRequestTable(accountantRequests, 'Edit Request', openReviewDialog)}
                 </div>
               </TabsContent>
               <TabsContent value="create">
@@ -949,7 +1046,9 @@ export default function CashRequests() {
                 <DialogDescription>
                   {dialogMode === 'voucher'
                     ? 'This voucher is opened for a Halls Manager-approved request and will be sent to Accountant when you submit it.'
-                    : 'Review the request details and complete the next approval action.'}
+                    : user.role === 'accountant'
+                      ? 'Review, edit, and complete the next approval action for this request.'
+                      : 'Review the request details and complete the next approval action.'}
                 </DialogDescription>
               </DialogHeader>
               {selectedRequest ? (
@@ -978,12 +1077,68 @@ export default function CashRequests() {
 
                   {dialogMode === 'review' && user.role === 'accountant' ? (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Request Form</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Correct request details before approval when needed.
+                          </p>
+                        </div>
+                        <Button type="button" variant="outline" onClick={isEditingRequest ? cancelRequestEdit : () => setIsEditingRequest(true)} disabled={isSaving}>
+                          {isEditingRequest ? 'Cancel Edit' : 'Edit Request'}
+                        </Button>
+                      </div>
+                      {isEditingRequest ? (
+                        <div className="mt-4 space-y-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <input className={inputClass()} placeholder="PEF No" value={requestEditFields.pef_no ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, pef_no: event.target.value }))} />
+                            <input className={inputClass()} type="date" value={requestEditFields.date ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, date: event.target.value }))} />
+                            <input className={inputClass()} placeholder="Full Name" value={requestEditFields.full_name ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, full_name: event.target.value }))} />
+                            <input className={inputClass()} placeholder="Designation" value={requestEditFields.designation ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, designation: event.target.value }))} />
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="grid grid-cols-5 gap-2 text-xs uppercase tracking-[0.1em] text-slate-500">
+                              <p>No</p>
+                              <p>Item</p>
+                              <p>Qty</p>
+                              <p>Price</p>
+                              <p>Amount</p>
+                            </div>
+                            {Array.from({ length: CASH_REQUEST_LINE_COUNT }, (_, index) => index + 1).map((index) => (
+                              <div key={index} className="mt-2 grid grid-cols-5 gap-2">
+                                <input className={inputClass()} value={requestEditFields[`row_${index}`] ?? String(index)} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, [`row_${index}`]: event.target.value }))} />
+                                <input className={inputClass()} value={requestEditFields[`item_${index}`] ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, [`item_${index}`]: event.target.value }))} />
+                                <input className={inputClass()} value={requestEditFields[`qty_${index}`] ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, [`qty_${index}`]: event.target.value }))} />
+                                <input className={inputClass()} value={requestEditFields[`price_${index}`] ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, [`price_${index}`]: event.target.value }))} />
+                                <input className={inputClass()} value={requestEditFields[`amount_${index}`] ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, [`amount_${index}`]: event.target.value }))} />
+                              </div>
+                            ))}
+                            <input className={`${inputClass()} mt-3`} placeholder="Total Amount Requested (TZS)" value={requestEditFields.total_requested ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, total_requested: event.target.value }))} />
+                            <textarea className="mt-3 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Amount in Words" value={requestEditFields.amount_words ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, amount_words: event.target.value }))} />
+                            <textarea className="mt-3 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Requester Declaration / Reason" value={requestEditFields.requester_declaration ?? ''} onChange={(event) => setRequestEditFields((prev) => ({ ...prev, requester_declaration: event.target.value }))} />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button type="button" onClick={() => void handleAccountantRequestEdit()} disabled={isSaving}>
+                              {isSaving ? 'Saving...' : 'Save Request Changes'}
+                            </Button>
+                            <Button type="button" variant="outline" onClick={cancelRequestEdit} disabled={isSaving}>
+                              Close Edit
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {dialogMode === 'review' && user.role === 'accountant' ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <textarea className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Accountant comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} />
+                      {isEditingRequest ? <p className="mt-3 text-xs text-slate-500">Save or cancel your edits before approving this request.</p> : null}
                       <div className="mt-4 flex gap-2">
-                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving}>
+                        <Button onClick={() => void handleAccountantDecision('approve')} disabled={isSaving || isEditingRequest}>
                           {isSaving ? 'Saving...' : 'Approve & Move to Halls Manager'}
                         </Button>
-                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving}>
+                        <Button variant="outline" onClick={() => void handleAccountantDecision('decline')} disabled={isSaving || isEditingRequest}>
                           Decline
                         </Button>
                       </div>
