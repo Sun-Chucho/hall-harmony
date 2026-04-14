@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
+import { CashierPaymentMethodTabs, CashierPaymentMethod } from '@/components/CashierPaymentMethodTabs';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,8 @@ const MANUAL_FORMS: ManualForm[] = [
   { id: 'payment_voucher', title: 'Payment Voucher', roles: ['cashier_1', 'accountant'] },
 ];
 
+const FORMS_WITH_PAYMENT_CHANNEL: FormId[] = ['tax_invoice', 'petty_cash', 'hall_registration', 'payment_voucher'];
+
 function inputClass(extra = '') {
   return `h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm ${extra}`;
 }
@@ -40,6 +43,12 @@ export default function Documents() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [savingFormId, setSavingFormId] = useState<FormId | null>(null);
+  const [manualPaymentChannels, setManualPaymentChannels] = useState<Partial<Record<FormId, CashierPaymentMethod>>>({
+    tax_invoice: 'cash',
+    petty_cash: 'cash',
+    hall_registration: 'cash',
+    payment_voucher: 'cash',
+  });
 
   const allowedForms = useMemo(
     () => MANUAL_FORMS.filter((form) => user && form.roles.includes(user.role)),
@@ -67,6 +76,9 @@ export default function Documents() {
         updatedAt: serverTimestamp(),
       }));
       formElement.reset();
+      if (FORMS_WITH_PAYMENT_CHANNEL.includes(formId)) {
+        setManualPaymentChannels((current) => ({ ...current, [formId]: 'cash' }));
+      }
       toast({
         title: `${formTitle} saved`,
         description: 'Document output recorded successfully.',
@@ -176,6 +188,12 @@ export default function Documents() {
                     <input name="amount" className={inputClass()} placeholder="Amount" />
                     <input name="vat" className={inputClass()} placeholder="VAT" />
                   </div>
+                  <CashierPaymentMethodTabs
+                    label="Payment Channel"
+                    value={manualPaymentChannels.tax_invoice}
+                    onChange={(paymentChannel) => setManualPaymentChannels((current) => ({ ...current, tax_invoice: paymentChannel }))}
+                    hiddenInputName="payment_channel"
+                  />
                   <textarea name="item_description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Item Description" />
                   <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'tax_invoice' ? 'Saving...' : 'Save Tax Invoice'}</Button>
                 </form>
@@ -191,6 +209,12 @@ export default function Documents() {
                     <input name="amount" className={inputClass()} placeholder="Amount" />
                     <input name="approved_by" className={inputClass()} placeholder="Approved By" />
                   </div>
+                  <CashierPaymentMethodTabs
+                    label="Payment Channel"
+                    value={manualPaymentChannels.petty_cash}
+                    onChange={(paymentChannel) => setManualPaymentChannels((current) => ({ ...current, petty_cash: paymentChannel }))}
+                    hiddenInputName="payment_channel"
+                  />
                   <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'petty_cash' ? 'Saving...' : 'Save Petty Cash Voucher'}</Button>
                 </form>
               </TabsContent>
@@ -205,6 +229,12 @@ export default function Documents() {
                     <input name="event_type" className={inputClass()} placeholder="Event Type" />
                     <input name="total_amount" className={inputClass()} placeholder="Total Amount" />
                   </div>
+                  <CashierPaymentMethodTabs
+                    label="Payment Channel"
+                    value={manualPaymentChannels.hall_registration}
+                    onChange={(paymentChannel) => setManualPaymentChannels((current) => ({ ...current, hall_registration: paymentChannel }))}
+                    hiddenInputName="payment_channel"
+                  />
                   <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'hall_registration' ? 'Saving...' : 'Save Hall Registration'}</Button>
                 </form>
               </TabsContent>
@@ -225,6 +255,12 @@ export default function Documents() {
                     <input name="invoice_number" className={inputClass()} placeholder="Invoice Number" />
                     <input name="invoice_date" className={inputClass()} placeholder="Invoice Date" />
                   </div>
+                  <CashierPaymentMethodTabs
+                    label="Payment Channel"
+                    value={manualPaymentChannels.payment_voucher}
+                    onChange={(paymentChannel) => setManualPaymentChannels((current) => ({ ...current, payment_voucher: paymentChannel }))}
+                    hiddenInputName="payment_channel"
+                  />
                   <textarea name="description" className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Description" />
                   <Button type="submit" disabled={savingFormId !== null}>{savingFormId === 'payment_voucher' ? 'Saving...' : 'Save Payment Voucher'}</Button>
                 </form>

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { CashierPaymentMethodTabs } from '@/components/CashierPaymentMethodTabs';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +42,7 @@ interface VoucherFormState {
   department: string;
   date: string;
   amount: string;
+  paymentChannel: 'cash' | 'mobile_money' | 'bank_transfer';
   description: string;
   posCode: string;
   address: string;
@@ -117,6 +119,7 @@ function createVoucherDefaults(request: CashRequestWorkflow): VoucherFormState {
     department: request.fields.designation ?? '',
     date: new Date().toISOString().slice(0, 10),
     amount: request.fields.total_requested ?? '',
+    paymentChannel: 'cash',
     description: request.fields.requester_declaration
       ? `Voucher for cash request ${request.reference}. ${request.fields.requester_declaration}`
       : `Voucher for cash request ${request.reference}.`,
@@ -229,6 +232,7 @@ export default function CashRequests() {
     department: '',
     date: new Date().toISOString().slice(0, 10),
     amount: '',
+    paymentChannel: 'cash',
     description: '',
     posCode: '',
     address: '',
@@ -316,6 +320,7 @@ export default function CashRequests() {
       department: '',
       date: new Date().toISOString().slice(0, 10),
       amount: '',
+      paymentChannel: 'cash',
       description: '',
       posCode: '',
       address: '',
@@ -746,6 +751,7 @@ export default function CashRequests() {
             department: voucherForm.department.trim(),
             date: voucherForm.date,
             amount: voucherForm.amount.trim(),
+            payment_channel: voucherForm.paymentChannel,
             description: voucherForm.description.trim(),
             pos_code: voucherForm.posCode.trim(),
             address: voucherForm.address.trim(),
@@ -1169,6 +1175,12 @@ export default function CashRequests() {
                         <input className={inputClass()} placeholder="Department" value={voucherForm.department} onChange={(event) => setVoucherForm((prev) => ({ ...prev, department: event.target.value }))} />
                         <input className={inputClass()} type="date" value={voucherForm.date} onChange={(event) => setVoucherForm((prev) => ({ ...prev, date: event.target.value }))} required />
                         <input className={inputClass()} placeholder="Amount" value={voucherForm.amount} onChange={(event) => setVoucherForm((prev) => ({ ...prev, amount: event.target.value }))} required />
+                        <CashierPaymentMethodTabs
+                          className="md:col-span-2"
+                          label="Payment Channel"
+                          value={voucherForm.paymentChannel}
+                          onChange={(paymentChannel) => setVoucherForm((prev) => ({ ...prev, paymentChannel }))}
+                        />
                         <input className={inputClass()} placeholder="POS Code" value={voucherForm.posCode} onChange={(event) => setVoucherForm((prev) => ({ ...prev, posCode: event.target.value }))} />
                         <input className={inputClass()} placeholder="Address" value={voucherForm.address} onChange={(event) => setVoucherForm((prev) => ({ ...prev, address: event.target.value }))} />
                         <input className={inputClass()} placeholder="TIN" value={voucherForm.tin} onChange={(event) => setVoucherForm((prev) => ({ ...prev, tin: event.target.value }))} />

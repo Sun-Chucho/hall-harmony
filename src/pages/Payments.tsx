@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
+import { CashierPaymentMethodTabs } from '@/components/CashierPaymentMethodTabs';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
 import { usePayments } from '@/contexts/PaymentContext';
-import { BookingPaymentStatus, CreatePaymentInput, PaymentMethod } from '@/types/payment';
+import { BookingPaymentStatus, CreatePaymentInput } from '@/types/payment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -22,13 +23,6 @@ const initialForm: CreatePaymentInput = {
   notes: '',
   receivedAt: getDefaultPaidDateTime(),
 };
-
-const paymentMethods: { value: PaymentMethod; label: string }[] = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'pos', label: 'POS' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'mobile_money', label: 'Mobile Money' },
-];
 
 const paymentStatuses: BookingPaymentStatus[] = [
   'pending',
@@ -200,17 +194,12 @@ export default function Payments() {
                 value={form.amount || ''}
                 onChange={(event) => setForm((prev) => ({ ...prev, amount: Number(event.target.value) }))}
               />
-              <select
-                className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+              <CashierPaymentMethodTabs
+                className="md:col-span-2"
+                label="Payment Channel"
                 value={form.method}
-                onChange={(event) => setForm((prev) => ({ ...prev, method: event.target.value as PaymentMethod }))}
-              >
-                {paymentMethods.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(method) => setForm((prev) => ({ ...prev, method }))}
+              />
               <input
                 type="datetime-local"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"

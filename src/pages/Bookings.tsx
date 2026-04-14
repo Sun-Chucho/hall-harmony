@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { CashierPaymentMethodTabs, normalizeCashierPaymentMethod } from '@/components/CashierPaymentMethodTabs';
 import { ManagementPageTemplate } from '@/components/management/ManagementPageTemplate';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,12 +69,6 @@ function hallSelectValue(value: string, isOtherSelected: boolean) {
   if (!value) return '';
   return halls.includes(value) ? value : HALL_OTHER_VALUE;
 }
-
-const cashierPaymentMethods: { value: PaymentMethod; label: string }[] = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'mobile_money', label: 'Mobile Money' },
-];
 
 interface OtherBookingOption {
   id: string;
@@ -549,7 +544,7 @@ export default function Bookings() {
     const notesMap: Record<string, string> = {};
     bookingPayments.forEach((item) => {
       amountMap[item.id] = item.amount;
-      methodMap[item.id] = item.method;
+      methodMap[item.id] = normalizeCashierPaymentMethod(item.method);
       dateTimeMap[item.id] = toDateTimeLocal(item.receivedAt);
       notesMap[item.id] = item.notes ?? '';
     });
@@ -1212,15 +1207,11 @@ export default function Bookings() {
                               value={pendingApprovalAmount[entry.id] ?? ''}
                               onChange={(event) => setPendingApprovalAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))}
                             />
-                            <select
-                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            <CashierPaymentMethodTabs
                               value={pendingApprovalMethod[entry.id] ?? 'cash'}
-                              onChange={(event) => setPendingApprovalMethod((prev) => ({ ...prev, [entry.id]: event.target.value as PaymentMethod }))}
-                            >
-                              {cashierPaymentMethods.map((method) => (
-                                <option key={method.value} value={method.value}>{method.label}</option>
-                              ))}
-                            </select>
+                              onChange={(method) => setPendingApprovalMethod((prev) => ({ ...prev, [entry.id]: method }))}
+                              buttonClassName="px-2 py-1.5 text-xs"
+                            />
                             <input
                               type="datetime-local"
                               className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
@@ -1291,15 +1282,11 @@ export default function Bookings() {
                           value={pastApprovalAmount[entry.id] ?? ''}
                           onChange={(event) => setPastApprovalAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))}
                         />
-                        <select
-                          className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                        <CashierPaymentMethodTabs
                           value={pastApprovalMethod[entry.id] ?? 'cash'}
-                          onChange={(event) => setPastApprovalMethod((prev) => ({ ...prev, [entry.id]: event.target.value as PaymentMethod }))}
-                        >
-                          {cashierPaymentMethods.map((method) => (
-                            <option key={method.value} value={method.value}>{method.label}</option>
-                          ))}
-                        </select>
+                          onChange={(method) => setPastApprovalMethod((prev) => ({ ...prev, [entry.id]: method }))}
+                          buttonClassName="px-2 py-1.5 text-xs"
+                        />
                         <input
                           type="datetime-local"
                           className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
@@ -1481,17 +1468,12 @@ export default function Bookings() {
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Section</p>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <select
-                      className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm"
+                    <CashierPaymentMethodTabs
+                      className="md:col-span-2"
+                      label="Payment Channel"
                       value={paymentMethod}
-                      onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
-                    >
-                      {cashierPaymentMethods.map((method) => (
-                        <option key={method.value} value={method.value}>
-                          {method.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setPaymentMethod}
+                    />
                     <input
                       type="number"
                       placeholder="Amount Paid (TZS)"
@@ -1697,16 +1679,11 @@ export default function Bookings() {
                               value={installmentEditAmount[payment.id] ?? payment.amount}
                               onChange={(event) => setInstallmentEditAmount((prev) => ({ ...prev, [payment.id]: Number(event.target.value) }))}
                             />
-                            <select
-                              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                            <CashierPaymentMethodTabs
                               value={installmentEditMethod[payment.id] ?? payment.method}
-                              onChange={(event) => setInstallmentEditMethod((prev) => ({ ...prev, [payment.id]: event.target.value as PaymentMethod }))}
-                            >
-                              <option value="cash">Cash</option>
-                              <option value="bank_transfer">Bank Transfer</option>
-                              <option value="mobile_money">Mobile Money</option>
-                              <option value="pos">POS</option>
-                            </select>
+                              onChange={(method) => setInstallmentEditMethod((prev) => ({ ...prev, [payment.id]: method }))}
+                              buttonClassName="px-2 py-1.5 text-xs"
+                            />
                             <input
                               type="datetime-local"
                               className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
@@ -1729,7 +1706,7 @@ export default function Bookings() {
                                 if (Date.now() - lastPaymentActionAtRef.current < 900) return;
                                 if (!confirmAction('Are you sure you want to save these installment changes?')) return;
                                 const amount = installmentEditAmount[payment.id] ?? payment.amount;
-                                const method = installmentEditMethod[payment.id] ?? payment.method;
+                                const method = normalizeCashierPaymentMethod(installmentEditMethod[payment.id] ?? payment.method);
                                 const receivedAt = installmentEditDateTime[payment.id] ?? toDateTimeLocal(payment.receivedAt);
                                 const notes = installmentEditNotes[payment.id] ?? payment.notes;
                                 if (!Number.isFinite(amount) || amount <= 0) {
