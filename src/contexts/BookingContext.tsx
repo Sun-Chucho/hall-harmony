@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { collection, deleteDoc, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuthorization } from '@/contexts/AuthorizationContext';
@@ -9,6 +9,8 @@ import { ROLE_LABELS, UserRole } from '@/types/auth';
 
 interface BookingContextValue {
   bookings: BookingRecord[];
+  syncState: 'live' | 'cached' | 'syncing';
+  syncMessage: string | null;
   createBooking: (payload: CreateBookingInput, options?: { actionId?: string }) => Promise<{ ok: boolean; message: string }>;
   createPastBooking: (payload: CreateBookingInput, options?: { actionId?: string }) => Promise<{ ok: boolean; message: string }>;
   reviewPastBooking: (
@@ -32,24 +34,11 @@ interface BookingContextValue {
 const BookingContext = createContext<BookingContextValue | undefined>(undefined);
 const PUBLIC_BOOKING_USER_ID = 'public-web';
 const BOOKINGS_COLLECTION = 'bookings';
-const BOOKING_CACHE_KEY = 'kuringe_bookings_v1';
-const BOOKING_PENDING_ACTIONS_KEY = 'kuringe_bookings_pending_actions_v1';
 const CAR_PRICES: Record<Exclude<BookingCarType, 'none'>, number> = {
   range_rover: 500000,
   lexus: 300000,
   bmw: 300000,
 };
-
-type BookingPatch = Partial<BookingRecord> & { updatedAt?: unknown };
-type PendingBookingAction =
-  | { id: string; type: 'set'; bookingId: string; record: BookingRecord }
-  | { id: string; type: 'patch'; bookingId: string; patch: BookingPatch }
-  | { id: string; type: 'delete'; bookingId: string };
-
-type PendingBookingActionInput =
-  | { type: 'set'; bookingId: string; record: BookingRecord }
-  | { type: 'patch'; bookingId: string; patch: BookingPatch }
-  | { type: 'delete'; bookingId: string };
 
 function toMinutes(value: string): number {
   const [hours, minutes] = value.split(':').map(Number);
@@ -126,29 +115,9 @@ function normalizeActionId(value?: string): string {
   return (value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
 }
 
-function createPendingActionId() {
-  return `BOOK-PENDING-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function isRetryableSyncError(error: unknown): boolean {
-  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: string }).code ?? '') : '';
-  const message = error instanceof Error ? error.message.toLowerCase() : '';
-  return (
-    code.includes('resource-exhausted')
-    || code.includes('unavailable')
-    || code.includes('deadline-exceeded')
-    || code.includes('failed-precondition')
-    || code.includes('internal')
-    || message.includes('quota')
-    || message.includes('limit')
-    || message.includes('network')
-    || message.includes('offline')
-  );
-}
-
 function getSyncFailureMessage(error: unknown, fallback: string): string {
-  if (isRetryableSyncError(error)) {
-    return fallback;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You are offline. Firestore will sync this view when the connection returns.';
   }
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: string }).code ?? '') : '';
   if (code.includes('permission-denied')) {
@@ -158,27 +127,6 @@ function getSyncFailureMessage(error: unknown, fallback: string): string {
     return 'Booking record was not found in backend. Refresh the page and retry.';
   }
   return 'Backend sync failed. Please retry.';
-}
-
-function applyPendingActions(records: BookingRecord[], actions: PendingBookingAction[]): BookingRecord[] {
-  if (actions.length === 0) return records;
-  return actions.reduce<BookingRecord[]>((current, action) => {
-    if (action.type === 'set') {
-      const withoutTarget = current.filter((entry) => entry.id !== action.bookingId);
-      return [action.record, ...withoutTarget];
-    }
-    if (action.type === 'patch') {
-      return current.map((entry) => (
-        entry.id === action.bookingId
-          ? {
-              ...entry,
-              ...action.patch,
-            }
-          : entry
-      ));
-    }
-    return current.filter((entry) => entry.id !== action.bookingId);
-  }, records);
 }
 
 function upsertBookingRecord(records: BookingRecord[], record: BookingRecord): BookingRecord[] {
@@ -194,93 +142,21 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { policy, createApprovalRequest, reviewApproval } = useAuthorization();
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
-  const [pendingActions, setPendingActions] = useState<PendingBookingAction[]>([]);
-  const pendingActionsRef = useRef<PendingBookingAction[]>([]);
-  const isSyncingRef = useRef(false);
-
-  const queuePendingAction = useCallback((action: PendingBookingActionInput) => {
-    const entry = { ...action, id: createPendingActionId() } as PendingBookingAction;
-    setPendingActions((prev) => [...prev, entry]);
-  }, []);
-
-  useEffect(() => {
-    pendingActionsRef.current = pendingActions;
-  }, [pendingActions]);
-
-  const syncPendingActions = useCallback(async () => {
-    if (!user || isSyncingRef.current || pendingActionsRef.current.length === 0) return;
-    isSyncingRef.current = true;
-    try {
-      for (const action of [...pendingActionsRef.current]) {
-        try {
-          if (action.type === 'set') {
-            await setDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), sanitizeFirestoreData({
-              ...action.record,
-              updatedAt: serverTimestamp(),
-            }));
-          } else if (action.type === 'patch') {
-            await updateDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId), sanitizeFirestoreData({
-              ...action.patch,
-              updatedAt: serverTimestamp(),
-            }));
-          } else {
-            await deleteDoc(doc(db, BOOKINGS_COLLECTION, action.bookingId));
-          }
-          setPendingActions((prev) => prev.filter((entry) => entry.id !== action.id));
-        } catch (error) {
-          if (!isRetryableSyncError(error)) {
-            setPendingActions((prev) => prev.filter((entry) => entry.id !== action.id));
-            continue;
-          }
-          break;
-        }
-      }
-    } finally {
-      isSyncingRef.current = false;
-    }
-  }, [user]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(BOOKING_CACHE_KEY);
-    if (!raw) return;
-    try {
-      setBookings(JSON.parse(raw) as BookingRecord[]);
-    } catch {
-      localStorage.removeItem(BOOKING_CACHE_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(BOOKING_PENDING_ACTIONS_KEY);
-    if (!raw) return;
-    try {
-      setPendingActions(JSON.parse(raw) as PendingBookingAction[]);
-    } catch {
-      localStorage.removeItem(BOOKING_PENDING_ACTIONS_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(BOOKING_CACHE_KEY, JSON.stringify(bookings));
-  }, [bookings]);
-
-  useEffect(() => {
-    localStorage.setItem(BOOKING_PENDING_ACTIONS_KEY, JSON.stringify(pendingActions));
-    setBookings((prev) => applyPendingActions(prev, pendingActions));
-    if (pendingActions.length > 0) {
-      void syncPendingActions();
-    }
-  }, [pendingActions, syncPendingActions]);
+  const [syncState, setSyncState] = useState<'live' | 'cached' | 'syncing'>('live');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
       setBookings([]);
+      setSyncState('live');
+      setSyncMessage(null);
       return;
     }
 
     const q = query(collection(db, BOOKINGS_COLLECTION));
     const unsub = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
         const next = snapshot.docs
           .map((item) => normalizeBooking(item.data() as Partial<BookingRecord>, item.id))
@@ -289,41 +165,29 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
             const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
             return bTime - aTime;
           });
-        setBookings(applyPendingActions(next, pendingActionsRef.current));
-        if (pendingActionsRef.current.length > 0) {
-          void syncPendingActions();
+        setBookings(next);
+        if (snapshot.metadata.hasPendingWrites) {
+          setSyncState('syncing');
+          setSyncMessage('Changes are stored locally and will finish syncing when the connection is stable.');
+          return;
         }
+        if (snapshot.metadata.fromCache) {
+          setSyncState('cached');
+          setSyncMessage('Showing Firestore cached data while waiting for the latest live update.');
+          return;
+        }
+        setSyncState('live');
+        setSyncMessage(null);
       },
       () => {
-        const raw = localStorage.getItem(BOOKING_CACHE_KEY);
-        if (!raw) return;
-        try {
-          const cached = JSON.parse(raw) as BookingRecord[];
-          setBookings(applyPendingActions(cached, pendingActionsRef.current));
-        } catch {
-          localStorage.removeItem(BOOKING_CACHE_KEY);
-        }
+        setBookings([]);
+        setSyncState('cached');
+        setSyncMessage('Live booking sync is temporarily unavailable. Firestore cache will refresh when the connection returns.');
       },
     );
 
     return () => unsub();
-  }, [syncPendingActions, user]);
-
-  useEffect(() => {
-    if (!user) return undefined;
-    if (typeof window === 'undefined') return undefined;
-    const onOnline = () => {
-      void syncPendingActions();
-    };
-    window.addEventListener('online', onOnline);
-    const timer = window.setInterval(() => {
-      void syncPendingActions();
-    }, 15000);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      window.clearInterval(timer);
-    };
-  }, [syncPendingActions, user]);
+  }, [user]);
 
   const hasConflict = useCallback((payload: CreateBookingInput, ignoreBookingId?: string) => {
     return bookings.some((booking) => {
@@ -423,14 +287,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted for approval.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to save booking right now.') };
-      }
-      setBookings((prev) => [record, ...prev]);
-      queuePendingAction({ type: 'set', bookingId: id, record });
-      return { ok: true, message: 'Booking saved locally. Cloud sync will retry when connection is restored.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to save booking right now.') };
     }
-  }, [bookings, createApprovalRequest, hasConflict, queuePendingAction, user]);
+  }, [bookings, createApprovalRequest, hasConflict, user]);
 
   const createPublicBooking = useCallback(async (payload: CreateBookingInput, requestId?: string) => {
     if (!payload.customerName || !payload.customerPhone || !payload.eventName || !payload.eventType) {
@@ -484,10 +343,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Booking submitted directly. Staff will review and contact you shortly.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit booking right now.') };
-      }
-      return { ok: false, message: 'Unable to submit booking to backend right now. Please check connection and try again.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit booking right now.') };
     }
   }, []);
 
@@ -563,14 +419,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => upsertBookingRecord(prev, record));
       return { ok: true, message: 'Past booking recorded successfully.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to record past booking right now.') };
-      }
-      setBookings((prev) => [record, ...prev]);
-      queuePendingAction({ type: 'set', bookingId: id, record });
-      return { ok: true, message: 'Past booking saved locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to record past booking right now.') };
     }
-  }, [bookings, hasConflict, queuePendingAction, user]);
+  }, [bookings, hasConflict, user]);
 
   const reviewPastBooking = useCallback(async (
     bookingId: string,
@@ -604,14 +455,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
       return { ok: true, message: decision === 'approved_cashier_1' ? 'Past booking approved by Cashier and moved to pending payment.' : 'Past booking rejected.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to review past booking right now.') };
-      }
-      setBookings((prev) => prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)));
-      queuePendingAction({ type: 'patch', bookingId, patch });
-      return { ok: true, message: 'Past booking review saved locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to review past booking right now.') };
     }
-  }, [bookings, queuePendingAction, user]);
+  }, [bookings, user]);
 
   const updateBooking = useCallback(async (bookingId: string, payload: CreateBookingInput) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -685,23 +531,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       );
       return { ok: true, message: 'Booking updated and highlighted across workflow.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking right now.') };
-      }
-      setBookings((prev) =>
-        prev.map((entry) =>
-          entry.id === bookingId
-            ? {
-                ...entry,
-                ...patch,
-              }
-            : entry,
-        ),
-      );
-      queuePendingAction({ type: 'patch', bookingId, patch });
-      return { ok: true, message: 'Booking updated locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking right now.') };
     }
-  }, [bookings, hasConflict, queuePendingAction, user]);
+  }, [bookings, hasConflict, user]);
 
   const updateBookingStatus = useCallback(async (bookingId: string, status: BookingStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -725,16 +557,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       );
       return { ok: true, message: `Booking marked as ${status}.` };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking status right now.') };
-      }
-      setBookings((prev) =>
-        prev.map((booking) => (booking.id === bookingId ? { ...booking, bookingStatus: status } : booking)),
-      );
-      queuePendingAction({ type: 'patch', bookingId, patch: { bookingStatus: status } });
-      return { ok: true, message: 'Booking status saved locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to update booking status right now.') };
     }
-  }, [bookings, queuePendingAction, reviewApproval, user]);
+  }, [bookings, reviewApproval, user]);
 
   const deleteBooking = useCallback(async (bookingId: string) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -750,14 +575,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       await deleteDoc(doc(db, BOOKINGS_COLLECTION, bookingId));
       return { ok: true, message: 'Booking deleted.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to delete booking right now.') };
-      }
-      setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
-      queuePendingAction({ type: 'delete', bookingId });
-      return { ok: true, message: 'Booking deleted locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to delete booking right now.') };
     }
-  }, [bookings, queuePendingAction, user]);
+  }, [bookings, user]);
 
   const submitEventDetails = useCallback(async (
     bookingId: string,
@@ -782,29 +602,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       }));
       return { ok: true, message: 'Event details submitted for approval.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit event details right now.') };
-      }
-      const patch = {
-        eventType: eventType.trim(),
-        expectedGuests,
-        notes: notes.trim(),
-        eventDetailStatus: 'pending_assistant' as EventDetailStatus,
-      };
-      setBookings((prev) =>
-        prev.map((booking) =>
-          booking.id === bookingId
-            ? {
-                ...booking,
-                ...patch,
-              }
-            : booking,
-        ),
-      );
-      queuePendingAction({ type: 'patch', bookingId, patch });
-      return { ok: true, message: 'Event details saved locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to submit event details right now.') };
     }
-  }, [bookings, queuePendingAction, user]);
+  }, [bookings, user]);
 
   const updateEventDetailStatus = useCallback(async (bookingId: string, status: EventDetailStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
@@ -836,18 +636,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           }));
           return { ok: true, message: 'Assistant approval recorded, pending accountant final approval.' };
         } catch (error) {
-          if (!isRetryableSyncError(error)) {
-            return { ok: false, message: getSyncFailureMessage(error, 'Unable to save assistant approval right now.') };
-          }
-          const patch = {
-            eventDetailStatus: 'pending_controller' as EventDetailStatus,
-            eventFinalApprovalId: finalApproval.requestId,
-          };
-          setBookings((prev) =>
-            prev.map((booking) => (booking.id === bookingId ? { ...booking, ...patch } : booking)),
-          );
-          queuePendingAction({ type: 'patch', bookingId, patch });
-          return { ok: true, message: 'Assistant approval saved locally. Cloud sync pending.' };
+          return { ok: false, message: getSyncFailureMessage(error, 'Unable to save assistant approval right now.') };
         }
       }
     }
@@ -874,19 +663,14 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       }));
       return { ok: true, message: 'Event detail status updated.' };
     } catch (error) {
-      if (!isRetryableSyncError(error)) {
-        return { ok: false, message: getSyncFailureMessage(error, 'Unable to update event detail status right now.') };
-      }
-      setBookings((prev) =>
-        prev.map((booking) => (booking.id === bookingId ? { ...booking, eventDetailStatus: status } : booking)),
-      );
-      queuePendingAction({ type: 'patch', bookingId, patch: { eventDetailStatus: status } });
-      return { ok: true, message: 'Event detail status saved locally. Cloud sync pending.' };
+      return { ok: false, message: getSyncFailureMessage(error, 'Unable to update event detail status right now.') };
     }
-  }, [bookings, createApprovalRequest, policy.finalApprovalRequired, queuePendingAction, reviewApproval, user]);
+  }, [bookings, createApprovalRequest, policy.finalApprovalRequired, reviewApproval, user]);
 
   const value = useMemo<BookingContextValue>(() => ({
     bookings,
+    syncState,
+    syncMessage,
     createBooking,
     createPastBooking,
     reviewPastBooking,
@@ -899,6 +683,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     hasConflict,
   }), [
     bookings,
+    syncMessage,
+    syncState,
     createBooking,
     createPastBooking,
     reviewPastBooking,

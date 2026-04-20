@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
-import { enableIndexedDbPersistence, getFirestore, initializeFirestore } from 'firebase/firestore';
+import { enableIndexedDbPersistence, enableMultiTabIndexedDbPersistence, getFirestore, initializeFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyA08M8_yfVofSgG4xnNghAbObQaxLeYKVQ',
@@ -30,8 +30,10 @@ if (typeof window !== 'undefined') {
     // Keep default persistence fallback if explicit local persistence fails.
   });
 
-  void enableIndexedDbPersistence(db).catch(() => {
-    // Ignore when another tab already has persistence lock or when unsupported.
+  void enableMultiTabIndexedDbPersistence(db).catch(() => {
+    void enableIndexedDbPersistence(db).catch(() => {
+      // Ignore when IndexedDB persistence is unsupported in this browser.
+    });
   });
 
   void isSupported()

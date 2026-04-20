@@ -10,7 +10,7 @@ const rootDir = path.resolve(__dirname, '..');
 
 const serviceAccountPath =
   process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-  'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-abfa71b989.json';
+  'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-12dcc87f09.json';
 
 function readServiceAccount(filePath) {
   const resolvedPath = path.isAbsolute(filePath) ? filePath : path.resolve(rootDir, filePath);
@@ -68,6 +68,28 @@ async function createDefaultDatabase(projectId, token) {
   throw new Error(`Firestore DB creation failed (${response.status}): ${message || 'Unknown error'}`);
 }
 
+async function checkDefaultDatabase(projectId, token) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.ok) {
+    console.log('[firestore] Default database already exists.');
+    return true;
+  }
+
+  if (response.status === 404) {
+    return false;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  const message = String(payload?.error?.message || '');
+  throw new Error(`Firestore DB check failed (${response.status}): ${message || 'Unknown error'}`);
+}
+
 async function main() {
   const serviceAccount = readServiceAccount(serviceAccountPath);
   const projectId = serviceAccount.project_id;
@@ -76,6 +98,10 @@ async function main() {
   }
 
   const token = await getAccessToken(serviceAccount);
+  const exists = await checkDefaultDatabase(projectId, token);
+  if (exists) {
+    return;
+  }
   await createDefaultDatabase(projectId, token);
 }
 

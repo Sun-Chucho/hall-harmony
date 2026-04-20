@@ -209,12 +209,16 @@ async function main() {
       eventDetailStatus: 'pending_assistant',
       updatedAt: nowIso(),
     }, { merge: true });
-    await deleteDoc(doc(db, 'bookings', assistantOwnBookingId));
-    const assistantOwnDeleted = await getDoc(doc(db, 'bookings', assistantOwnBookingId));
-    record('Assistant can delete own booking', !assistantOwnDeleted.exists(), !assistantOwnDeleted.exists() ? 'Deleted' : 'Still exists');
+    record('Assistant can create own booking', true, assistantOwnBookingId);
+    await expectFailure('Assistant cannot delete own booking', async () => {
+      await deleteDoc(doc(db, 'bookings', assistantOwnBookingId));
+    });
     await logout();
 
     await login(managerEmail, managerPassword);
+    await deleteDoc(doc(db, 'bookings', assistantOwnBookingId));
+    const assistantBookingDeleted = await getDoc(doc(db, 'bookings', assistantOwnBookingId));
+    record('Manager cleanup delete assistant booking', !assistantBookingDeleted.exists(), !assistantBookingDeleted.exists() ? 'Deleted' : 'Still exists');
     await deleteDoc(doc(db, 'bookings', managerBookingId));
     const managerBookingDeleted = await getDoc(doc(db, 'bookings', managerBookingId));
     record('Manager cleanup delete own booking', !managerBookingDeleted.exists(), !managerBookingDeleted.exists() ? 'Deleted' : 'Still exists');

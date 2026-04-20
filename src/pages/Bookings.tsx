@@ -154,6 +154,8 @@ export default function Bookings() {
   const { toast } = useToast();
   const {
     bookings,
+    syncState,
+    syncMessage,
     createBooking,
     createPastBooking,
     reviewPastBooking,
@@ -1821,6 +1823,17 @@ export default function Bookings() {
       ]}
       action={
         <div className="space-y-6">
+          {syncMessage ? (
+            <div className={`rounded-2xl border px-4 py-3 text-sm ${
+              syncState === 'live'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                : syncState === 'syncing'
+                  ? 'border-blue-300 bg-blue-50 text-blue-900'
+                  : 'border-amber-300 bg-amber-50 text-amber-900'
+            }`}>
+              {syncMessage}
+            </div>
+          ) : null}
           {canCreateBooking ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Create Booking Request</p>
