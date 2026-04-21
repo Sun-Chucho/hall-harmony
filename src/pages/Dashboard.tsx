@@ -266,8 +266,8 @@ export default function Dashboard() {
       ]
     : user.role === 'assistant_hall_manager'
     ? [
-        { label: 'Bookings', path: '/bookings' },
-        { label: 'Submitted Bookings', path: '/bookings/submitted' },
+        { label: 'Booking Desk', path: '/bookings' },
+        { label: 'My Submitted Bookings', path: '/bookings/submitted' },
         { label: 'Cash Requests', path: '/cash-requests' },
         { label: 'Purchase Requests', path: '/purchase-requests' },
         { label: 'Messages', path: '/messages' },

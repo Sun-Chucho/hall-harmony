@@ -183,8 +183,8 @@ export function AppSidebar() {
 
   const assistantHallNavItems: NavItem[] = [
     { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { title: 'Bookings', icon: Calendar, path: '/bookings' },
-    { title: 'Submitted Bookings', icon: FileText, path: '/bookings/submitted' },
+    { title: 'Booking Desk', icon: Calendar, path: '/bookings' },
+    { title: 'My Submitted Bookings', icon: FileText, path: '/bookings/submitted' },
     { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },
     { title: 'Purchase Requests', icon: FileText, path: '/purchase-requests' },
     { title: 'Reports', icon: BarChart3, path: '/reports' },
@@ -193,7 +193,7 @@ export function AppSidebar() {
   ];
 
   const cashier1NavItems: NavItem[] = [
-    { title: 'Bookings', icon: Calendar, path: '/bookings' },
+    { title: 'Booking Payments', icon: Calendar, path: '/bookings' },
     { title: 'Messages', icon: MessageSquare, path: '/messages' },
     { title: 'Cash Use', icon: Banknote, path: '/cash-movement' },
     { title: 'Cash Requests', icon: FileText, path: '/cash-requests' },

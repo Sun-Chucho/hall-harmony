@@ -330,6 +330,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: 'Selected user account was not found.' };
       }
 
+      const persistPasswordChange = async () => {
+        try {
+          await updateDoc(doc(db, STAFF_COLLECTION, targetUser.id), sanitizeFirestoreData({
+            passwordChangedAt: new Date().toISOString(),
+            updatedAt: serverTimestamp(),
+          }));
+        } catch {
+          // The credential change already happened in Firebase Auth.
+        }
+
+        const nextUser = state.user && state.user.id === targetUser.id
+          ? { ...state.user }
+          : null;
+
+        if (nextUser) {
+          localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(nextUser));
+        }
+
+        await refreshStaffUsers();
+      };
+
       try {
         if (auth.currentUser && auth.currentUser.uid === targetUser.id && auth.currentUser.email) {
           const credential = EmailAuthProvider.credential(
@@ -338,26 +359,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           );
           await reauthenticateWithCredential(auth.currentUser, credential);
           await updatePassword(auth.currentUser, cleanPassword);
+          await persistPasswordChange();
           return { ok: true, message: 'Password updated successfully.' };
         }
 
         const tempAppName = `password-change-${Date.now()}`;
         const tempApp = initializeApp(firebaseConfig, tempAppName);
         const tempAuth = getAuth(tempApp);
-        const tempCredential = await signInWithEmailAndPassword(
-          tempAuth,
-          targetUser.email,
-          resolveFirebasePassword(currentPassword),
-        );
-        await updatePassword(tempCredential.user, cleanPassword);
-        await signOut(tempAuth);
-        await deleteApp(tempApp);
+        try {
+          const tempCredential = await signInWithEmailAndPassword(
+            tempAuth,
+            targetUser.email,
+            resolveFirebasePassword(currentPassword),
+          );
+          await updatePassword(tempCredential.user, cleanPassword);
+          await persistPasswordChange();
+          await signOut(tempAuth);
+        } finally {
+          await deleteApp(tempApp);
+        }
         return { ok: true, message: 'Password updated successfully.' };
       } catch {
         return { ok: false, message: 'Password update failed. Please verify the current password.' };
       }
     },
-    [staffUsers, state.user],
+    [refreshStaffUsers, staffUsers, state.user],
   );
 
   const createStaffUser = useCallback(

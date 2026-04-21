@@ -13,6 +13,7 @@ const serviceAccountPath =
   'C:\\Users\\PC\\Downloads\\kuringehallsdatabase-firebase-adminsdk-fbsvc-12dcc87f09.json';
 
 const defaultPassword = process.env.DEFAULT_STAFF_PASSWORD || '123456';
+const resetExistingPasswords = String(process.env.RESET_EXISTING_STAFF_PASSWORDS || 'false').toLowerCase() === 'true';
 
 const staffUsers = [
   {
@@ -118,12 +119,17 @@ async function upsertAuthUser(auth, user) {
   const password = user.password || defaultPassword;
   try {
     await auth.getUser(user.uid);
-    await auth.updateUser(user.uid, {
+    const updatePayload = {
       email: user.email,
       displayName: user.name,
       disabled: !user.isActive,
-      password,
-    });
+    };
+
+    if (resetExistingPasswords) {
+      updatePayload.password = password;
+    }
+
+    await auth.updateUser(user.uid, updatePayload);
     return 'updated';
   } catch (error) {
     if (error?.code !== 'auth/user-not-found') {
@@ -152,6 +158,8 @@ async function main() {
   const auth = admin.auth();
   const db = admin.firestore();
   const nowIso = new Date().toISOString();
+
+  console.log(`[seed] Existing user passwords ${resetExistingPasswords ? 'will be reset from the seed data' : 'will be preserved'}.`);
 
   for (const user of staffUsers) {
     try {
