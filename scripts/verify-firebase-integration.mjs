@@ -246,6 +246,10 @@ async function main() {
       await updatePassword(auth.currentUser, rotationNewPassword);
       await logout();
 
+      await expectFailure('Manager old password fails after rotation', async () => {
+        await login(managerEmail, managerPassword);
+      });
+
       await login(managerEmail, rotationNewPassword);
       record('Manager password change works (rotate forward)', true, 'Able to login with new password');
       await updatePassword(auth.currentUser, managerPassword);

@@ -18,6 +18,7 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;
+  passwordChangedAt?: string;
 }
 
 export interface AuthState {

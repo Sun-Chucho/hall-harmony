@@ -39,16 +39,11 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
-const DEFAULT_PASSWORD = '123456';
-const LEGACY_PASSWORD_ALIAS = '1234';
 const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
 const SESSION_CONTROL_REF = doc(db, 'system_state', 'session_control');
 
-function resolveFirebasePassword(password: string) {
-  if (password === LEGACY_PASSWORD_ALIAS) {
-    return DEFAULT_PASSWORD;
-  }
-  return password;
+function normalizeAuthPasswordInput(password: string) {
+  return password.trim();
 }
 
 function normalizeStaffRole(role: UserRole): UserRole {
@@ -236,6 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithResult = useCallback(
     async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
       const normalizedIdentifier = identifier.trim().toLowerCase();
+      const normalizedPassword = normalizeAuthPasswordInput(password);
       const targetUser = staffUsers.find(
         (item) => item.id === identifier || item.email.toLowerCase() === normalizedIdentifier,
       );
@@ -244,11 +240,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: 'Selected user was not found in Firestore staff directory.' };
       }
 
+      if (!normalizedPassword) {
+        return { ok: false, message: 'Password is required.' };
+      }
+
       try {
         const credential = await signInWithEmailAndPassword(
           auth,
           targetUser.email,
-          resolveFirebasePassword(password || DEFAULT_PASSWORD),
+          normalizedPassword,
         );
         const profile = await fetchProfileByUid(credential.user.uid);
         if (!profile || !profile.isActive) {
@@ -319,9 +319,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const changePassword = useCallback(
     async (userId: string, currentPassword: string, newPassword: string) => {
+      const cleanCurrentPassword = normalizeAuthPasswordInput(currentPassword);
       const cleanPassword = newPassword.trim();
+      if (!cleanCurrentPassword) {
+        return { ok: false, message: 'Current password is required.' };
+      }
       if (cleanPassword.length < 4) {
         return { ok: false, message: 'New password must be at least 4 characters.' };
+      }
+      if (cleanCurrentPassword === cleanPassword) {
+        return { ok: false, message: 'New password must be different from the current password.' };
       }
 
       const targetUser = staffUsers.find((item) => item.id === userId)
@@ -341,7 +348,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const nextUser = state.user && state.user.id === targetUser.id
-          ? { ...state.user }
+          ? {
+              ...state.user,
+              passwordChangedAt: new Date().toISOString(),
+            }
           : null;
 
         if (nextUser) {
@@ -355,7 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (auth.currentUser && auth.currentUser.uid === targetUser.id && auth.currentUser.email) {
           const credential = EmailAuthProvider.credential(
             auth.currentUser.email,
-            resolveFirebasePassword(currentPassword),
+            cleanCurrentPassword,
           );
           await reauthenticateWithCredential(auth.currentUser, credential);
           await updatePassword(auth.currentUser, cleanPassword);
@@ -370,7 +380,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const tempCredential = await signInWithEmailAndPassword(
             tempAuth,
             targetUser.email,
-            resolveFirebasePassword(currentPassword),
+            cleanCurrentPassword,
           );
           await updatePassword(tempCredential.user, cleanPassword);
           await persistPasswordChange();
