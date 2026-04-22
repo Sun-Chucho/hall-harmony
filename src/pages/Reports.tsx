@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBookings } from '@/contexts/BookingContext';
+import { usePayments } from '@/contexts/PaymentContext';
 import { db } from '@/lib/firebase';
 import { LIVE_SYNC_WARNING, reportSnapshotError } from '@/lib/firestoreListeners';
 import {
@@ -23,9 +24,11 @@ import {
 import { canAccessDeskScopedBooking, canAccessDeskScopedWorkflowEntry } from '@/lib/staffRecordVisibility';
 import { BookingRecord } from '@/types/booking';
 import { ROLE_LABELS, UserRole } from '@/types/auth';
+import { PaymentRecord } from '@/types/payment';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 
 type BookingReportWindow = 'daily' | 'weekly' | 'monthly';
+type PaymentReportWindow = 'daily' | 'weekly' | 'monthly';
 
 const BOOKING_REPORT_ROLES: UserRole[] = ['manager', 'assistant_hall_manager', 'cashier_1', 'accountant'];
 
@@ -94,8 +97,34 @@ function formatBookingWindowLabel(anchorDate: string, window: BookingReportWindo
   }
 }
 
+function matchesPaymentWindow(value: string, anchorDate: string, window: PaymentReportWindow) {
+  const paymentDate = new Date(value);
+  const anchor = parseDateInput(anchorDate);
+  if (Number.isNaN(paymentDate.getTime()) || !anchor) return false;
+
+  switch (window) {
+    case 'daily':
+      return paymentDate.toDateString() === anchor.toDateString();
+    case 'weekly': {
+      const weekStart = getStartOfWeek(anchor);
+      const weekEnd = getEndOfWeek(anchor);
+      return paymentDate >= weekStart && paymentDate <= weekEnd;
+    }
+    case 'monthly':
+      return paymentDate.getFullYear() === anchor.getFullYear() && paymentDate.getMonth() === anchor.getMonth();
+  }
+}
+
+function formatPaymentWindowLabel(anchorDate: string, window: PaymentReportWindow) {
+  return formatBookingWindowLabel(anchorDate, window);
+}
+
 function bookingStatusLabel(status: BookingRecord['bookingStatus']) {
   return status.replace(/_/g, ' ');
+}
+
+function paymentMethodLabel(method: PaymentRecord['method']) {
+  return method.replace(/_/g, ' ');
 }
 
 interface BookingReportPanelProps {
@@ -105,6 +134,11 @@ interface BookingReportPanelProps {
   onBookingWindowChange: (value: BookingReportWindow) => void;
   onAnchorDateChange: (value: string) => void;
   exportFilename: string;
+}
+
+interface PaymentReportRow {
+  payment: PaymentRecord;
+  booking?: BookingRecord;
 }
 
 function BookingReportPanel({
@@ -226,15 +260,140 @@ function BookingReportPanel({
   );
 }
 
+interface PaymentReportPanelProps {
+  rows: PaymentReportRow[];
+  paymentWindow: PaymentReportWindow;
+  anchorDate: string;
+  onPaymentWindowChange: (value: PaymentReportWindow) => void;
+  onAnchorDateChange: (value: string) => void;
+  exportFilename: string;
+}
+
+function PaymentReportPanel({
+  rows,
+  paymentWindow,
+  anchorDate,
+  onPaymentWindowChange,
+  onAnchorDateChange,
+  exportFilename,
+}: PaymentReportPanelProps) {
+  const rangeLabel = formatPaymentWindowLabel(anchorDate, paymentWindow);
+  const totalPaidAmount = rows.reduce((sum, entry) => sum + entry.payment.amount, 0);
+  const uniqueBookings = new Set(rows.map((entry) => entry.payment.bookingId)).size;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Payment Reports</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Paid records filtered by payment date for {rangeLabel}.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[160px_180px_auto]">
+            <select
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={paymentWindow}
+              onChange={(event) => onPaymentWindowChange(event.target.value as PaymentReportWindow)}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+            <input
+              type="date"
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={anchorDate}
+              onChange={(event) => onAnchorDateChange(event.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => downloadCsv(exportFilename, [
+                ['Receipt No', 'Payment Date', 'Booking ID', 'Event', 'Customer', 'Method', 'Amount', 'Reference'],
+                ...rows.map(({ payment, booking }) => [
+                  payment.receiptNumber,
+                  payment.receivedAt,
+                  payment.bookingId,
+                  booking?.eventName ?? '-',
+                  booking?.customerName ?? '-',
+                  paymentMethodLabel(payment.method),
+                  payment.amount,
+                  payment.referenceNumber,
+                ]),
+              ])}
+            >
+              Export CSV
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Payments</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{rows.length}</p>
+          <p className="text-xs text-slate-600">paid records in this range</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Bookings Paid</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{uniqueBookings}</p>
+          <p className="text-xs text-slate-600">distinct bookings with payments</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Amount Paid</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">TZS {totalPaidAmount.toLocaleString()}</p>
+          <p className="text-xs text-slate-600">sum of payments received</p>
+        </div>
+      </div>
+
+      {rows.length === 0 ? emptyState(`No paid records found for ${rangeLabel}.`) : tableWrap(
+        <table className="w-full min-w-[1180px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+            <tr className="border-b border-slate-200">
+              <th className="px-3 py-3">Receipt</th>
+              <th className="px-3 py-3">Payment Date</th>
+              <th className="px-3 py-3">Booking ID</th>
+              <th className="px-3 py-3">Event</th>
+              <th className="px-3 py-3">Customer</th>
+              <th className="px-3 py-3">Method</th>
+              <th className="px-3 py-3">Amount</th>
+              <th className="px-3 py-3">Reference</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ payment, booking }) => (
+              <tr key={payment.id} className="border-b border-slate-100">
+                <td className="px-3 py-3 font-semibold text-slate-900">{payment.receiptNumber}</td>
+                <td className="px-3 py-3 text-slate-700">{new Date(payment.receivedAt).toLocaleString()}</td>
+                <td className="px-3 py-3 text-slate-700">{payment.bookingId}</td>
+                <td className="px-3 py-3 font-semibold text-slate-900">{booking?.eventName ?? '-'}</td>
+                <td className="px-3 py-3 text-slate-700">{booking?.customerName ?? '-'}</td>
+                <td className="px-3 py-3 text-slate-700">{paymentMethodLabel(payment.method)}</td>
+                <td className="px-3 py-3 text-slate-700">TZS {payment.amount.toLocaleString()}</td>
+                <td className="px-3 py-3 text-slate-700">{payment.referenceNumber}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>,
+      )}
+    </div>
+  );
+}
+
 export default function Reports() {
   const { user } = useAuth();
   const { bookings } = useBookings();
+  const { payments } = usePayments();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequestWorkflow[]>([]);
   const [outputs, setOutputs] = useState<DocumentOutput[]>([]);
   const [listenerError, setListenerError] = useState<string | null>(null);
   const [bookingWindow, setBookingWindow] = useState<BookingReportWindow>('daily');
   const [bookingAnchorDate, setBookingAnchorDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentWindow, setPaymentWindow] = useState<PaymentReportWindow>('daily');
+  const [paymentAnchorDate, setPaymentAnchorDate] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     if (!user) {
@@ -319,6 +478,15 @@ export default function Reports() {
     () => bookingReportSource.filter((entry) => matchesBookingWindow(entry.date, bookingAnchorDate, bookingWindow)),
     [bookingAnchorDate, bookingReportSource, bookingWindow],
   );
+  const paymentReportRows = useMemo(
+    () => payments
+      .filter((entry) => matchesPaymentWindow(entry.receivedAt, paymentAnchorDate, paymentWindow))
+      .map((payment) => ({
+        payment,
+        booking: bookings.find((entry) => entry.id === payment.bookingId),
+      })),
+    [bookings, paymentAnchorDate, paymentWindow, payments],
+  );
 
   if (!user) return null;
 
@@ -332,7 +500,7 @@ export default function Reports() {
     : canViewBookingReports
       ? [
           { title: 'Bookings in View', value: `${filteredBookingReports.length}`, description: `${bookingWindow} booking records` },
-          { title: user.role === 'assistant_hall_manager' ? 'Desk Cash Requests' : 'My Cash Requests', value: `${myCashRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'cash request records tied to assistant hall desk' : 'cash request records tied to your account' },
+          { title: user.role === 'assistant_hall_manager' ? 'Desk Cash Requests' : 'Payments in View', value: user.role === 'accountant' ? `${paymentReportRows.length}` : `${myCashRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'cash request records tied to assistant hall desk' : user.role === 'accountant' ? `${paymentWindow} paid records by payment date` : 'cash request records tied to your account' },
           { title: user.role === 'assistant_hall_manager' ? 'Desk Purchase Requests' : 'My Purchase Requests', value: `${myPurchaseRequests.length}`, description: user.role === 'assistant_hall_manager' ? 'purchase requests tied to assistant hall desk' : 'purchase requests tied to your account' },
           { title: user.role === 'assistant_hall_manager' ? 'Desk Outputs' : 'Saved Outputs', value: `${myDocuments.length}`, description: user.role === 'assistant_hall_manager' ? 'document outputs visible to assistant hall desk' : 'document outputs you saved' },
         ]
@@ -352,6 +520,16 @@ export default function Reports() {
       exportFilename={`${user.role}-booking-reports.csv`}
     />
   ) : null;
+  const paymentReportPanel = user.role === 'accountant' ? (
+    <PaymentReportPanel
+      rows={paymentReportRows}
+      paymentWindow={paymentWindow}
+      anchorDate={paymentAnchorDate}
+      onPaymentWindowChange={setPaymentWindow}
+      onAnchorDateChange={setPaymentAnchorDate}
+      exportFilename="accountant-payment-reports.csv"
+    />
+  ) : null;
 
   return (
     <ManagementPageTemplate
@@ -362,7 +540,9 @@ export default function Reports() {
           : user.role === 'purchaser'
             ? 'Purchaser reports focus on requests received and completed purchase records.'
             : canViewBookingReports
-              ? 'Role-based report tables with booking filters and saved workflow records.'
+              ? user.role === 'accountant'
+                ? 'Accountant reports include booking filters, payment-date reports, purchase requests, and saved outputs.'
+                : 'Role-based report tables with booking filters and saved workflow records.'
               : 'Role-based report tables for your submitted requests and saved outputs.'
       }
       stats={stats}
@@ -526,7 +706,7 @@ export default function Reports() {
             <Tabs defaultValue={canViewBookingReports ? 'booking-reports' : 'cash-requests'} className="space-y-4">
               <TabsList className="w-full justify-start overflow-x-auto">
                 {canViewBookingReports ? <TabsTrigger value="booking-reports">Booking Reports</TabsTrigger> : null}
-                <TabsTrigger value="cash-requests">Cash Requests</TabsTrigger>
+                {user.role === 'accountant' ? <TabsTrigger value="payment-reports">Payment Reports</TabsTrigger> : <TabsTrigger value="cash-requests">Cash Requests</TabsTrigger>}
                 <TabsTrigger value="purchase-requests">Purchase Requests</TabsTrigger>
                 <TabsTrigger value="my-documents">My Documents</TabsTrigger>
               </TabsList>
@@ -535,30 +715,36 @@ export default function Reports() {
                   {bookingReportPanel}
                 </TabsContent>
               ) : null}
-              <TabsContent value="cash-requests">
-                {myCashRequests.length === 0 ? emptyState('No cash request records tied to your account yet.') : tableWrap(
-                  <table className="w-full min-w-[900px] text-left text-sm">
-                    <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
-                      <tr className="border-b border-slate-200">
-                        <th className="px-3 py-3">Reference</th>
-                        <th className="px-3 py-3">Amount</th>
-                        <th className="px-3 py-3">Status</th>
-                        <th className="px-3 py-3">Submitted</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {myCashRequests.map((entry) => (
-                        <tr key={entry.id} className="border-b border-slate-100">
-                          <td className="px-3 py-3 font-semibold text-slate-900">{entry.reference}</td>
-                          <td className="px-3 py-3 text-slate-700">{entry.fields.total_requested ?? '-'}</td>
-                          <td className="px-3 py-3 text-slate-700">{getCashRequestStatusLabel(entry.currentStatus)}</td>
-                          <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+              {user.role === 'accountant' ? (
+                <TabsContent value="payment-reports">
+                  {paymentReportPanel}
+                </TabsContent>
+              ) : (
+                <TabsContent value="cash-requests">
+                  {myCashRequests.length === 0 ? emptyState('No cash request records tied to your account yet.') : tableWrap(
+                    <table className="w-full min-w-[900px] text-left text-sm">
+                      <thead className="text-xs uppercase tracking-[0.1em] text-slate-500">
+                        <tr className="border-b border-slate-200">
+                          <th className="px-3 py-3">Reference</th>
+                          <th className="px-3 py-3">Amount</th>
+                          <th className="px-3 py-3">Status</th>
+                          <th className="px-3 py-3">Submitted</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>,
-                )}
-              </TabsContent>
+                      </thead>
+                      <tbody>
+                        {myCashRequests.map((entry) => (
+                          <tr key={entry.id} className="border-b border-slate-100">
+                            <td className="px-3 py-3 font-semibold text-slate-900">{entry.reference}</td>
+                            <td className="px-3 py-3 text-slate-700">{entry.fields.total_requested ?? '-'}</td>
+                            <td className="px-3 py-3 text-slate-700">{getCashRequestStatusLabel(entry.currentStatus)}</td>
+                            <td className="px-3 py-3 text-slate-700">{new Date(entry.submittedAt).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>,
+                  )}
+                </TabsContent>
+              )}
               <TabsContent value="purchase-requests">
                 {myPurchaseRequests.length === 0 ? emptyState('No purchase request records tied to your account yet.') : tableWrap(
                   <table className="w-full min-w-[900px] text-left text-sm">
