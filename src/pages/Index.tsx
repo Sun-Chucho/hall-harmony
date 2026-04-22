@@ -3,11 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, Check, Phone, Sparkles, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { beverageList, beverageNotes, cakeOptions, clientDeclaration, conferencePackages, decorationPackages, externalServices } from '@/lib/landingData';
+import { beverageList, beverageNotes, cakeOptions, clientDeclaration, conferencePackages, decorationPackages, eventPackageCategories, externalServices } from '@/lib/landingData';
 import PublicNavbar from '@/components/landing/PublicNavbar';
 import { getDecorationPackageName, getDecorationPackageVisual } from '@/lib/packageStyles';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { bankAccounts, decorByPax, destinationContact, destinationProfiles, foodMenus, hallOperationsPolicy, importantNotices, photoshootPackage } from '@/lib/destinationProfiles';
+import { bankAccounts, destinationContact, destinationProfiles, foodMenus, hallOperationsPolicy, importantNotices } from '@/lib/destinationProfiles';
 import { SITE_IMAGES, VENUE_IMAGE_BY_ID } from '@/lib/siteImages';
 import heroVideo from '../../HALLS.mp4';
 
@@ -63,6 +63,13 @@ const getTierLabel = (tier: string, isSw: boolean) => {
 
 const formatTZS = (value: number) =>
   new Intl.NumberFormat('en-TZ', { style: 'currency', currency: 'TZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+
+const PACKAGE_ACCENT_CLASSES = [
+  'bg-[#7A151B] text-white',
+  'bg-[#F4E7D3] text-[#7A151B]',
+  'bg-[#EAF3EC] text-[#1D5B3A]',
+  'bg-[#E8EEF9] text-[#1F4E79]',
+];
 
 export default function Index() {
   const location = useLocation();
@@ -353,10 +360,10 @@ export default function Index() {
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/80" />
             <div className="relative mx-auto max-w-2xl">
               <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-[#ff9999]">{isSw ? 'Vifurushi' : 'Packages'}</p>
-              <h2 className="mt-4 text-4xl font-bold tracking-tight md:text-5xl">{isSw ? 'Vifurushi vya Kipekee' : 'Sensational Suites'}</h2>
-              <p className="mt-5 text-[15px] text-white/70">{isSw ? 'Chagua ngazi kulingana na ukubwa wa tukio.' : 'Choose package levels based on event scale and guest impact.'}</p>
+              <h2 className="mt-4 text-4xl font-bold tracking-tight md:text-5xl">{isSw ? 'Vifurushi vya Matukio' : 'Event Packages'}</h2>
+              <p className="mt-5 text-[15px] text-white/70">{isSw ? 'Package za ukumbi, birthday, gala dinner, na graduation sasa zipo wazi kwenye landing page.' : 'Hall, birthday, gala dinner, and graduation packages are now visible directly on the landing page.'}</p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                <Link to="/?section=packages"><Button className="h-11 rounded-full bg-white px-7 text-sm font-semibold text-[#0A0A0A] hover:bg-white/90">{isSw ? 'Tazama Vifurushi' : 'View Packages'}</Button></Link>
+                <Link to="/?section=packages"><Button className="h-11 rounded-full bg-white px-7 text-sm font-semibold text-[#0A0A0A] hover:bg-white/90">{isSw ? 'Tazama Package' : 'View Packages'}</Button></Link>
                 <Link to="/?section=planner"><Button variant="outline" className="h-11 rounded-full border-white/25 bg-transparent px-7 text-sm font-semibold text-white hover:bg-white/10">{isSw ? 'Maelezo Zaidi' : 'See Details'}</Button></Link>
               </div>
             </div>
@@ -366,21 +373,51 @@ export default function Index() {
             <article className="overflow-hidden rounded-2xl border border-black/[.06] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.04)] lg:col-span-2">
               <img src={IMAGES.premium} alt="Premium package" className="h-[260px] w-full object-cover" />
               <div className="p-7 md:p-8">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7A151B]">{isSw ? 'Vifurushi vikubwa' : 'Signature packages'}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7A151B]">{isSw ? 'Makundi ya package' : 'Package categories'}</p>
                 <Accordion type="single" collapsible className="mt-5">
-                  {decorationPackages.map((pkg, index) => {
-                    const style = getDecorationPackageVisual(index);
+                  {eventPackageCategories.map((pkg, index) => {
                     return (
-                      <AccordionItem key={pkg.title} value={pkg.title}>
+                      <AccordionItem key={pkg.id} value={pkg.id}>
                         <AccordionTrigger className="text-left">
                           <div>
-                            <p className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${style.badgeClass}`}>{getTierLabel(style.tier, isSw)}</p>
-                            <p className="mt-2 text-base font-bold">{getDecorationPackageName(pkg.title)}</p>
-                            <p className="text-sm font-semibold text-[#7A151B]">{formatTZS(pkg.price)}</p>
+                            <p className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${PACKAGE_ACCENT_CLASSES[index % PACKAGE_ACCENT_CLASSES.length]}`}>{pkg.title}</p>
+                            <p className="mt-2 text-base font-bold">{pkg.title}</p>
+                            <p className="text-sm text-[#0A0A0A]/60">{pkg.summary}</p>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="grid gap-2 sm:grid-cols-2">{pkg.highlights.map((h) => (<p key={h} className="rounded-xl bg-[#faf5f5] px-4 py-3 text-sm text-[#0A0A0A]/65">{h}</p>))}</div>
+                          <div className="space-y-4">
+                            {pkg.tables?.length ? (
+                              <div className="grid gap-4 xl:grid-cols-2">
+                                {pkg.tables.map((table) => (
+                                  <div key={`${pkg.id}-${table.title}`} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4">
+                                    <p className="font-bold text-[#0A0A0A]">{table.title}</p>
+                                    {table.capacity ? <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[#0A0A0A]/40">{table.capacity}</p> : null}
+                                    <div className="mt-3 space-y-2">
+                                      {table.rows.map((row) => (
+                                        <div key={`${table.title}-${row.label}`} className="flex items-center justify-between gap-3 text-sm">
+                                          <span className="text-[#0A0A0A]/60">{row.label}</span>
+                                          <span className="font-semibold text-[#7A151B]">{row.value}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                            <div className="grid gap-4 xl:grid-cols-2">
+                              {pkg.blocks.map((block) => (
+                                <div key={`${pkg.id}-${block.title}`} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4">
+                                  <p className="font-bold text-[#0A0A0A]">{block.title}</p>
+                                  <div className="mt-3 grid gap-2">
+                                    {block.items.map((item) => (
+                                      <p key={`${block.title}-${item}`} className="rounded-xl bg-white px-4 py-3 text-sm text-[#0A0A0A]/65">{item}</p>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </AccordionContent>
                       </AccordionItem>
                     );
@@ -392,18 +429,27 @@ export default function Index() {
             <article className="overflow-hidden rounded-2xl border border-black/[.06] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
               <img src={IMAGES.journal} alt="Decor by pax" className="h-[220px] w-full object-cover" />
               <div className="p-6">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7A151B]">{isSw ? 'PAX na photoshoot' : 'PAX & photoshoot'}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#7A151B]">{isSw ? 'Muhtasari wa package' : 'Quick package scan'}</p>
                 <Accordion type="single" collapsible className="mt-4">
-                  {decorByPax.map((item) => (
-                    <AccordionItem key={item.title} value={item.title}>
-                      <AccordionTrigger className="text-left"><div><p className="text-sm font-bold">{item.title}</p><p className="text-sm font-semibold text-[#7A151B]">{formatTZS(item.price)}</p></div></AccordionTrigger>
-                      <AccordionContent><div className="grid gap-2">{item.items.map((e) => (<p key={e} className="rounded-xl bg-[#faf5f5] px-4 py-3 text-sm text-[#0A0A0A]/65">{e}</p>))}</div></AccordionContent>
+                  {eventPackageCategories.map((pkg, index) => (
+                    <AccordionItem key={`${pkg.id}-summary`} value={`${pkg.id}-summary`}>
+                      <AccordionTrigger className="text-left">
+                        <div>
+                          <p className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${PACKAGE_ACCENT_CLASSES[index % PACKAGE_ACCENT_CLASSES.length]}`}>{pkg.title}</p>
+                          <p className="mt-2 text-sm font-bold">{pkg.summary}</p>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid gap-2">
+                          {pkg.blocks.slice(0, 3).map((block) => (
+                            <div key={`${pkg.id}-${block.title}-summary`} className="rounded-xl bg-[#faf5f5] px-4 py-3 text-sm text-[#0A0A0A]/65">
+                              <span className="font-semibold text-[#0A0A0A]">{block.title}:</span> {block.items[0]}
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
                     </AccordionItem>
                   ))}
-                  <AccordionItem value="photoshoot">
-                    <AccordionTrigger className="text-left"><div><p className="text-sm font-bold">{photoshootPackage.title}</p><p className="text-sm font-semibold text-[#7A151B]">{formatTZS(photoshootPackage.price)}</p></div></AccordionTrigger>
-                    <AccordionContent><div className="grid gap-2">{photoshootPackage.items.map((e) => (<p key={e} className="rounded-xl bg-[#faf5f5] px-4 py-3 text-sm text-[#0A0A0A]/65">{e}</p>))}</div></AccordionContent>
-                  </AccordionItem>
                 </Accordion>
               </div>
             </article>
@@ -467,8 +513,8 @@ export default function Index() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7A151B]">{isSw ? 'Mahitaji ya Tukio' : 'Event Planning Details'}</p>
               <h3 className="mt-4 text-2xl font-bold tracking-tight md:text-3xl">{isSw ? 'Fungua kile unachohitaji' : 'Open only what you need'}</h3>
               <Accordion type="single" collapsible className="mt-6">
-                <AccordionItem value="decor"><AccordionTrigger className="text-left text-base font-semibold">{isSw ? 'Vifurushi vya mapambo' : 'Decoration packages'}</AccordionTrigger>
-                  <AccordionContent><div className="space-y-4"><img src={IMAGES.premium} alt="Decoration detail" className="h-[220px] w-full rounded-2xl object-cover" />{decorationPackages.map((pkg) => (<div key={pkg.title} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4"><div className="flex items-center justify-between gap-3"><p className="font-bold">{getDecorationPackageName(pkg.title)}</p><p className="text-sm font-bold text-[#7A151B]">{formatTZS(pkg.price)}</p></div><p className="mt-2 text-sm text-[#0A0A0A]/55">{pkg.highlights.join(' · ')}</p></div>))}</div></AccordionContent>
+                <AccordionItem value="decor"><AccordionTrigger className="text-left text-base font-semibold">{isSw ? 'Package za matukio' : 'Event packages'}</AccordionTrigger>
+                  <AccordionContent><div className="space-y-4"><img src={IMAGES.premium} alt="Package detail" className="h-[220px] w-full rounded-2xl object-cover" />{eventPackageCategories.map((pkg) => (<div key={pkg.id} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="font-bold">{pkg.title}</p><p className="text-sm font-semibold text-[#7A151B]">{pkg.summary}</p></div><div className="mt-3 grid gap-3">{pkg.blocks.map((block) => (<div key={`${pkg.id}-${block.title}-detail`} className="rounded-xl bg-white px-4 py-3 text-sm text-[#0A0A0A]/65"><span className="font-semibold text-[#0A0A0A]">{block.title}:</span> {block.items.join(' · ')}</div>))}</div></div>))}</div></AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="food"><AccordionTrigger className="text-left text-base font-semibold">{isSw ? 'Chakula na menus' : 'Food & conference menus'}</AccordionTrigger>
                   <AccordionContent><div className="space-y-4">{foodMenus.map((m) => (<div key={m.title} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4"><p className="font-bold">{m.title}</p><p className="mt-2 text-sm text-[#0A0A0A]/55">{[...m.starter, ...m.buffet].join(' · ')}</p></div>))}{conferencePackages.map((p) => (<div key={p.attendees} className="rounded-2xl border border-black/[.06] bg-[#faf5f5] p-4"><p className="font-bold">Conference {p.attendees}</p><p className="mt-1 text-sm text-[#0A0A0A]/55">{p.pricePoint}</p><p className="mt-2 text-sm text-[#0A0A0A]/55">{p.amenities.join(' · ')}</p></div>))}</div></AccordionContent>
