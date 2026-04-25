@@ -189,6 +189,9 @@ export const ROUTE_ACCESS: Record<string, UserRole[]> = {
   '/documents': ['manager', 'accountant', 'cashier_1', 'store_keeper'],
   '/reports': ['manager', 'managing_director', 'assistant_hall_manager', 'cashier_1', 'accountant', 'store_keeper', 'purchaser'],
   '/managing-director-dashboard': ['managing_director'],
+  '/managing-director-dashboard/stock-overview': ['managing_director'],
+  '/managing-director-dashboard/halls-payment-booking': ['managing_director'],
+  '/managing-director-dashboard/cash-requests-vouchers': ['managing_director'],
   '/portal': ['accountant'],
   '/settings': [
     'manager',

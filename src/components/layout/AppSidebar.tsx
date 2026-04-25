@@ -235,6 +235,21 @@ export function AppSidebar() {
     { title: 'Settings', icon: Settings, path: '/settings' },
   ];
 
+  const managingDirectorNavItems: NavItem[] = [
+    { title: 'MD Dashboard', icon: LayoutDashboard, path: '/managing-director-dashboard' },
+    { title: 'Stock Overview', icon: Package, path: '/managing-director-dashboard/stock-overview' },
+    { title: 'Halls Payment & Booking', icon: Calendar, path: '/managing-director-dashboard/halls-payment-booking' },
+    { title: 'Cash Requests & Vouchers', icon: FileText, path: '/managing-director-dashboard/cash-requests-vouchers' },
+    { title: 'Reports', icon: BarChart3, path: '/reports' },
+    { title: 'Messages', icon: MessageSquare, path: '/messages' },
+    { title: 'Settings', icon: Settings, path: '/settings' },
+  ];
+
+  const isActivePath = (path: string) => {
+    if (path === '/managing-director-dashboard') return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
   const renderNavGroup = (label: string, items: NavItem[]) => {
     const filteredItems = filterByRole(items, user.role);
     if (filteredItems.length === 0) return null;
@@ -248,7 +263,7 @@ export function AppSidebar() {
               <SidebarMenuItem key={item.path}>
                 <SidebarMenuButton
                   onClick={() => navigate(item.path)}
-                  isActive={location.pathname === item.path}
+                  isActive={isActivePath(item.path)}
                   tooltip={item.title}
                   className={item.path === '/messages' && unreadCount > 0 ? 'ring-1 ring-amber-300 bg-amber-100/60 shadow-[0_0_18px_rgba(251,191,36,0.35)]' : undefined}
                 >
@@ -281,7 +296,9 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="scrollbar-thin">
-        {user.role === 'assistant_hall_manager' ? (
+        {user.role === 'managing_director' ? (
+          renderNavGroup('Managing Director', managingDirectorNavItems)
+        ) : user.role === 'assistant_hall_manager' ? (
           renderNavGroup('Assistant Hall', assistantHallNavItems)
         ) : user.role === 'cashier_1' ? (
           renderNavGroup('Cashier', cashier1NavItems)

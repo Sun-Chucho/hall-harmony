@@ -108,6 +108,9 @@ const App = () => {
                           <Route path="/staff" element={<Login />} />
                           <Route path="/dashboard" element={<RouteGuard path="/dashboard"><Dashboard /></RouteGuard>} />
                           <Route path="/managing-director-dashboard" element={<RouteGuard path="/managing-director-dashboard"><ManagingDirectorDashboard /></RouteGuard>} />
+                          <Route path="/managing-director-dashboard/stock-overview" element={<RouteGuard path="/managing-director-dashboard/stock-overview"><ManagingDirectorDashboard section="stock-overview" /></RouteGuard>} />
+                          <Route path="/managing-director-dashboard/halls-payment-booking" element={<RouteGuard path="/managing-director-dashboard/halls-payment-booking"><ManagingDirectorDashboard section="halls-payment-booking" /></RouteGuard>} />
+                          <Route path="/managing-director-dashboard/cash-requests-vouchers" element={<RouteGuard path="/managing-director-dashboard/cash-requests-vouchers"><ManagingDirectorDashboard section="cash-requests-vouchers" /></RouteGuard>} />
                           <Route path="/bookings" element={<RouteGuard path="/bookings" transactional><Bookings /></RouteGuard>} />
                           <Route path="/bookings/submitted" element={<RouteGuard path="/bookings/submitted" transactional><Bookings /></RouteGuard>} />
                           <Route path="/customers" element={<RouteGuard path="/customers"><Customers /></RouteGuard>} />

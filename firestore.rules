@@ -89,7 +89,11 @@ service cloud.firestore {
       return hasAnyRole(['store_keeper', 'accountant']);
     }
 
-    function canAccessDocumentsModule() {
+    function canReadDocumentsModule() {
+      return hasAnyRole(['manager', 'managing_director', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser']);
+    }
+
+    function canWriteDocumentsModule() {
       return hasAnyRole(['manager', 'assistant_hall_manager', 'accountant', 'cashier_1', 'store_keeper', 'purchaser']);
     }
 
@@ -229,15 +233,18 @@ service cloud.firestore {
     }
 
     match /document_form_outputs/{docId} {
-      allow read, write: if canAccessDocumentsModule();
+      allow read: if canReadDocumentsModule();
+      allow write: if canWriteDocumentsModule();
     }
 
     match /cash_request_workflow/{docId} {
-      allow read, write: if canAccessDocumentsModule();
+      allow read: if canReadDocumentsModule();
+      allow write: if canWriteDocumentsModule();
     }
 
     match /purchase_item_workflow/{docId} {
-      allow read, write: if canAccessDocumentsModule();
+      allow read: if canReadDocumentsModule();
+      allow write: if canWriteDocumentsModule();
     }
 
     match /{document=**} {
