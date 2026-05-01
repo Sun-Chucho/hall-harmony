@@ -18,6 +18,7 @@ interface PaymentContextValue {
   payments: PaymentRecord[];
   recordPayment: (input: CreatePaymentInput) => Promise<{ ok: boolean; message: string; paymentId?: string }>;
   updatePayment: (paymentId: string, input: UpdatePaymentInput) => Promise<{ ok: boolean; message: string }>;
+  addCompletedBookingPaymentUpdate: (input: CreatePaymentInput) => Promise<{ ok: boolean; message: string; paymentId?: string }>;
   setBookingPaymentStatus: (bookingId: string, status: BookingPaymentStatus) => Promise<{ ok: boolean; message: string }>;
   getBookingFinancials: (bookingId: string) => BookingFinancials;
   generateReceiptText: (paymentId: string) => { ok: boolean; message: string; receipt?: string };
@@ -288,6 +289,67 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
   }, [bookings, payments, policy.transactionsFrozen, user]);
 
+  /**
+   * Adds a payment tracking update (with notes) to a completed or past booking.
+   * Unlike recordPayment, this does NOT enforce balance checks or the completed-booking guard,
+   * allowing cashiers to log post-event adjustments and notes for easy tracking.
+   */
+  const addCompletedBookingPaymentUpdate = useCallback(async (input: CreatePaymentInput) => {
+    if (!user) return { ok: false, message: 'Authentication required.' };
+    if (user.role !== 'cashier_1' && user.role !== 'accountant') {
+      return { ok: false, message: 'Only Cashier or Accountant can record payment updates.' };
+    }
+    if (policy.transactionsFrozen && user.role !== 'accountant') {
+      return { ok: false, message: 'Transactions are frozen by accountant.' };
+    }
+    const booking = bookings.find((item) => item.id === input.bookingId);
+    if (!booking) return { ok: false, message: 'Booking not found.' };
+    if (!Number.isFinite(input.amount) || input.amount < 0) {
+      return { ok: false, message: 'Enter a valid payment amount (0 or more).' };
+    }
+    const actionId = normalizeActionId(input.actionId) || crypto.randomUUID();
+    const duplicate = payments.find((entry) => entry.clientActionId === actionId);
+    if (duplicate) {
+      return { ok: true, message: 'This update was already submitted.', paymentId: duplicate.id };
+    }
+    const paymentId = `PAY-UPD-${actionId}`;
+    const receiptNumber = generateReference('UPD-RCT');
+    const referenceNumber = input.referenceNumber?.trim() || generateReference('UPD-REF');
+    const receivedAt = input.receivedAt ? new Date(input.receivedAt) : new Date();
+    if (Number.isNaN(receivedAt.getTime())) {
+      return { ok: false, message: 'Enter a valid date and time.' };
+    }
+    const amount = Math.round(input.amount);
+    const record: PaymentRecord = {
+      id: paymentId,
+      clientActionId: actionId,
+      bookingId: input.bookingId,
+      amount,
+      method: input.method,
+      referenceNumber,
+      receivedAt: receivedAt.toISOString(),
+      receivedByUserId: user.id,
+      receiptNumber,
+      notes: input.notes?.trim() ?? '',
+    };
+    setPayments((prev) => [record, ...prev]);
+    try {
+      await setDoc(
+        doc(db, PAYMENTS_COLLECTION, record.id),
+        sanitizeFirestoreData({
+          ...record,
+          isCompletedBookingUpdate: true,
+          updatedAt: serverTimestamp(),
+        }),
+        { merge: true },
+      );
+      return { ok: true, message: 'Payment update recorded successfully.', paymentId };
+    } catch {
+      setPayments((prev) => prev.filter((entry) => entry.id !== record.id));
+      return { ok: false, message: 'Payment update failed to sync to cloud. Please try again.' };
+    }
+  }, [bookings, payments, policy.transactionsFrozen, user]);
+
   const setBookingPaymentStatus = useCallback(async (bookingId: string, status: BookingPaymentStatus) => {
     if (!user) return { ok: false, message: 'Authentication required.' };
     if (user.role !== 'cashier_1' && user.role !== 'accountant') {
@@ -354,10 +416,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     payments,
     recordPayment,
     updatePayment,
+    addCompletedBookingPaymentUpdate,
     setBookingPaymentStatus,
     getBookingFinancials,
     generateReceiptText,
-  }), [generateReceiptText, getBookingFinancials, payments, recordPayment, setBookingPaymentStatus, updatePayment]);
+  }), [addCompletedBookingPaymentUpdate, generateReceiptText, getBookingFinancials, payments, recordPayment, setBookingPaymentStatus, updatePayment]);
 
   return <PaymentContext.Provider value={value}>{children}</PaymentContext.Provider>;
 }

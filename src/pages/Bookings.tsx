@@ -166,7 +166,7 @@ export default function Bookings() {
     hasConflict,
   } = useBookings();
   const { sendManagerAlert } = useMessages();
-  const { payments, recordPayment, updatePayment, getBookingFinancials } = usePayments();
+  const { payments, recordPayment, updatePayment, addCompletedBookingPaymentUpdate, getBookingFinancials } = usePayments();
   const [form, setForm] = useState<CreateBookingInput>(initialForm);
   const [message, setMessage] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -202,6 +202,13 @@ export default function Bookings() {
   const [pendingApprovalDateTime, setPendingApprovalDateTime] = useState<Record<string, string>>({});
   const [pendingApprovalNotes, setPendingApprovalNotes] = useState<Record<string, string>>({});
   const [pendingPaymentSearch, setPendingPaymentSearch] = useState('');
+  // Per-booking form state for the "Update Payment" feature on completed bookings
+  const [completedUpdateOpen, setCompletedUpdateOpen] = useState<Record<string, boolean>>({});
+  const [completedUpdateAmount, setCompletedUpdateAmount] = useState<Record<string, number>>({});
+  const [completedUpdateMethod, setCompletedUpdateMethod] = useState<Record<string, PaymentMethod>>({});
+  const [completedUpdateDateTime, setCompletedUpdateDateTime] = useState<Record<string, string>>({});
+  const [completedUpdateNotes, setCompletedUpdateNotes] = useState<Record<string, string>>({});
+  const [completedUpdateSaving, setCompletedUpdateSaving] = useState<Record<string, boolean>>({});
   const [pastForm, setPastForm] = useState<CreateBookingInput>({
     ...initialForm,
     date: getTodayIso(),
@@ -1608,6 +1615,8 @@ export default function Bookings() {
                         .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
                       const completedAt = entryPayments[0]?.receivedAt;
                       const entryFinancials = getBookingFinancials(entry.id);
+                      const isUpdateOpen = completedUpdateOpen[entry.id] ?? false;
+                      const isSavingUpdate = completedUpdateSaving[entry.id] ?? false;
                       return (
                         <div key={entry.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1623,7 +1632,117 @@ export default function Bookings() {
                           <p className="text-slate-500">Payment completed at: {completedAt ? new Date(completedAt).toLocaleString() : '-'}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <Badge className="bg-slate-200 text-slate-700">Locked after completion</Badge>
+                            <Button
+                              size="sm"
+                              variant={isUpdateOpen ? 'secondary' : 'outline'}
+                              onClick={() =>
+                                setCompletedUpdateOpen((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }))
+                              }
+                            >
+                              {isUpdateOpen ? 'Cancel Update' : 'Update Payment'}
+                            </Button>
                           </div>
+                          {/* Inline Update Payment form */}
+                          {isUpdateOpen ? (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-800">
+                                Post-Completion Payment Update
+                              </p>
+                              <div className="grid gap-2 md:grid-cols-2">
+                                <input
+                                  type="number"
+                                  placeholder="Amount (TZS) — use 0 for notes-only"
+                                  className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs md:col-span-2"
+                                  value={completedUpdateAmount[entry.id] ?? ''}
+                                  onChange={(event) =>
+                                    setCompletedUpdateAmount((prev) => ({ ...prev, [entry.id]: Number(event.target.value) }))
+                                  }
+                                />
+                                <CashierPaymentMethodTabs
+                                  className="md:col-span-2"
+                                  label="Payment Channel"
+                                  value={completedUpdateMethod[entry.id] ?? 'cash'}
+                                  onChange={(method) =>
+                                    setCompletedUpdateMethod((prev) => ({ ...prev, [entry.id]: method }))
+                                  }
+                                  buttonClassName="px-2 py-1.5 text-xs"
+                                />
+                                <input
+                                  type="datetime-local"
+                                  className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs"
+                                  value={completedUpdateDateTime[entry.id] ?? getDefaultPaidDateTime()}
+                                  onChange={(event) =>
+                                    setCompletedUpdateDateTime((prev) => ({ ...prev, [entry.id]: event.target.value }))
+                                  }
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Note / Reason (required for tracking)"
+                                  className="rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs"
+                                  value={completedUpdateNotes[entry.id] ?? ''}
+                                  onChange={(event) =>
+                                    setCompletedUpdateNotes((prev) => ({ ...prev, [entry.id]: event.target.value }))
+                                  }
+                                />
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  disabled={isSavingUpdate || isRefreshingPage || !(completedUpdateNotes[entry.id]?.trim())}
+                                  onClick={async () => {
+                                    if (isSavingUpdate || isRefreshingPage) return;
+                                    if (Date.now() - lastPaymentActionAtRef.current < 900) return;
+                                    const note = (completedUpdateNotes[entry.id] ?? '').trim();
+                                    if (!note) {
+                                      setMessage('Enter a note before saving the payment update.');
+                                      toast({ title: 'Note required', description: 'Enter a note to describe this payment update.', variant: 'destructive' });
+                                      return;
+                                    }
+                                    if (!confirmAction('Are you sure you want to record this payment update for this completed booking?')) return;
+                                    setCompletedUpdateSaving((prev) => ({ ...prev, [entry.id]: true }));
+                                    const result = await addCompletedBookingPaymentUpdate({
+                                      actionId: crypto.randomUUID(),
+                                      bookingId: entry.id,
+                                      amount: Number(completedUpdateAmount[entry.id]) || 0,
+                                      method: completedUpdateMethod[entry.id] ?? 'cash',
+                                      receivedAt: completedUpdateDateTime[entry.id] ?? getDefaultPaidDateTime(),
+                                      notes: `[POST-COMPLETION UPDATE] ${note}`,
+                                    });
+                                    setMessage(result.message);
+                                    toast({
+                                      title: result.ok ? 'Payment update saved' : 'Update failed',
+                                      description: result.message,
+                                      variant: result.ok ? 'default' : 'destructive',
+                                    });
+                                    if (result.ok) {
+                                      lastPaymentActionAtRef.current = Date.now();
+                                      setCompletedUpdateOpen((prev) => ({ ...prev, [entry.id]: false }));
+                                      setCompletedUpdateAmount((prev) => { const next = { ...prev }; delete next[entry.id]; return next; });
+                                      setCompletedUpdateNotes((prev) => { const next = { ...prev }; delete next[entry.id]; return next; });
+                                    }
+                                    setCompletedUpdateSaving((prev) => ({ ...prev, [entry.id]: false }));
+                                  }}
+                                >
+                                  {isSavingUpdate ? 'Saving...' : 'Save Update'}
+                                </Button>
+                                <span className="text-xs text-amber-700">A note is required to save the update.</span>
+                              </div>
+                              {/* Payment history for this booking */}
+                              {entryPayments.length > 0 ? (
+                                <div className="mt-3 space-y-1">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Payment History</p>
+                                  {entryPayments.map((pay) => (
+                                    <div key={pay.id} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700">
+                                      <span className="font-semibold">TZS {pay.amount.toLocaleString()}</span>
+                                      {' · '}{new Date(pay.receivedAt).toLocaleString()}
+                                      {' · '}{toShortStatus(pay.method)}
+                                      {pay.notes ? <span className="ml-1 text-slate-500"> — {pay.notes}</span> : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })
