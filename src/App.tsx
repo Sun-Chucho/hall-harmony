@@ -12,6 +12,7 @@ import { PaymentProvider } from "@/contexts/PaymentContext";
 import { EventFinanceProvider } from "@/contexts/EventFinanceContext";
 import { InventoryProvider } from "@/contexts/InventoryContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { RouteGuard } from "@/components/auth/RouteGuard";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -78,19 +79,20 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthProvider>
-          <AuthorizationProvider>
-            <MessageProvider>
-              <BookingProvider>
-                <PaymentProvider>
-                  <EventFinanceProvider>
-                    <InventoryProvider>
-                      <LanguageProvider>
-                        <Toaster />
-                        <Sonner />
-                        <BrowserRouter>
-                          <ScrollToTop />
-                          <Routes>
+        <AppErrorBoundary>
+          <AuthProvider>
+            <AuthorizationProvider>
+              <MessageProvider>
+                <BookingProvider>
+                  <PaymentProvider>
+                    <EventFinanceProvider>
+                      <InventoryProvider>
+                        <LanguageProvider>
+                          <Toaster />
+                          <Sonner />
+                          <BrowserRouter>
+                            <ScrollToTop />
+                            <Routes>
                           <Route path="/" element={<Home />} />
                           <Route path="/home" element={<Home />} />
                           <Route path="/venues" element={<Navigate to="/?section=destinations" replace />} />
@@ -137,16 +139,17 @@ const App = () => {
                           <Route path="/messages" element={<RouteGuard path="/messages"><Messages /></RouteGuard>} />
                           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                           <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </BrowserRouter>
-                      </LanguageProvider>
-                    </InventoryProvider>
-                  </EventFinanceProvider>
-                </PaymentProvider>
-              </BookingProvider>
-            </MessageProvider>
-          </AuthorizationProvider>
-        </AuthProvider>
+                            </Routes>
+                          </BrowserRouter>
+                        </LanguageProvider>
+                      </InventoryProvider>
+                    </EventFinanceProvider>
+                  </PaymentProvider>
+                </BookingProvider>
+              </MessageProvider>
+            </AuthorizationProvider>
+          </AuthProvider>
+        </AppErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>
   );

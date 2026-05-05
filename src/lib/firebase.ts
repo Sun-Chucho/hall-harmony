@@ -25,7 +25,38 @@ function clearFirestorePersistenceMetadata() {
   }
 }
 
+function clearFirestoreIndexedDbCache() {
+  if (typeof window === 'undefined' || !window.indexedDB) return;
+
+  try {
+    const indexedDb = window.indexedDB as IDBFactory & {
+      databases?: () => Promise<Array<{ name?: string }>>;
+    };
+
+    void indexedDb
+      .databases?.()
+      .then((databases) => {
+        databases
+          .map((database) => database.name)
+          .filter((name): name is string => Boolean(name) && /firestore/i.test(name))
+          .forEach((name) => {
+            try {
+              indexedDb.deleteDatabase(name);
+            } catch {
+              // Ignore per-database cleanup failures; local persistence is disabled below.
+            }
+          });
+      })
+      .catch(() => {
+        // Some browsers do not allow enumerating IndexedDB databases.
+      });
+  } catch {
+    // Ignore browser storage cleanup failures; Firestore will continue without offline persistence.
+  }
+}
+
 clearFirestorePersistenceMetadata();
+clearFirestoreIndexedDbCache();
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
