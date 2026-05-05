@@ -49,12 +49,66 @@ const FIREBASE_READ_TIMEOUT_MS = 12000;
 const FIREBASE_WRITE_TIMEOUT_MS = 10000;
 const FIREBASE_AUTH_TIMEOUT_MS = 18000;
 const LOGIN_TIMEOUT_MESSAGE = 'Login request timed out. Please check the connection and try again.';
-const KNOWN_MD_FALLBACK_PROFILES: User[] = [
+const SEEDED_STAFF_FALLBACK_PROFILES: User[] = [
   {
-    id: '11',
-    email: 'md@kuringe.co.tz',
-    name: 'MD',
-    role: 'managing_director',
+    id: '1',
+    email: 'diana.mushi@kuringe.co.tz',
+    name: 'Anonymous',
+    role: 'manager',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '2',
+    email: 'gladness.tesha@kuringe.co.tz',
+    name: 'Gladness Donat Tesha',
+    role: 'assistant_hall_manager',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '3',
+    email: 'rose.mkonyi@kuringe.co.tz',
+    name: 'Rose G. Mkonyi',
+    role: 'cashier_1',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '6',
+    email: 'regina.evarist@kuringe.co.tz',
+    name: 'Regina Evarist',
+    role: 'store_keeper',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '7',
+    email: 'veronika.kileo@kuringe.co.tz',
+    name: 'Veronika Visent Kileo',
+    role: 'purchaser',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '8',
+    email: 'jackline.faustine@kuringe.co.tz',
+    name: 'Jackline Faustine',
+    role: 'accountant',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '9',
+    email: 'david.kinoka@kuringe.co.tz',
+    name: 'David Kinoka',
+    role: 'accountant',
     notes: '',
     isActive: true,
     createdAt: new Date(0).toISOString(),
@@ -62,6 +116,15 @@ const KNOWN_MD_FALLBACK_PROFILES: User[] = [
   {
     id: '10',
     email: 'edward.mushi@kuringe.co.tz',
+    name: 'MD',
+    role: 'managing_director',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '11',
+    email: 'md@kuringe.co.tz',
     name: 'MD',
     role: 'managing_director',
     notes: '',
@@ -94,8 +157,17 @@ function canUseLoginFallbackProfile(profile: User | null, firebaseUid: string, e
   return profile.id === firebaseUid || profile.email.toLowerCase() === emailForAuth.toLowerCase();
 }
 
-function getKnownLoginFallbackProfile(firebaseUid: string, emailForAuth: string) {
-  return KNOWN_MD_FALLBACK_PROFILES.find((profile) => canUseLoginFallbackProfile(profile, firebaseUid, emailForAuth)) ?? null;
+function getSeededFallbackProfile(firebaseUid: string, emailForAuth: string) {
+  return SEEDED_STAFF_FALLBACK_PROFILES.find((profile) => canUseLoginFallbackProfile(profile, firebaseUid, emailForAuth)) ?? null;
+}
+
+function mergeAuthProfile(profile: User, firebaseUid: string, firebaseEmail?: string | null, lastLogin?: string): User {
+  return {
+    ...profile,
+    id: firebaseUid,
+    email: firebaseEmail ?? profile.email,
+    lastLogin: lastLogin ?? profile.lastLogin,
+  };
 }
 
 function normalizeAuthPasswordInput(password: string) {
@@ -159,7 +231,9 @@ async function fetchStaffDirectory(): Promise<User[]> {
       .filter((user) => user.email && user.name)
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {
-    return [];
+    return SEEDED_STAFF_FALLBACK_PROFILES
+      .map((profile) => normalizeUser(profile))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 }
 
@@ -209,7 +283,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const profile = await fetchProfileByUid(firebaseUser.uid);
+        let profile = await fetchProfileByUid(firebaseUser.uid);
+        if (!profile) {
+          profile = getSeededFallbackProfile(firebaseUser.uid, firebaseUser.email ?? '');
+        }
         if (!profile || !profile.isActive) {
           await signOut(auth);
           localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
@@ -248,6 +325,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch {
             localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
           }
+        }
+        const fallbackProfile = getSeededFallbackProfile(firebaseUser.uid, firebaseUser.email ?? '');
+        if (fallbackProfile) {
+          setState({
+            user: mergeAuthProfile(fallbackProfile, firebaseUser.uid, firebaseUser.email),
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          return;
         }
 
         setState({ user: null, isAuthenticated: false, isLoading: false });
@@ -323,20 +409,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           FIREBASE_AUTH_TIMEOUT_MS,
           LOGIN_TIMEOUT_MESSAGE,
         );
-        let profile: User | null = null;
-        try {
-          profile = await fetchProfileByUid(credential.user.uid);
-        } catch {
-          if (canUseLoginFallbackProfile(targetUser ?? null, credential.user.uid, emailForAuth)) {
-            profile = {
-              ...targetUser,
-              id: credential.user.uid,
-              email: credential.user.email ?? targetUser.email,
-            };
-          } else {
-            profile = getKnownLoginFallbackProfile(credential.user.uid, emailForAuth);
-          }
-        }
+        const profile = canUseLoginFallbackProfile(targetUser ?? null, credential.user.uid, emailForAuth)
+          ? mergeAuthProfile(targetUser, credential.user.uid, credential.user.email)
+          : getSeededFallbackProfile(credential.user.uid, emailForAuth);
 
         if (!profile || !profile.isActive) {
           await signOut(auth);
@@ -349,31 +424,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const nowIso = new Date().toISOString();
-        try {
-          await withTimeout(
+        const authenticatedUser = {
+          ...profile,
+          lastLogin: nowIso,
+        };
+        setState({
+          user: authenticatedUser,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify(authenticatedUser));
+
+        void withTimeout(
             updateDoc(doc(db, STAFF_COLLECTION, profile.id), sanitizeFirestoreData({
               lastLogin: nowIso,
               updatedAt: serverTimestamp(),
             })),
             FIREBASE_WRITE_TIMEOUT_MS,
             'Last login update timed out.',
-          );
-        } catch {
-          // Continue when Firestore is unavailable.
-        }
-
-        setState({
-          user: {
-            ...profile,
-            lastLogin: nowIso,
-          },
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({
-          ...profile,
-          lastLogin: nowIso,
-        }));
+          ).catch(() => {
+            // Continue when Firestore is unavailable.
+          });
         return { ok: true };
       } catch (error: unknown) {
         try {
