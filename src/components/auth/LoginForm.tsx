@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types/auth';
+import { User, UserRole } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Loader2, LogIn, ShieldCheck, UserRound } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -39,6 +40,22 @@ function getDashboardRoute(role: UserRole) {
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
 }
 
+function isLegacyAugustine(user: User) {
+  return /augustine/i.test(user.name);
+}
+
+function getDisplayRole(user: User, selectedRole: UserRole): UserRole {
+  if (selectedRole === 'accountant' && user.role === 'controller') return 'accountant';
+  return user.role;
+}
+
+function getVisibleStaffName(user: User, selectedRole: UserRole, language: 'en' | 'sw') {
+  if (selectedRole === 'manager' && /diana|dianna/i.test(user.name)) {
+    return language === 'sw' ? 'Meneja wa Kumbi' : 'Halls Manager';
+  }
+  return user.name;
+}
+
 interface LoginFormProps {
   lockedRole?: UserRole;
 }
@@ -56,6 +73,14 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
   const isSw = language === 'sw';
   const isManagingDirectorOnly = lockedRole === 'managing_director';
 
+  const selectedRoleUsers = useMemo(() => {
+    return staffUsers.filter((user) => {
+      if (isLegacyAugustine(user)) return false;
+      const displayRole = getDisplayRole(user, selectedRole);
+      return displayRole === selectedRole;
+    });
+  }, [selectedRole, staffUsers]);
+
   useEffect(() => {
     if (lockedRole) {
       setSelectedRole(lockedRole);
@@ -71,8 +96,8 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
 
     if (!isManagingDirectorOnly && !identifier.trim()) {
       toast({
-        title: isSw ? 'Akaunti inahitajika' : 'Account required',
-        description: isSw ? 'Tafadhali ingiza barua pepe au namba ya staff.' : 'Please enter your email or staff ID.',
+        title: isSw ? 'Chaguo linahitajika' : 'Selection required',
+        description: isSw ? 'Tafadhali chagua mtumiaji wa staff.' : 'Please select a staff member.',
         variant: 'destructive',
       });
       return;
@@ -225,22 +250,30 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
                 {!isManagingDirectorOnly ? (
                   <div className="space-y-3">
                     <Label htmlFor="staff-identifier" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      {isSw ? 'Akaunti' : 'Account'}
+                      {isSw ? 'Mtumiaji' : 'Staff User'}
                     </Label>
-                    <div className="relative">
-                      <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <Input
-                        id="staff-identifier"
-                        type="text"
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder={isSw ? 'Barua pepe au namba ya staff' : 'Email or staff ID'}
-                        autoComplete="username"
-                        className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 pl-12 text-base"
-                        required
-                        disabled={isLoading}
-                      />
-                    </div>
+                    <Select value={identifier} onValueChange={setIdentifier} disabled={isLoading}>
+                      <SelectTrigger id="staff-identifier" className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 text-base shadow-none">
+                        <div className="flex items-center gap-3 text-left">
+                          <div className="rounded-xl bg-white p-2 shadow-sm">
+                            <UserRound className="h-4 w-4 text-slate-500" />
+                          </div>
+                          <SelectValue placeholder={isSw ? 'Chagua mtumiaji wa staff' : 'Select a staff member'} />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedRoleUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {getVisibleStaffName(user, selectedRole, language)} {!user.isActive ? (isSw ? '(Amezimwa)' : '(Inactive)') : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedRoleUsers.length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        {isSw ? 'Hakuna watumiaji kwa role hii kwenye staff directory.' : 'No users found for this role in the staff directory.'}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
