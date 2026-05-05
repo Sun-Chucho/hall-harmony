@@ -49,6 +49,26 @@ const FIREBASE_READ_TIMEOUT_MS = 12000;
 const FIREBASE_WRITE_TIMEOUT_MS = 10000;
 const FIREBASE_AUTH_TIMEOUT_MS = 18000;
 const LOGIN_TIMEOUT_MESSAGE = 'Login request timed out. Please check the connection and try again.';
+const KNOWN_MD_FALLBACK_PROFILES: User[] = [
+  {
+    id: '11',
+    email: 'md@kuringe.co.tz',
+    name: 'MD',
+    role: 'managing_director',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+  {
+    id: '10',
+    email: 'edward.mushi@kuringe.co.tz',
+    name: 'MD',
+    role: 'managing_director',
+    notes: '',
+    isActive: true,
+    createdAt: new Date(0).toISOString(),
+  },
+];
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -67,6 +87,15 @@ function isEmailIdentifier(value: string) {
 
 function isTimeoutError(error: unknown) {
   return error instanceof Error && /timed out/i.test(error.message);
+}
+
+function canUseLoginFallbackProfile(profile: User | null, firebaseUid: string, emailForAuth: string) {
+  if (!profile || !profile.isActive) return false;
+  return profile.id === firebaseUid || profile.email.toLowerCase() === emailForAuth.toLowerCase();
+}
+
+function getKnownLoginFallbackProfile(firebaseUid: string, emailForAuth: string) {
+  return KNOWN_MD_FALLBACK_PROFILES.find((profile) => canUseLoginFallbackProfile(profile, firebaseUid, emailForAuth)) ?? null;
 }
 
 function normalizeAuthPasswordInput(password: string) {
@@ -294,10 +323,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           FIREBASE_AUTH_TIMEOUT_MS,
           LOGIN_TIMEOUT_MESSAGE,
         );
-        const profile = await fetchProfileByUid(credential.user.uid);
+        let profile: User | null = null;
+        try {
+          profile = await fetchProfileByUid(credential.user.uid);
+        } catch {
+          if (canUseLoginFallbackProfile(targetUser ?? null, credential.user.uid, emailForAuth)) {
+            profile = {
+              ...targetUser,
+              id: credential.user.uid,
+              email: credential.user.email ?? targetUser.email,
+            };
+          } else {
+            profile = getKnownLoginFallbackProfile(credential.user.uid, emailForAuth);
+          }
+        }
+
         if (!profile || !profile.isActive) {
           await signOut(auth);
-          return { ok: false, message: 'This user is inactive and cannot sign in.' };
+          return { ok: false, message: 'This user profile could not be verified or is inactive.' };
         }
 
         if (options.allowedRoles?.length && !options.allowedRoles.includes(profile.role)) {
