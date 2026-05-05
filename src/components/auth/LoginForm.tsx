@@ -11,7 +11,6 @@ import { ArrowLeft, ArrowRight, Loader2, LogIn, ShieldCheck, UserRound } from 'l
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const ROLE_ORDER: UserRole[] = [
-  'managing_director',
   'manager',
   'assistant_hall_manager',
   'cashier_1',

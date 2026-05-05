@@ -49,6 +49,21 @@ type MdAuditItem = {
   detail: string;
 };
 
+type MdCashRequestRow = {
+  id: string;
+  reference: string;
+  requester: string;
+  submittedByRole: CashRequestWorkflow['submittedByRole'];
+  amount: number;
+  statusLabel: string;
+  statusClass: string;
+  currentStage: string;
+  voucher: string;
+  submittedAt: string;
+  isOpen: boolean;
+  isCompleted: boolean;
+};
+
 const SECTION_COPY: Record<ManagingDirectorDashboardSection, { title: string; description: string; layoutTitle: string }> = {
   overview: {
     title: 'Managing Director Overview',
@@ -201,6 +216,24 @@ function cashRequestStatusClass(status: CashRequestWorkflow['currentStatus']) {
   }
 }
 
+function isCashRequestOutput(entry: DocumentOutput) {
+  return entry.formId === 'cash_request' || /cash request/i.test(entry.formTitle);
+}
+
+function isPaymentVoucherOutput(entry: DocumentOutput) {
+  return entry.formId === 'payment_voucher'
+    || /payment voucher/i.test(entry.formTitle)
+    || Boolean(entry.fields.voucher_number || entry.fields.voucher_no);
+}
+
+function getVoucherNumber(entry: DocumentOutput) {
+  return entry.fields.voucher_number ?? entry.fields.voucher_no ?? '-';
+}
+
+function getCashRequestAmount(fields: Record<string, string>) {
+  return parseCurrencyAmount(fields.total_requested ?? fields.amount);
+}
+
 function stockStatus(item: { currentQuantity: number; reorderLevel: number }) {
   if (item.currentQuantity <= 0) return 'Out of stock';
   if (item.currentQuantity <= item.reorderLevel) return 'Low stock';
@@ -226,6 +259,7 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
   const { items, movements, allocations: inventoryAllocations } = useInventory();
   const { approvals, auditLog } = useAuthorization();
   const [cashRequests, setCashRequests] = useState<CashRequestWorkflow[]>([]);
+  const [cashRequestOutputs, setCashRequestOutputs] = useState<DocumentOutput[]>([]);
   const [paymentVouchers, setPaymentVouchers] = useState<DocumentOutput[]>([]);
   const [workflowListenerError, setWorkflowListenerError] = useState<string | null>(null);
 
@@ -246,11 +280,9 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
       query(collection(db, DOCUMENT_OUTPUTS_COLLECTION), orderBy('submittedAt', 'desc')),
       (snapshot) => {
         setWorkflowListenerError(null);
-        setPaymentVouchers(
-          snapshot.docs
-            .map((item) => normalizeDocumentOutput({ id: item.id, ...item.data() }))
-            .filter((entry) => entry.formId === 'payment_voucher'),
-        );
+        const outputs = snapshot.docs.map((item) => normalizeDocumentOutput({ id: item.id, ...item.data() }));
+        setCashRequestOutputs(outputs.filter(isCashRequestOutput));
+        setPaymentVouchers(outputs.filter(isPaymentVoucherOutput));
       },
       (error) => {
         reportSnapshotError('md-dashboard-payment-vouchers', error);
@@ -443,21 +475,68 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
     };
   }, [bookingPaymentRows, bookings, payments]);
 
+  const syncedCashRequestRows = useMemo<MdCashRequestRow[]>(() => {
+    const workflowReferences = new Set<string>();
+    const workflowRows = cashRequests.map((entry) => {
+      const latestStage = entry.stages[entry.stages.length - 1];
+      workflowReferences.add(entry.reference);
+      workflowReferences.add(entry.id);
+
+      return {
+        id: `workflow-${entry.id}`,
+        reference: entry.reference,
+        requester: entry.fields.full_name ?? '-',
+        submittedByRole: entry.submittedByRole,
+        amount: getCashRequestAmount(entry.fields),
+        statusLabel: getCashRequestStatusLabel(entry.currentStatus),
+        statusClass: cashRequestStatusClass(entry.currentStatus),
+        currentStage: latestStage?.label ?? '-',
+        voucher: entry.paymentVoucherNumber ?? entry.paymentVoucherId ?? '-',
+        submittedAt: entry.submittedAt,
+        isOpen: entry.currentStatus !== 'completed' && entry.currentStatus !== 'declined',
+        isCompleted: entry.currentStatus === 'completed',
+      };
+    });
+
+    const documentOnlyRows = cashRequestOutputs
+      .filter((entry) => {
+        const reference = entry.reference ?? entry.fields.reference ?? entry.id;
+        return !workflowReferences.has(reference);
+      })
+      .map((entry) => ({
+        id: `document-${entry.id}`,
+        reference: entry.reference ?? entry.fields.reference ?? entry.id,
+        requester: entry.fields.full_name ?? entry.fields.requester_name ?? '-',
+        submittedByRole: entry.submittedByRole,
+        amount: getCashRequestAmount(entry.fields),
+        statusLabel: 'Synced document',
+        statusClass: 'bg-slate-200 text-slate-800',
+        currentStage: 'Synced in Documents',
+        voucher: entry.fields.voucher_number ?? entry.fields.voucher_no ?? '-',
+        submittedAt: entry.submittedAt,
+        isOpen: true,
+        isCompleted: false,
+      }));
+
+    return [...workflowRows, ...documentOnlyRows]
+      .sort((a, b) => toTimestamp(b.submittedAt) - toTimestamp(a.submittedAt));
+  }, [cashRequestOutputs, cashRequests]);
+
   const cashRequestSummary = useMemo(() => {
-    const open = cashRequests.filter((item) => item.currentStatus !== 'completed' && item.currentStatus !== 'declined').length;
-    const completed = cashRequests.filter((item) => item.currentStatus === 'completed').length;
-    const requestedTotal = cashRequests.reduce((sum, item) => sum + parseCurrencyAmount(item.fields.total_requested), 0);
+    const open = syncedCashRequestRows.filter((item) => item.isOpen).length;
+    const completed = syncedCashRequestRows.filter((item) => item.isCompleted).length;
+    const requestedTotal = syncedCashRequestRows.reduce((sum, item) => sum + item.amount, 0);
     const voucherTotal = paymentVouchers.reduce((sum, item) => sum + parseCurrencyAmount(item.fields.amount), 0);
 
     return {
-      cashRequests: cashRequests.length,
+      cashRequests: syncedCashRequestRows.length,
       open,
       completed,
       requestedTotal,
       vouchers: paymentVouchers.length,
       voucherTotal,
     };
-  }, [cashRequests, paymentVouchers]);
+  }, [paymentVouchers, syncedCashRequestRows]);
 
   const revenueTrendData = useMemo(() => {
     const buckets = new Map<string, { bucket: string; month: string; paid: number; quoted: number; bookings: number }>();
@@ -638,19 +717,16 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
   const exportCashRequests = () => {
     downloadCsv('md-cash-requests.csv', [
       ['Reference', 'Requester', 'Role', 'Amount', 'Status', 'Current Stage', 'Voucher', 'Submitted'],
-      ...cashRequests.map((entry) => {
-        const latestStage = entry.stages[entry.stages.length - 1];
-        return [
-          entry.reference,
-          entry.fields.full_name ?? '',
-          ROLE_LABELS[entry.submittedByRole] ?? entry.submittedByRole,
-          parseCurrencyAmount(entry.fields.total_requested),
-          getCashRequestStatusLabel(entry.currentStatus),
-          latestStage?.label ?? '',
-          entry.paymentVoucherNumber ?? entry.paymentVoucherId ?? '',
-          entry.submittedAt,
-        ];
-      }),
+      ...syncedCashRequestRows.map((entry) => [
+        entry.reference,
+        entry.requester,
+        ROLE_LABELS[entry.submittedByRole] ?? entry.submittedByRole,
+        entry.amount,
+        entry.statusLabel,
+        entry.currentStage,
+        entry.voucher === '-' ? '' : entry.voucher,
+        entry.submittedAt,
+      ]),
     ]);
   };
 
@@ -660,7 +736,7 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
       ...paymentVouchers.map((entry) => [
         entry.submittedAt,
         entry.reference ?? '',
-        entry.fields.voucher_number ?? '',
+        getVoucherNumber(entry) === '-' ? '' : getVoucherNumber(entry),
         entry.fields.request_reference ?? entry.fields.request_number ?? '',
         entry.fields.payee_name ?? '',
         parseCurrencyAmount(entry.fields.amount),
@@ -1281,30 +1357,25 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
               </TableRow>
             </TableHeader>
             <TableBody>
-              {cashRequests.length === 0 ? (
+              {syncedCashRequestRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-slate-500">No cash requests recorded yet.</TableCell>
                 </TableRow>
               ) : (
-                cashRequests.map((entry) => {
-                  const latestStage = entry.stages[entry.stages.length - 1];
-                  return (
-                    <TableRow key={entry.id}>
-                      <TableCell className="font-semibold text-slate-900">{entry.reference}</TableCell>
-                      <TableCell>{entry.fields.full_name ?? '-'}</TableCell>
-                      <TableCell>{ROLE_LABELS[entry.submittedByRole] ?? entry.submittedByRole}</TableCell>
-                      <TableCell className="text-right">{formatTZS(parseCurrencyAmount(entry.fields.total_requested))}</TableCell>
-                      <TableCell>
-                        <Badge className={cashRequestStatusClass(entry.currentStatus)}>
-                          {getCashRequestStatusLabel(entry.currentStatus)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{latestStage?.label ?? '-'}</TableCell>
-                      <TableCell>{entry.paymentVoucherNumber ?? entry.paymentVoucherId ?? '-'}</TableCell>
-                      <TableCell>{formatDateTime(entry.submittedAt)}</TableCell>
-                    </TableRow>
-                  );
-                })
+                syncedCashRequestRows.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-semibold text-slate-900">{entry.reference}</TableCell>
+                    <TableCell>{entry.requester}</TableCell>
+                    <TableCell>{ROLE_LABELS[entry.submittedByRole] ?? entry.submittedByRole}</TableCell>
+                    <TableCell className="text-right">{formatTZS(entry.amount)}</TableCell>
+                    <TableCell>
+                      <Badge className={entry.statusClass}>{entry.statusLabel}</Badge>
+                    </TableCell>
+                    <TableCell>{entry.currentStage}</TableCell>
+                    <TableCell>{entry.voucher}</TableCell>
+                    <TableCell>{formatDateTime(entry.submittedAt)}</TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
@@ -1349,7 +1420,7 @@ export default function ManagingDirectorDashboard({ section = 'overview' }: Mana
                   <TableRow key={entry.id}>
                     <TableCell>{formatDateTime(entry.submittedAt)}</TableCell>
                     <TableCell className="font-semibold text-slate-900">{entry.reference ?? '-'}</TableCell>
-                    <TableCell className="font-semibold text-slate-900">{entry.fields.voucher_number ?? '-'}</TableCell>
+                    <TableCell className="font-semibold text-slate-900">{getVoucherNumber(entry)}</TableCell>
                     <TableCell>{entry.fields.request_reference ?? entry.fields.request_number ?? '-'}</TableCell>
                     <TableCell>{entry.fields.payee_name ?? '-'}</TableCell>
                     <TableCell className="text-right">{formatTZS(parseCurrencyAmount(entry.fields.amount))}</TableCell>
