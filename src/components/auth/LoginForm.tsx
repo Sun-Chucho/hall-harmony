@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, UserRole } from '@/types/auth';
+import { UserRole } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, ArrowRight, Loader2, LogIn, ShieldCheck, UserRound } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -32,58 +31,32 @@ const SHORT_ROLE_LABELS: Record<UserRole, { en: string; sw: string }> = {
   accountant: { en: 'Accountant', sw: 'Mhasibu' },
 };
 
-const ROLE_DESCRIPTIONS: Record<UserRole, { en: string; sw: string }> = {
-  manager: { en: 'Runs hall operations, approvals, and daily service delivery.', sw: 'Anasimamia uendeshaji wa kumbi, approvals, na utoaji wa huduma kila siku.' },
-  managing_director: { en: 'Views executive performance, transfers, and top-level oversight.', sw: 'Anaona utendaji wa juu, uhamisho wa fedha, na usimamizi wa juu.' },
-  assistant_hall_manager: { en: 'Handles booking intake, reception, and past booking capture.', sw: 'Anashughulikia mapokezi, bookings, na kurekodi past booking.' },
-  cashier_1: { en: 'Handles payments, booking approvals, and cash movement.', sw: 'Anasimamia malipo, approvals za booking, na mzunguko wa fedha.' },
-  cashier_2: { en: 'Supports legacy cashier visibility.', sw: 'Anaunga mkono mwonekano wa cashier wa zamani.' },
-  controller: { en: 'Merged into accountant access.', sw: 'Imeunganishwa ndani ya accountant.' },
-  store_keeper: { en: 'Handles event planning and storekeeping from one workspace.', sw: 'Anasimamia upangaji wa matukio na storekeeping katika sehemu moja.' },
-  purchaser: { en: 'Handles purchases, low stock follow-up, and supplier workflow.', sw: 'Anashughulikia ununuzi, ufuatiliaji wa stock ndogo, na uratibu wa wasambazaji.' },
-  accountant: { en: 'Controls finance, approvals, reporting, and staff administration.', sw: 'Anasimamia fedha, approvals, taarifa, na utawala wa watumiaji.' },
-};
-
 function getDashboardRoute(role: UserRole) {
   if (role === 'cashier_1') return '/bookings';
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
 }
 
-function isLegacyAugustine(user: User) {
-  return /augustine/i.test(user.name);
+interface LoginFormProps {
+  lockedRole?: UserRole;
 }
 
-function getDisplayRole(user: User, selectedRole: UserRole): UserRole {
-  if (selectedRole === 'accountant' && user.role === 'controller') return 'accountant';
-  return user.role;
-}
-
-function getVisibleStaffName(user: User, selectedRole: UserRole, language: 'en' | 'sw') {
-  if (selectedRole === 'manager' && /diana|dianna/i.test(user.name)) {
-    return language === 'sw' ? 'Meneja wa Kumbi' : 'Halls Manager';
-  }
-  return user.name;
-}
-
-export function LoginForm() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>('manager');
-  const [selectedUserId, setSelectedUserId] = useState('');
+export function LoginForm({ lockedRole }: LoginFormProps) {
+  const [selectedRole, setSelectedRole] = useState<UserRole>(lockedRole ?? 'manager');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { loginWithResult, staffUsers, refreshStaffUsers } = useAuth();
+  const { loginWithResult, refreshStaffUsers } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
   const isSw = language === 'sw';
 
-  const selectedRoleUsers = useMemo(() => {
-    return staffUsers.filter((user) => {
-      if (isLegacyAugustine(user)) return false;
-      const displayRole = getDisplayRole(user, selectedRole);
-      return displayRole === selectedRole;
-    });
-  }, [selectedRole, staffUsers]);
+  useEffect(() => {
+    if (lockedRole) {
+      setSelectedRole(lockedRole);
+    }
+  }, [lockedRole]);
 
   useEffect(() => {
     void refreshStaffUsers();
@@ -92,33 +65,42 @@ export function LoginForm() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedUserId) {
+    if (!identifier.trim()) {
       toast({
-        title: isSw ? 'Chaguo linahitajika' : 'Selection required',
-        description: isSw ? 'Tafadhali chagua mtumiaji wa staff.' : 'Please select a staff member.',
+        title: isSw ? 'Akaunti inahitajika' : 'Account required',
+        description: isSw ? 'Tafadhali ingiza barua pepe au namba ya staff.' : 'Please enter your email or staff ID.',
         variant: 'destructive',
       });
       return;
     }
 
     setIsLoading(true);
-    const result = await loginWithResult(selectedUserId, password);
+    try {
+      const result = await loginWithResult(identifier, password, { allowedRoles: [selectedRole] });
 
-    if (result.ok) {
-      const selectedUser = staffUsers.find((item) => item.id === selectedUserId);
-      toast({
-        title: isSw ? 'Umeingia kikamilifu' : 'Login successful',
-        description: isSw ? 'Karibu kwenye mfumo wako wa kazi.' : 'Welcome to your workspace.',
-      });
-      navigate(getDashboardRoute(selectedUser?.role ?? selectedRole));
-    } else {
+      if (result.ok) {
+        toast({
+          title: isSw ? 'Umeingia kikamilifu' : 'Login successful',
+          description: isSw ? 'Karibu kwenye mfumo wako wa kazi.' : 'Welcome to your workspace.',
+        });
+        navigate(getDashboardRoute(selectedRole), { replace: true });
+        return;
+      }
+
       toast({
         title: isSw ? 'Kuingia kumeshindikana' : 'Login failed',
         description: result.message ?? (isSw ? 'Nenosiri si sahihi au akaunti imezimwa.' : 'Incorrect password or inactive user account.'),
         variant: 'destructive',
       });
+    } catch {
+      toast({
+        title: isSw ? 'Kuingia kumeshindikana' : 'Login failed',
+        description: isSw ? 'Jaribu tena baada ya muda mfupi.' : 'Please try again in a moment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -151,7 +133,12 @@ export function LoginForm() {
             </div>
 
             <div className="mt-8 grid gap-3">
-              {ROLE_ORDER.map((role) => {
+              {lockedRole ? (
+                <div className="rounded-2xl border border-white/30 bg-white px-4 py-5 text-slate-900 shadow-[0_20px_40px_rgba(15,23,42,0.18)]">
+                  <p className="text-sm font-semibold lg:text-base">{SHORT_ROLE_LABELS[lockedRole][language]}</p>
+                  <p className="mt-1 text-xs text-slate-500">{isSw ? 'Mlango binafsi wa kazi' : 'Private workspace access'}</p>
+                </div>
+              ) : ROLE_ORDER.map((role) => {
                 const active = selectedRole === role;
                 return (
                   <button
@@ -159,7 +146,7 @@ export function LoginForm() {
                     type="button"
                     onClick={() => {
                       setSelectedRole(role);
-                      setSelectedUserId('');
+                      setIdentifier('');
                       setPassword('');
                     }}
                     className={`group flex w-full items-center justify-between rounded-2xl border px-4 py-4 text-left transition ${
@@ -170,7 +157,6 @@ export function LoginForm() {
                   >
                     <div>
                       <p className="text-sm font-semibold lg:text-base">{SHORT_ROLE_LABELS[role][language]}</p>
-                      <p className={`mt-1 text-xs ${active ? 'text-slate-500' : 'text-white/65'}`}>{ROLE_DESCRIPTIONS[role][language]}</p>
                     </div>
                     <ArrowRight className={`h-5 w-5 transition ${active ? 'translate-x-0' : 'translate-x-0 text-white/45 group-hover:text-white'}`} />
                   </button>
@@ -200,7 +186,7 @@ export function LoginForm() {
                     {SHORT_ROLE_LABELS[selectedRole][language]}
                   </h3>
                   <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500 lg:text-base">
-                    {ROLE_DESCRIPTIONS[selectedRole][language]}
+                    {isSw ? 'Eneo salama la kazi kwa watumiaji walioidhinishwa.' : 'Secure workspace for authorized Kuringe Halls users.'}
                   </p>
                 </div>
                 <div className="hidden rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right text-xs text-emerald-700 sm:block">
@@ -213,31 +199,23 @@ export function LoginForm() {
 
               <form onSubmit={handleSignIn} className="mt-8 space-y-5">
                 <div className="space-y-3">
-                  <Label htmlFor="staff-user" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {isSw ? 'Mtumiaji' : 'Staff User'}
+                  <Label htmlFor="staff-identifier" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {isSw ? 'Akaunti' : 'Account'}
                   </Label>
-                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                    <SelectTrigger id="staff-user" className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 text-base shadow-none">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="rounded-xl bg-white p-2 shadow-sm">
-                          <UserRound className="h-4 w-4 text-slate-500" />
-                        </div>
-                        <SelectValue placeholder={isSw ? 'Chagua mtumiaji wa staff' : 'Select a staff member'} />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedRoleUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {getVisibleStaffName(user, selectedRole, language)} {!user.isActive ? (isSw ? '(Amezimwa)' : '(Inactive)') : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedRoleUsers.length === 0 ? (
-                    <p className="text-sm text-slate-500">
-                      {isSw ? 'Hakuna watumiaji kwa role hii kwenye staff directory.' : 'No users found for this role in the staff directory.'}
-                    </p>
-                  ) : null}
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="staff-identifier"
+                      type="text"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder={isSw ? 'Barua pepe au namba ya staff' : 'Email or staff ID'}
+                      autoComplete="username"
+                      className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 pl-12 text-base"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -250,6 +228,7 @@ export function LoginForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={isSw ? 'Ingiza nenosiri' : 'Enter password'}
+                    autoComplete="current-password"
                     className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 text-base"
                     required
                     disabled={isLoading}
@@ -258,7 +237,7 @@ export function LoginForm() {
 
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || !identifier.trim() || !password.trim()}
                   className="h-14 w-full rounded-2xl bg-slate-950 text-base font-semibold text-white hover:bg-slate-800"
                 >
                   {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}

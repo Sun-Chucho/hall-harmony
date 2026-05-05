@@ -60,6 +60,13 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Staff access
+
+- General staff sign-in: `/staff`
+- Managing Director sign-in: `/md`
+
+Login credentials are not printed in the sign-in page or repository docs. Use the Firebase staff account email or staff ID plus password issued by the administrator.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.

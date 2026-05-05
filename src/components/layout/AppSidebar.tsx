@@ -237,6 +237,7 @@ export function AppSidebar() {
 
   const managingDirectorNavItems: NavItem[] = [
     { title: 'MD Dashboard', icon: LayoutDashboard, path: '/managing-director-dashboard' },
+    { title: 'Analytics', icon: BarChart3, path: '/managing-director-dashboard/analytics' },
     { title: 'Stock Overview', icon: Package, path: '/managing-director-dashboard/stock-overview' },
     { title: 'Halls Payment & Booking', icon: Calendar, path: '/managing-director-dashboard/halls-payment-booking' },
     { title: 'Cash Requests & Vouchers', icon: FileText, path: '/managing-director-dashboard/cash-requests-vouchers' },

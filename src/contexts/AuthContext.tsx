@@ -24,7 +24,7 @@ import { auth, db, firebaseConfig } from '@/lib/firebase';
 interface AuthContextType extends AuthState {
   staffUsers: User[];
   login: (identifier: string, password: string) => Promise<boolean>;
-  loginWithResult: (identifier: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  loginWithResult: (identifier: string, password: string, options?: LoginOptions) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   switchUser: (userId: string) => void;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ ok: boolean; message: string }>;
@@ -37,10 +37,37 @@ interface AuthContextType extends AuthState {
   forceLogoutAllSessions: () => Promise<{ ok: boolean; message: string }>;
 }
 
+interface LoginOptions {
+  allowedRoles?: UserRole[];
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STAFF_COLLECTION = 'staff_users';
 const AUTH_PROFILE_CACHE_KEY = 'kuringe_auth_profile_v1';
 const SESSION_CONTROL_REF = doc(db, 'system_state', 'session_control');
+const FIREBASE_READ_TIMEOUT_MS = 12000;
+const FIREBASE_WRITE_TIMEOUT_MS = 10000;
+const FIREBASE_AUTH_TIMEOUT_MS = 18000;
+const LOGIN_TIMEOUT_MESSAGE = 'Login request timed out. Please check the connection and try again.';
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function isEmailIdentifier(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isTimeoutError(error: unknown) {
+  return error instanceof Error && /timed out/i.test(error.message);
+}
 
 function normalizeAuthPasswordInput(password: string) {
   return password.trim();
@@ -76,7 +103,11 @@ function normalizeUser(input: Partial<User> & { id: string; email: string; name:
 
 async function fetchStaffDirectory(): Promise<User[]> {
   try {
-    const snapshot = await getDocs(collection(db, STAFF_COLLECTION));
+    const snapshot = await withTimeout(
+      getDocs(collection(db, STAFF_COLLECTION)),
+      FIREBASE_READ_TIMEOUT_MS,
+      'Staff directory request timed out.',
+    );
 
     return snapshot.docs
       .map((item) => {
@@ -104,27 +135,27 @@ async function fetchStaffDirectory(): Promise<User[]> {
 }
 
 async function fetchProfileByUid(uid: string): Promise<User | null> {
-  try {
-    const profileRef = doc(db, STAFF_COLLECTION, uid);
-    const snapshot = await getDoc(profileRef);
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    const data = snapshot.data() as Partial<User>;
-    return normalizeUser({
-      id: snapshot.id,
-      email: data.email ?? '',
-      name: data.name ?? '',
-      role: (data.role as UserRole) ?? 'manager',
-      notes: data.notes ?? '',
-      isActive: data.isActive ?? true,
-      createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
-      lastLogin: data.lastLogin,
-    });
-  } catch {
+  const profileRef = doc(db, STAFF_COLLECTION, uid);
+  const snapshot = await withTimeout(
+    getDoc(profileRef),
+    FIREBASE_READ_TIMEOUT_MS,
+    'Staff profile request timed out.',
+  );
+  if (!snapshot.exists()) {
     return null;
   }
+
+  const data = snapshot.data() as Partial<User>;
+  return normalizeUser({
+    id: snapshot.id,
+    email: data.email ?? '',
+    name: data.name ?? '',
+    role: (data.role as UserRole) ?? 'manager',
+    notes: data.notes ?? '',
+    isActive: data.isActive ?? true,
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    lastLogin: data.lastLogin,
+  });
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -229,26 +260,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.user]);
 
   const loginWithResult = useCallback(
-    async (identifier: string, password: string): Promise<{ ok: boolean; message?: string }> => {
-      const normalizedIdentifier = identifier.trim().toLowerCase();
+    async (identifier: string, password: string, options: LoginOptions = {}): Promise<{ ok: boolean; message?: string }> => {
+      const cleanIdentifier = identifier.trim();
+      const normalizedIdentifier = cleanIdentifier.toLowerCase();
       const normalizedPassword = normalizeAuthPasswordInput(password);
-      const targetUser = staffUsers.find(
-        (item) => item.id === identifier || item.email.toLowerCase() === normalizedIdentifier,
+      let targetUser = staffUsers.find(
+        (item) => item.id === cleanIdentifier || item.email.toLowerCase() === normalizedIdentifier,
       );
 
-      if (!targetUser) {
-        return { ok: false, message: 'Selected user was not found in Firestore staff directory.' };
+      if (!targetUser && !isEmailIdentifier(normalizedIdentifier)) {
+        const directory = await fetchStaffDirectory();
+        targetUser = directory.find(
+          (item) => item.id === cleanIdentifier || item.email.toLowerCase() === normalizedIdentifier,
+        );
       }
 
       if (!normalizedPassword) {
         return { ok: false, message: 'Password is required.' };
       }
 
+      const emailForAuth = targetUser?.email ?? (isEmailIdentifier(normalizedIdentifier) ? normalizedIdentifier : '');
+      if (!emailForAuth) {
+        return { ok: false, message: 'Enter your staff email address, or wait briefly and try the staff ID again.' };
+      }
+
       try {
-        const credential = await signInWithEmailAndPassword(
-          auth,
-          targetUser.email,
-          normalizedPassword,
+        const credential = await withTimeout(
+          signInWithEmailAndPassword(
+            auth,
+            emailForAuth,
+            normalizedPassword,
+          ),
+          FIREBASE_AUTH_TIMEOUT_MS,
+          LOGIN_TIMEOUT_MESSAGE,
         );
         const profile = await fetchProfileByUid(credential.user.uid);
         if (!profile || !profile.isActive) {
@@ -256,12 +300,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, message: 'This user is inactive and cannot sign in.' };
         }
 
+        if (options.allowedRoles?.length && !options.allowedRoles.includes(profile.role)) {
+          await signOut(auth);
+          return { ok: false, message: 'This account is not allowed to enter the selected workspace.' };
+        }
+
         const nowIso = new Date().toISOString();
         try {
-          await updateDoc(doc(db, STAFF_COLLECTION, profile.id), sanitizeFirestoreData({
-            lastLogin: nowIso,
-            updatedAt: serverTimestamp(),
-          }));
+          await withTimeout(
+            updateDoc(doc(db, STAFF_COLLECTION, profile.id), sanitizeFirestoreData({
+              lastLogin: nowIso,
+              updatedAt: serverTimestamp(),
+            })),
+            FIREBASE_WRITE_TIMEOUT_MS,
+            'Last login update timed out.',
+          );
         } catch {
           // Continue when Firestore is unavailable.
         }
@@ -280,6 +333,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }));
         return { ok: true };
       } catch (error: unknown) {
+        try {
+          await signOut(auth);
+        } catch {
+          // Ignore cleanup failures; surface the original login error.
+        }
+        if (isTimeoutError(error)) {
+          return { ok: false, message: error instanceof Error ? error.message : LOGIN_TIMEOUT_MESSAGE };
+        }
         const authCode = typeof error === 'object' && error !== null && 'code' in error
           ? String((error as { code?: string }).code)
           : '';
