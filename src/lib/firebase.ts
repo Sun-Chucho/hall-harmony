@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
-import { enableIndexedDbPersistence, enableMultiTabIndexedDbPersistence, getFirestore, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyA08M8_yfVofSgG4xnNghAbObQaxLeYKVQ',
@@ -12,6 +12,20 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '1:449466711430:web:947979d6e5b2edeaa0c007',
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? 'G-8T01M0MG32',
 };
+
+function clearFirestorePersistenceMetadata() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith('firestore_'))
+      .forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // Ignore browser storage cleanup failures; Firestore will continue without offline persistence.
+  }
+}
+
+clearFirestorePersistenceMetadata();
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
@@ -28,12 +42,6 @@ export const db = (() => {
 if (typeof window !== 'undefined') {
   void setPersistence(auth, browserLocalPersistence).catch(() => {
     // Keep default persistence fallback if explicit local persistence fails.
-  });
-
-  void enableMultiTabIndexedDbPersistence(db).catch(() => {
-    void enableIndexedDbPersistence(db).catch(() => {
-      // Ignore when IndexedDB persistence is unsupported in this browser.
-    });
   });
 
   void isSupported()
