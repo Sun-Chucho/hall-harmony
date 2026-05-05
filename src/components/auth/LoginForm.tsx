@@ -31,6 +31,9 @@ const SHORT_ROLE_LABELS: Record<UserRole, { en: string; sw: string }> = {
   accountant: { en: 'Accountant', sw: 'Mhasibu' },
 };
 
+const MD_PASSWORD = '123456';
+const MD_LOGIN_IDENTIFIERS = ['md@kuringe.co.tz', 'edward.mushi@kuringe.co.tz', '11', '10'];
+
 function getDashboardRoute(role: UserRole) {
   if (role === 'cashier_1') return '/bookings';
   return role === 'managing_director' ? '/managing-director-dashboard' : '/dashboard';
@@ -46,11 +49,12 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { loginWithResult, refreshStaffUsers } = useAuth();
+  const { loginWithResult, refreshStaffUsers, staffUsers } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
   const isSw = language === 'sw';
+  const isManagingDirectorOnly = lockedRole === 'managing_director';
 
   useEffect(() => {
     if (lockedRole) {
@@ -65,7 +69,7 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!identifier.trim()) {
+    if (!isManagingDirectorOnly && !identifier.trim()) {
       toast({
         title: isSw ? 'Akaunti inahitajika' : 'Account required',
         description: isSw ? 'Tafadhali ingiza barua pepe au namba ya staff.' : 'Please enter your email or staff ID.',
@@ -74,9 +78,29 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
       return;
     }
 
+    if (isManagingDirectorOnly && password.trim() !== MD_PASSWORD) {
+      toast({
+        title: isSw ? 'Kuingia kumeshindikana' : 'Login failed',
+        description: isSw ? 'Nenosiri la MD si sahihi.' : 'The MD password is incorrect.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const result = await loginWithResult(identifier, password, { allowedRoles: [selectedRole] });
+      const mdDirectoryIdentifiers = staffUsers
+        .filter((user) => user.role === 'managing_director' && user.isActive)
+        .flatMap((user) => [user.email, user.id]);
+      const loginIdentifiers = isManagingDirectorOnly
+        ? Array.from(new Set([...mdDirectoryIdentifiers, ...MD_LOGIN_IDENTIFIERS]))
+        : [identifier];
+
+      let result: { ok: boolean; message?: string } = { ok: false, message: 'Login failed.' };
+      for (const loginIdentifier of loginIdentifiers) {
+        result = await loginWithResult(loginIdentifier, password, { allowedRoles: [selectedRole] });
+        if (result.ok) break;
+      }
 
       if (result.ok) {
         toast({
@@ -198,25 +222,27 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
               </div>
 
               <form onSubmit={handleSignIn} className="mt-8 space-y-5">
-                <div className="space-y-3">
-                  <Label htmlFor="staff-identifier" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    {isSw ? 'Akaunti' : 'Account'}
-                  </Label>
-                  <div className="relative">
-                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      id="staff-identifier"
-                      type="text"
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder={isSw ? 'Barua pepe au namba ya staff' : 'Email or staff ID'}
-                      autoComplete="username"
-                      className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 pl-12 text-base"
-                      required
-                      disabled={isLoading}
-                    />
+                {!isManagingDirectorOnly ? (
+                  <div className="space-y-3">
+                    <Label htmlFor="staff-identifier" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {isSw ? 'Akaunti' : 'Account'}
+                    </Label>
+                    <div className="relative">
+                      <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="staff-identifier"
+                        type="text"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        placeholder={isSw ? 'Barua pepe au namba ya staff' : 'Email or staff ID'}
+                        autoComplete="username"
+                        className="h-14 rounded-2xl border-slate-200 bg-slate-50/90 pl-12 text-base"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <div className="space-y-3">
                   <Label htmlFor="password" className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -237,7 +263,7 @@ export function LoginForm({ lockedRole }: LoginFormProps) {
 
                 <Button
                   type="submit"
-                  disabled={isLoading || !identifier.trim() || !password.trim()}
+                  disabled={isLoading || (!isManagingDirectorOnly && !identifier.trim()) || !password.trim()}
                   className="h-14 w-full rounded-2xl bg-slate-950 text-base font-semibold text-white hover:bg-slate-800"
                 >
                   {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogIn className="mr-2 h-5 w-5" />}
